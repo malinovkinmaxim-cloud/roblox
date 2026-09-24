@@ -48,39 +48,38 @@ local function touchesHazard(level, pos)
 	return false
 end
 
-local function applyChannel(level)
-	local on = level.channelOn
-	for _, part in level.bridges do
+local function applyChannel(channel)
+	local on = channel.on
+	for _, part in channel.bridges do
 		part.CanCollide = on
 		part.Transparency = if on then 0 else 0.8
 	end
-	for _, part in level.walls do
+	for _, part in channel.walls do
 		part.CanCollide = not on
 		part.Transparency = if on then 0.85 else 0
 	end
 end
 
 local function updateButtons(level, active, playerCount)
-	if #level.buttons == 0 then
-		return
-	end
-	local need = Config.needFor(level.buttonNeed, playerCount)
-	local anyPressed = false
-	for _, button in level.buttons do
-		local count = countAbove(active, button.x, button.halfWidth, button.top)
-		local pressed = count >= need
-		if pressed ~= button.pressed then
-			button.pressed = pressed
-			button.part.Color = if pressed then PALETTE.buttonPressed else PALETTE.button
-			button.part.CFrame = CFrame.new(button.x, button.restY - (if pressed then 0.3 else 0), 0)
+	for _, channel in level.channels do
+		local need = Config.needFor(channel.need, playerCount)
+		local anyPressed = false
+		for _, button in channel.buttons do
+			local count = countAbove(active, button.x, button.halfWidth, button.top)
+			local pressed = count >= need
+			if pressed ~= button.pressed then
+				button.pressed = pressed
+				button.part.Material = if pressed then Enum.Material.Neon else Enum.Material.SmoothPlastic
+				button.part.CFrame = CFrame.new(button.x, button.restY - (if pressed then 0.3 else 0), 0)
+			end
+			setText(button, `{count}/{need}`)
+			anyPressed = anyPressed or pressed
 		end
-		setText(button, `{count}/{need}`)
-		anyPressed = anyPressed or pressed
-	end
-	local on = anyPressed or (level.latch and level.channelOn)
-	if on ~= level.channelOn then
-		level.channelOn = on
-		applyChannel(level)
+		local on = anyPressed or (channel.latch and channel.on)
+		if on ~= channel.on then
+			channel.on = on
+			applyChannel(channel)
+		end
 	end
 end
 
@@ -186,6 +185,8 @@ local function unlockDoor(level)
 	door.unlocked = true
 	door.panel.Color = PALETTE.doorOpen
 	door.panel.Material = Enum.Material.SmoothPlastic
+	door.label.Parent.BackgroundColor3 = PALETTE.buttonPressed
+	door.label.TextColor3 = Color3.new(1, 1, 1)
 	if level.key then
 		level.key.model:Destroy()
 		level.key = nil

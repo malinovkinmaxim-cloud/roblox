@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local UiStyle = require(ReplicatedStorage.Shared.UiStyle)
 
 local CharacterFactory = {}
 
@@ -102,22 +103,10 @@ function CharacterFactory.decorate(character, color, displayName)
 
 	local head = character:FindFirstChild("Head")
 	if head then
-		local tag = Instance.new("BillboardGui")
+		local _, tag = UiStyle.worldTag(head, Vector3.new(0, 3.2, 0), displayName, color)
 		tag.Name = "NameTag"
-		tag.Size = UDim2.fromOffset(120, 26)
-		tag.StudsOffset = Vector3.new(0, 3, 0)
-		tag.LightInfluence = 0
-		local label = Instance.new("TextLabel")
-		label.BackgroundTransparency = 1
-		label.Size = UDim2.fromScale(1, 1)
-		label.Font = Enum.Font.FredokaOne
-		label.TextScaled = true
-		label.TextColor3 = color
-		label.TextStrokeColor3 = Color3.new(1, 1, 1)
-		label.TextStrokeTransparency = 0
-		label.Text = displayName
-		label.Parent = tag
-		tag.Parent = head
+		tag.Size = UDim2.fromOffset(130, 30)
+		tag.AlwaysOnTop = false
 	end
 end
 

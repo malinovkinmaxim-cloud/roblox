@@ -2,96 +2,98 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local UiStyle = require(Shared:WaitForChild("UiStyle"))
 
 local remotes = ReplicatedStorage:WaitForChild("HubRemotes")
 local startNowRemote = remotes:WaitForChild("StartNow")
 local noticeRemote = remotes:WaitForChild("Notice")
 
 local player = Players.LocalPlayer
-local TEXT = Config.PALETTE.text
+local C = UiStyle.colors
+local F = UiStyle.fonts
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "HubUI"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local function label(parent, props)
-	local l = Instance.new("TextLabel")
-	l.BackgroundTransparency = 1
-	l.Font = Enum.Font.FredokaOne
-	l.TextScaled = true
-	l.TextColor3 = TEXT
-	for k, v in props do
-		l[k] = v
-	end
-	l.Parent = parent
-	return l
+local function popIn(container)
+	local scale = container:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+	scale.Parent = container
+	scale.Scale = 0.4
+	TweenService:Create(scale, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 end
 
-local function rounded(instance, radius)
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = radius
-	corner.Parent = instance
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 3
-	stroke.Color = TEXT
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Parent = instance
-end
-
-label(gui, {
+-- Title card
+local titleBody = UiStyle.card(gui, {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 8),
-	Size = UDim2.new(0.6, 0, 0, 30),
-	Text = `{Config.GAME_TITLE} · выберите комнату`,
-	TextStrokeColor3 = Color3.new(1, 1, 1),
-	TextStrokeTransparency = 0,
+	Position = UDim2.new(0.5, 0, 0, 12),
+	Size = UDim2.fromOffset(420, 70),
+})
+local logo = UiStyle.text(titleBody, {
+	Position = UDim2.fromOffset(0, 6),
+	Size = UDim2.new(1, 0, 0, 34),
+	FontFace = F.logo,
+	TextSize = 32,
+	TextColor3 = Config.PALETTE.lift,
+	Text = Config.GAME_TITLE,
+})
+UiStyle.stroke(logo, 3, C.ink, Enum.ApplyStrokeMode.Contextual)
+UiStyle.text(titleBody, {
+	Position = UDim2.fromOffset(0, 42),
+	Size = UDim2.new(1, 0, 0, 20),
+	FontFace = F.bold,
+	TextSize = 16,
+	TextColor3 = C.muted,
+	Text = `Встаньте на платформу комнаты · от {Config.ROOM_MIN_PLAYERS} игроков`,
 })
 
-local panel = Instance.new("Frame")
-panel.AnchorPoint = Vector2.new(0.5, 1)
-panel.Position = UDim2.new(0.5, 0, 1, -24)
-panel.Size = UDim2.fromOffset(380, 130)
-panel.BackgroundColor3 = Color3.new(1, 1, 1)
-panel.BackgroundTransparency = 0.1
-panel.Visible = false
-rounded(panel, UDim.new(0, 16))
-panel.Parent = gui
-
-local roomTitle = label(panel, {
-	Position = UDim2.fromOffset(12, 8),
-	Size = UDim2.new(1, -24, 0, 32),
+-- Room panel
+local panelBody, panel = UiStyle.card(gui, {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -24),
+	Size = UDim2.fromOffset(400, 150),
+	Visible = false,
 })
-local roomStatus = label(panel, {
-	Position = UDim2.fromOffset(12, 42),
-	Size = UDim2.new(1, -24, 0, 24),
-	Font = Enum.Font.GothamMedium,
+local roomTitle = UiStyle.text(panelBody, {
+	Position = UDim2.fromOffset(0, 12),
+	Size = UDim2.new(1, 0, 0, 32),
+	TextSize = 28,
 })
-
-local startButton = Instance.new("TextButton")
-startButton.AnchorPoint = Vector2.new(0.5, 1)
-startButton.Position = UDim2.new(0.5, 0, 1, -10)
-startButton.Size = UDim2.fromOffset(220, 42)
-startButton.BackgroundColor3 = Config.PALETTE.buttonPressed
-startButton.Font = Enum.Font.FredokaOne
-startButton.TextScaled = true
-startButton.TextColor3 = Color3.new(1, 1, 1)
-startButton.Text = "Начать сейчас"
-rounded(startButton, UDim.new(0.5, 0))
-startButton.Parent = panel
+local roomStatus = UiStyle.text(panelBody, {
+	Position = UDim2.fromOffset(12, 46),
+	Size = UDim2.new(1, -24, 0, 22),
+	FontFace = F.bold,
+	TextSize = 17,
+	TextColor3 = C.muted,
+})
+local startButton, startContainer = UiStyle.button(panelBody, {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -18),
+	Size = UDim2.fromOffset(230, 50),
+}, "Начать сейчас", C.success, C.white)
 startButton.Activated:Connect(function()
 	startNowRemote:FireServer()
 end)
 
-local toast = label(gui, {
+-- Toast
+local toastBody, toast = UiStyle.card(gui, {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 50),
-	Size = UDim2.new(0.7, 0, 0, 30),
-	TextStrokeColor3 = Color3.new(1, 1, 1),
-	TextStrokeTransparency = 1,
-	TextTransparency = 1,
-})
+	Position = UDim2.new(0.5, 0, 0, 96),
+	Size = UDim2.fromOffset(460, 48),
+	Visible = false,
+}, C.danger)
+local toastText = UiStyle.outlinedText(toastBody, {
+	Position = UDim2.fromOffset(12, 6),
+	Size = UDim2.new(1, -24, 1, -12),
+	TextScaled = true,
+	TextWrapped = true,
+}, 2)
+local toastLimit = Instance.new("UITextSizeConstraint")
+toastLimit.MaxTextSize = 20
+toastLimit.Parent = toastText
 
 local function refresh()
 	local capacity = player:GetAttribute("RoomCapacity") or 0
@@ -103,16 +105,19 @@ local function refresh()
 	local secondsLeft = player:GetAttribute("RoomSecondsLeft") or -1
 	local state = player:GetAttribute("RoomState")
 
-	panel.Visible = true
+	if not panel.Visible then
+		panel.Visible = true
+		popIn(panel)
+	end
 	roomTitle.Text = `Комната на {capacity} · {count}/{capacity}`
 	if state == "teleporting" then
 		roomStatus.Text = "Переходим в игру…"
 	elseif secondsLeft >= 0 then
 		roomStatus.Text = `Старт через {secondsLeft} с · сойдите с платформы, чтобы выйти`
 	else
-		roomStatus.Text = `Ждём ещё {Config.ROOM_MIN_PLAYERS - count} игрока (минимум {Config.ROOM_MIN_PLAYERS})`
+		roomStatus.Text = `Ждём ещё игроков: минимум {Config.ROOM_MIN_PLAYERS}`
 	end
-	startButton.Visible = state ~= "teleporting" and count >= Config.ROOM_MIN_PLAYERS
+	startContainer.Visible = state ~= "teleporting" and count >= Config.ROOM_MIN_PLAYERS
 end
 
 for _, name in { "RoomCapacity", "RoomCount", "RoomSecondsLeft", "RoomState" } do
@@ -124,12 +129,12 @@ local toastId = 0
 noticeRemote.OnClientEvent:Connect(function(text)
 	toastId += 1
 	local id = toastId
-	toast.Text = text
-	toast.TextTransparency = 0
-	toast.TextStrokeTransparency = 0
-	task.delay(3, function()
+	toastText.Text = text
+	toast.Visible = true
+	popIn(toast)
+	task.delay(3.5, function()
 		if id == toastId then
-			TweenService:Create(toast, TweenInfo.new(0.5), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+			toast.Visible = false
 		end
 	end)
 end)

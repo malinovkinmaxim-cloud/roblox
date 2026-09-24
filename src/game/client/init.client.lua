@@ -1,3 +1,4 @@
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -174,6 +175,31 @@ local function applyTether(root, dir)
 	return dir
 end
 
+local lastBounce = 0
+
+-- Trampolines are handled on the client because each player simulates their own character
+local function checkSprings(root, humanoid)
+	if os.clock() - lastBounce < 0.25 then
+		return
+	end
+	local pos = root.Position
+	local velocity = root.AssemblyLinearVelocity
+	if velocity.Y > 1 then
+		return
+	end
+	for _, spring in CollectionService:GetTagged("Spring") do
+		local top = spring.Position.Y + spring.Size.Y / 2
+		local dy = pos.Y - top
+		if math.abs(pos.X - spring.Position.X) < spring.Size.X / 2 + Config.CHAR_HALF_WIDTH * 0.6 and dy > 0 and dy < Config.CHAR_BOTTOM + 0.4 then
+			lastBounce = os.clock()
+			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+			local speed = math.sqrt(2 * workspace.Gravity * Config.SPRING_HEIGHT)
+			root.AssemblyLinearVelocity = Vector3.new(velocity.X, speed, 0)
+			return
+		end
+	end
+end
+
 local function updateCharacter()
 	local dir, jump = readInput()
 
@@ -188,6 +214,7 @@ local function updateCharacter()
 			facing = dir
 		end
 		lockToPlane(root)
+		checkSprings(root, humanoid)
 		humanoid:Move(Vector3.new(dir, 0, 0), false)
 		if jump then
 			humanoid.Jump = true

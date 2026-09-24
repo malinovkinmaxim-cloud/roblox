@@ -67,9 +67,11 @@ local level = nil
 local phase = "loading"
 local messageId = 0
 
-local function setMessage(text)
+-- kind: "success" | "fail" | "info" (picks the banner colour on the client)
+local function setMessage(text, kind)
 	messageId += 1
 	gameState:SetAttribute("Message", text)
+	gameState:SetAttribute("MessageKind", kind or "info")
 	gameState:SetAttribute("MessageId", messageId)
 end
 
@@ -123,12 +125,12 @@ local function loadLevel(index)
 	phase = "playing"
 end
 
-local function restartLevel(text)
+local function restartLevel(text, kind)
 	if phase ~= "playing" then
 		return
 	end
 	phase = "transition"
-	setMessage(text)
+	setMessage(text, kind or "fail")
 	task.wait(Config.FAIL_DELAY)
 	loadLevel(levelIndex)
 end
@@ -152,10 +154,10 @@ local function completeLevel()
 	end
 	phase = "transition"
 	local isLast = levelIndex >= #Levels
-	setMessage(if isLast then "Все уровни пройдены! 🎉" else "Уровень пройден!")
+	setMessage(if isLast then "Все уровни пройдены!" else "Уровень пройден!", "success")
 	task.wait(Config.COMPLETE_DELAY)
 	if isLast and sendToHub(Players:GetPlayers()) then
-		setMessage("Возвращаемся в хаб…")
+		setMessage("Возвращаемся в хаб…", "info")
 		-- If some teleports failed, keep playing with whoever is still here
 		task.wait(15)
 	end
@@ -178,7 +180,7 @@ local function onCharacterAdded(player, character)
 	local humanoid = character:WaitForChild("Humanoid")
 	humanoid.Died:Connect(function()
 		if player.Character == character then
-			task.spawn(restartLevel, "Упс! Попробуем ещё раз")
+			task.spawn(restartLevel, "Упс! Ещё разок")
 		end
 	end)
 end
@@ -227,7 +229,7 @@ inputRemote.OnServerEvent:Connect(function(player, dir)
 end)
 
 restartRemote.OnServerEvent:Connect(function(player)
-	task.spawn(restartLevel, `{player.DisplayName} перезапускает уровень`)
+	task.spawn(restartLevel, `{player.DisplayName} начинает заново`, "info")
 end)
 
 toHubRemote.OnServerEvent:Connect(function(player)
@@ -263,7 +265,7 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 
 	if Mechanics.step(level, dt, infos, #all, os.clock()) == "fail" then
-		task.spawn(restartLevel, "Упс! Попробуем ещё раз")
+		task.spawn(restartLevel, "Упс! Ещё разок")
 		return
 	end
 

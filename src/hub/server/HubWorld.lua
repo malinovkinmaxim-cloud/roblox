@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local UiStyle = require(ReplicatedStorage.Shared.UiStyle)
 
 local PALETTE = Config.PALETTE
 
@@ -24,19 +25,15 @@ local function part(name, size, cframe, color, parent)
 	return p
 end
 
-local function textLabel(parent, text, size, position, color)
-	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
-	label.TextColor3 = color
-	label.TextStrokeColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0
-	label.Size = size
-	label.Position = position
-	label.Text = text
-	label.Parent = parent
-	return label
+local function textLabel(parent, text, size, position, color, font)
+	return UiStyle.text(parent, {
+		FontFace = font or UiStyle.fonts.heavy,
+		TextScaled = true,
+		TextColor3 = color,
+		Size = size,
+		Position = position,
+		Text = text,
+	})
 end
 
 -- Vertical cylinder standing on the floor (Y = 0) with its bottom at `bottom`
@@ -64,7 +61,8 @@ local function buildTitle(parent)
 	gui.PixelsPerStud = 20
 	gui.LightInfluence = 0
 	gui.Parent = board
-	textLabel(gui, Config.GAME_TITLE, UDim2.fromScale(1, 0.55), UDim2.fromScale(0, 0.05), PALETTE.lift)
+	local logo = textLabel(gui, Config.GAME_TITLE, UDim2.fromScale(1, 0.55), UDim2.fromScale(0, 0.05), PALETTE.lift, UiStyle.fonts.logo)
+	UiStyle.stroke(logo, 6, UiStyle.colors.ink, Enum.ApplyStrokeMode.Contextual)
 	textLabel(
 		gui,
 		"Встаньте на платформу комнаты вместе с друзьями.\nКомната стартует, когда в ней 2 игрока или больше.",
@@ -112,13 +110,29 @@ function HubWorld.build(padRadius)
 		local pad = disc("Pad", padRadius * 2, 1, center.X, center.Z, 0, color, folder)
 
 		local gui = Instance.new("BillboardGui")
-		gui.Size = UDim2.fromScale(14, 5)
+		gui.Size = UDim2.fromScale(14, 5.6)
 		gui.StudsOffset = Vector3.new(0, 8, 0)
 		gui.LightInfluence = 0
 		gui.MaxDistance = 150
 		gui.Parent = pad
-		textLabel(gui, `КОМНАТА НА {capacity}`, UDim2.fromScale(1, 0.55), UDim2.fromScale(0, 0), color)
-		local status = textLabel(gui, "", UDim2.fromScale(1, 0.4), UDim2.fromScale(0, 0.58), PALETTE.text)
+
+		local titlePill = Instance.new("Frame")
+		titlePill.BackgroundColor3 = color
+		titlePill.Size = UDim2.fromScale(1, 0.5)
+		UiStyle.corner(titlePill, UDim.new(0.5, 0))
+		UiStyle.stroke(titlePill, 3)
+		titlePill.Parent = gui
+		local title = textLabel(titlePill, `КОМНАТА НА {capacity}`, UDim2.fromScale(0.86, 0.7), UDim2.fromScale(0.07, 0.15), UiStyle.colors.white)
+		UiStyle.stroke(title, 2.5, UiStyle.colors.ink, Enum.ApplyStrokeMode.Contextual)
+
+		local statusPill = Instance.new("Frame")
+		statusPill.BackgroundColor3 = UiStyle.colors.paper
+		statusPill.Position = UDim2.fromScale(0.1, 0.58)
+		statusPill.Size = UDim2.fromScale(0.8, 0.4)
+		UiStyle.corner(statusPill, UDim.new(0.5, 0))
+		UiStyle.stroke(statusPill, 2.5)
+		statusPill.Parent = gui
+		local status = textLabel(statusPill, "", UDim2.fromScale(0.86, 0.7), UDim2.fromScale(0.07, 0.15), UiStyle.colors.ink)
 
 		table.insert(rooms, {
 			capacity = capacity,

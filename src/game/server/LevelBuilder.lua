@@ -1,6 +1,8 @@
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local UiStyle = require(ReplicatedStorage.Shared.UiStyle)
 
 local T = Config.TILE
 local DEPTH = Config.TILE_DEPTH
@@ -39,34 +41,21 @@ local function makeFaceLabel(part, text, color)
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
 	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.FredokaOne
+	label.FontFace = UiStyle.fonts.logo
 	label.TextScaled = true
 	label.TextColor3 = color
 	label.Text = text
+	UiStyle.stroke(label, 4, Color3.new(1, 1, 1), Enum.ApplyStrokeMode.Contextual)
 	label.Parent = gui
 	gui.Parent = part
 	return label
 end
 
-local function makeBillboard(part, offset, text)
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(90, 44)
-	gui.StudsOffset = offset
-	gui.AlwaysOnTop = true
-	gui.LightInfluence = 0
-	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
-	label.TextColor3 = PALETTE.text
-	label.TextStrokeColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0
-	label.Text = text
-	label.Parent = gui
-	gui.Parent = part
-	return label
-end
+-- Channel "b" = purple buttons/walls/bridges, channel "c" = pink ones
+local CHANNEL_TILES = {
+	b = { button = "b", wall = "x", bridge = "g", color = PALETTE.gate, option = "button" },
+	c = { button = "c", wall = "y", bridge = "h", color = PALETTE.gate2, option = "button2" },
+}
 
 local function parseGrid(map)
 	local height = #map
@@ -216,12 +205,7 @@ function LevelBuilder.build(data, levelIndex)
 		spawn = Vector3.new(tileX(1), tileBottom(height) + T, 0),
 		key = nil,
 		door = nil,
-		buttons = {},
-		buttonNeed = data.button and data.button.need or 1,
-		latch = data.button and data.button.latch or false,
-		channelOn = false,
-		bridges = {},
-		walls = {},
+		channels = {},
 		boxes = {},
 		lifts = {},
 		hazards = {},
@@ -280,17 +264,71 @@ function LevelBuilder.build(data, levelIndex)
 		)
 	end)
 
-	-- Channel-controlled bridges and walls
-	eachRun(width, height, function(r, c)
-		return grid[r][c] == "g"
-	end, function(r, c0, c1)
-		table.insert(level.bridges, runPart("Bridge", r, c0, c1, PALETTE.gate, solids))
-	end)
-	eachRun(width, height, function(r, c)
-		return grid[r][c] == "x"
-	end, function(r, c0, c1)
-		table.insert(level.walls, runPart("Wall", r, c0, c1, PALETTE.gate, solids))
-	end)
+	-- Button channels with the walls and bridges they control
+	for id, tiles in CHANNEL_TILES do
+		local options = data[tiles.option] or {}
+		local channel = {
+			id = id,
+			color = tiles.color,
+			need = options.need or 1,
+			latch = options.latch or false,
+			on = false,
+			buttons = {},
+			walls = {},
+			bridges = {},
+		}
+		eachRun(width, height, function(r, c)
+			return grid[r][c] == tiles.bridge
+		end, function(r, c0, c1)
+			local bridge = runPart("Bridge", r, c0, c1, tiles.color, solids)
+			bridge.CanCollide = false
+			bridge.Transparency = 0.8
+			table.insert(channel.bridges, bridge)
+		end)
+		eachRun(width, height, function(r, c)
+			return grid[r][c] == tiles.wall
+		end, function(r, c0, c1)
+			table.insert(channel.walls, runPart("Wall", r, c0, c1, tiles.color, solids))
+		end)
+		for r = 1, height do
+			for c = 1, width do
+				if grid[r][c] == tiles.button then
+					local x, bottom = tileX(c), tileBottom(r)
+					local plate = makePart("Button", Vector3.new(T * 0.9, 0.5, 2.6), CFrame.new(x, bottom + 0.25, 0), tiles.color, solids)
+					table.insert(channel.buttons, {
+						part = plate,
+						x = x,
+						halfWidth = T * 0.45,
+						top = bottom + 0.5,
+						restY = bottom + 0.25,
+						pressed = false,
+						label = UiStyle.worldTag(plate, Vector3.new(0, 2.6, 0), "", tiles.color, Color3.new(1, 1, 1)),
+						shownText = nil,
+					})
+				end
+			end
+		end
+		if #channel.buttons > 0 then
+			level.channels[id] = channel
+		end
+	end
+
+	-- Trampolines
+	for r = 1, height do
+		for c = 1, width do
+			if grid[r][c] == "j" then
+				local x, bottom = tileX(c), tileBottom(r)
+				local spring = makePart("Spring", Vector3.new(T * 0.9, 0.7, 2.6), CFrame.new(x, bottom + 0.35, 0), PALETTE.spring, solids)
+				spring.Material = Enum.Material.Neon
+				CollectionService:AddTag(spring, "Spring")
+				for _, dy in { -0.15, 0.15 } do
+					makeDecor(
+						makePart("SpringStripe", Vector3.new(T * 0.7, 0.08, 0.1), CFrame.new(x, bottom + 0.35 + dy, 1.36), PALETTE.springStripe, decor)
+					)
+				end
+			end
+		end
+	end
 
 	-- Spikes
 	eachRun(width, height, function(r, c)
@@ -379,22 +417,9 @@ function LevelBuilder.build(data, levelIndex)
 					unlocked = false,
 					frame = frame,
 					panel = panel,
-					label = makeBillboard(frame, Vector3.new(0, T + 1.5, 0), "🔒"),
+					label = UiStyle.worldTag(frame, Vector3.new(0, T + 1.6, 0), "🔒", UiStyle.colors.gold),
 					shownText = nil,
 				}
-			elseif ch == "b" then
-				local plate = makePart("Button", Vector3.new(T * 0.9, 0.5, 2.6), CFrame.new(x, bottom + 0.25, 0), PALETTE.button, solids)
-				plate.Material = Enum.Material.Neon
-				table.insert(level.buttons, {
-					part = plate,
-					x = x,
-					halfWidth = T * 0.45,
-					top = bottom + 0.5,
-					restY = bottom + 0.25,
-					pressed = false,
-					label = makeBillboard(plate, Vector3.new(0, 2.5, 0), ""),
-					shownText = nil,
-				})
 			end
 		end
 	end
