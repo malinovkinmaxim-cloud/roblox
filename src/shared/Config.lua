@@ -13,6 +13,9 @@ Config.ROOM_WAIT = 20 -- countdown once MIN players are in
 Config.ROOM_FULL_WAIT = 5 -- countdown once the room is full
 Config.ROOM_START_NOW_WAIT = 3
 
+-- In Studio every mode is unlocked so all levels can be tested (DataStores are often off there)
+Config.STUDIO_UNLOCK_ALL = true
+
 -- Game server waits this long for the whole room to arrive before level 1
 Config.TEAM_ARRIVAL_TIMEOUT = 20
 

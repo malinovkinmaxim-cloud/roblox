@@ -24,12 +24,13 @@ local DOOR = byKind("door")[1]
 local KEYS = byKind("key")
 local MIDDLE = byKind("mid")
 
-local function pickWeighted(rng, options, tier, avoid)
+-- Chunks of the current tier are 3x as likely as easier ones, so each step up in difficulty is felt
+local function pick(rng, options, tier, avoid, scrollOnly)
 	local total = 0
 	local weights = {}
 	for i, chunk in options do
 		local w = 0
-		if chunk.tier <= tier and chunk ~= avoid then
+		if chunk.tier <= tier and chunk ~= avoid and (not scrollOnly or chunk.scrollSafe) then
 			w = if chunk.tier == tier then 3 else 1
 		end
 		weights[i] = w
@@ -46,28 +47,38 @@ local function pickWeighted(rng, options, tier, avoid)
 end
 
 -- Same (seed, index) always gives the same level, so a restart replays the same layout.
+-- Difficulty ramps up with index: harder chunks every 3 levels, longer levels, faster cannons,
+-- quicker moving platforms and, later on, scrolling screens, time limits and red lights.
 function LevelGenerator.generate(seed, index)
 	local rng = Random.new(seed * 7919 + index)
-	local tier = math.min(3, 1 + (index - 1) // 3)
-	local count = math.min(9, 3 + index // 2)
+	local tier = math.min(4, 1 + (index - 1) // 3)
+	local count = math.min(12, 3 + index // 2)
 	local maxDigit = math.min(4, tier + 1)
+	local scrolling = tier >= 3 and rng:NextNumber() < 0.2
 
 	local sequence = {}
 	local previous = nil
 	for _ = 1, count do
-		local chunk = pickWeighted(rng, MIDDLE, tier, previous)
+		local chunk = pick(rng, MIDDLE, tier, previous, scrolling)
 		table.insert(sequence, chunk)
 		previous = chunk
 	end
-	local key = pickWeighted(rng, KEYS, math.min(tier, 2), nil)
+	local key = pick(rng, KEYS, tier, nil, scrolling)
 	table.insert(sequence, rng:NextInteger(math.ceil(count / 2), count + 1), key)
 	table.insert(sequence, 1, START)
 	table.insert(sequence, DOOR)
 
-	local rows = table.create(13, "")
+	local height = 0
+	for _, chunk in sequence do
+		height = math.max(height, #chunk.map)
+	end
+	local rows = table.create(height, "")
 	for _, chunk in sequence do
 		local digit = tostring(rng:NextInteger(1, maxDigit))
-		for r, row in chunk.map do
+		local pad = height - #chunk.map
+		local width = #chunk.map[1]
+		for r = 1, height do
+			local row = if r > pad then chunk.map[r - pad] else string.rep(" ", width)
 			rows[r] ..= string.gsub(row, "%?", digit)
 		end
 	end
@@ -76,17 +87,29 @@ function LevelGenerator.generate(seed, index)
 		name = `Случайный #{index}`,
 		hint = HINTS[rng:NextInteger(1, #HINTS)],
 		map = rows,
-		button = { need = 2, latch = true },
+		button = { need = math.min(3, 1 + index // 8), latch = true },
 		button2 = { need = 1, latch = false },
 		lift = { need = 99, rise = 4 },
-		mover = { rise = 3, period = rng:NextNumber(3, 4.5) },
-		cannon = { interval = 2.8, speed = 13 },
+		mover = { rise = 3, period = math.max(2.6, 4.5 - index * 0.08) },
+		cannon = { interval = math.max(1.7, 3 - index * 0.05), speed = math.min(17, 12 + index * 0.2) },
 	}
-	if tier >= 3 and rng:NextNumber() < 0.25 then
+
+	local hasCannon = false
+	for _, row in rows do
+		if string.find(row, "[<>]") then
+			hasCannon = true
+			break
+		end
+	end
+
+	if scrolling then
 		data.scroll = { speed = math.min(5, 3 + index * 0.05), delay = 5 }
 		data.hint = "Экран едет сам — не отставайте!"
-	elseif tier >= 2 and rng:NextNumber() < 0.25 then
-		data.time = 45 + count * 12
+	elseif tier >= 3 and not hasCannon and rng:NextNumber() < 0.15 then
+		data.stopgo = { go = math.max(2.5, 4 - index * 0.04), stop = 2.5 }
+		data.hint = "Стоп — Иди: на красный замрите!"
+	elseif tier >= 2 and rng:NextNumber() < 0.2 then
+		data.time = 40 + count * 12
 		data.hint = "На этот уровень есть ограничение по времени!"
 	end
 	return data

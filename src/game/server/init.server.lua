@@ -8,6 +8,7 @@ local TeleportService = game:GetService("TeleportService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Levels = require(ReplicatedStorage.Shared.Levels)
 local Modes = require(ReplicatedStorage.Shared.Modes)
+local ProgressStore = require(ReplicatedStorage.Shared.ProgressStore)
 local CharacterFactory = require(script.CharacterFactory)
 local LevelBuilder = require(script.LevelBuilder)
 local LevelGenerator = require(script.LevelGenerator)
@@ -237,9 +238,28 @@ local function completeLevel()
 	end
 	phase = "transition"
 	local isLast = not mode.endless and levelIndex >= levelCount()
+	if mode.endless then
+		for _, player in Players:GetPlayers() do
+			ProgressStore.recordEndless(player, levelIndex)
+		end
+	end
 	if isLast then
-		setMessage(`{mode.name}: все уровни пройдены!`, "success")
-		task.wait(Config.COMPLETE_DELAY + 1.5)
+		for _, player in Players:GetPlayers() do
+			ProgressStore.markCompleted(player, mode.id)
+		end
+		local unlockedNext = nil
+		for _, id in Modes.order do
+			if Modes.get(id).requires == mode.id then
+				unlockedNext = Modes.get(id)
+			end
+		end
+		setMessage(
+			if unlockedNext
+				then `{mode.name} пройден! Открыт режим «{unlockedNext.name}»`
+				else `{mode.name} пройден! Вы легенды!`,
+			"success"
+		)
+		task.wait(Config.COMPLETE_DELAY + 2)
 		endRun()
 		return
 	end
@@ -270,6 +290,7 @@ local function onCharacterAdded(player, character)
 end
 
 local function onPlayerAdded(player)
+	task.spawn(ProgressStore.load, player)
 	player:SetAttribute("Slot", claimSlot(player))
 	player:SetAttribute("InDoor", false)
 	player.CharacterAdded:Connect(function(character)
@@ -296,6 +317,7 @@ for _, player in Players:GetPlayers() do
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	ProgressStore.release(player)
 	playerDir[player] = nil
 	lastHubRequest[player] = nil
 	for i, owner in slots do
@@ -325,8 +347,8 @@ restartRemote.OnServerEvent:Connect(function(player)
 	end
 end)
 
-chooseModeRemote.OnServerEvent:Connect(function(_player, id)
-	if phase == "choosing" and Modes.get(id) then
+chooseModeRemote.OnServerEvent:Connect(function(player, id)
+	if phase == "choosing" and ProgressStore.isUnlocked(player, id) then
 		modeChosen:Fire(id)
 	end
 end)

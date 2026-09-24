@@ -52,6 +52,33 @@ UiStyle.text(titleBody, {
 	Text = `Встаньте на платформу комнаты · от {Config.ROOM_MIN_PLAYERS} игроков`,
 })
 
+-- Own progress under the title
+local progressBody = UiStyle.card(gui, {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 90),
+	Size = UDim2.fromOffset(420, 40),
+})
+local progressText = UiStyle.text(progressBody, {
+	Size = UDim2.fromScale(1, 1),
+	FontFace = F.bold,
+	TextSize = 15,
+})
+local function refreshProgress()
+	local unlocked = string.split(player:GetAttribute("UnlockedModes") or "", ",")
+	local names = {}
+	for _, id in Modes.order do
+		local info = Modes.get(id)
+		if table.find(unlocked, id) then
+			table.insert(names, info.name)
+		end
+	end
+	local best = player:GetAttribute("EndlessBest") or 0
+	progressText.Text = `Открыто: {table.concat(names, ", ")} · рекорд ∞: {best}`
+end
+player:GetAttributeChangedSignal("UnlockedModes"):Connect(refreshProgress)
+player:GetAttributeChangedSignal("EndlessBest"):Connect(refreshProgress)
+refreshProgress()
+
 -- Room panel
 local panelBody, panel = UiStyle.card(gui, {
 	AnchorPoint = Vector2.new(0.5, 1),
@@ -130,7 +157,7 @@ end)
 -- Toast
 local toastBody, toast = UiStyle.card(gui, {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 96),
+	Position = UDim2.new(0.5, 0, 0, 140),
 	Size = UDim2.fromOffset(460, 48),
 	Visible = false,
 }, C.danger)
@@ -170,18 +197,23 @@ local function refresh()
 
 	local selected = player:GetAttribute("RoomMode")
 	local isLeader = player:GetAttribute("RoomLeader") == true
+	local unlocked = string.split(player:GetAttribute("RoomUnlocked") or "", ",")
 	for id, entry in modeButtons do
 		local on = id == selected
-		entry.button.BackgroundTransparency = if on then 0 else 0.55
+		local open = table.find(unlocked, id) ~= nil
+		entry.button.Text = if open then Modes.get(id).name else "🔒"
+		entry.button.BackgroundTransparency = if on then 0 elseif open then 0.45 else 0.8
 		entry.stroke.Thickness = if on then 3.5 else 1.5
-		entry.button.Active = isLeader
+		entry.button.Active = isLeader and open
 	end
 	local selectedInfo = Modes.get(selected)
 	local description = if selectedInfo then selectedInfo.description else ""
-	modeHint.Text = if isLeader then `Вы лидер — выберите режим. {description}` else `Режим выбирает лидер. {description}`
+	modeHint.Text = if isLeader
+		then `Вы лидер — выберите режим. {description}`
+		else `Режим выбирает лидер. {description}`
 end
 
-for _, name in { "RoomCapacity", "RoomCount", "RoomSecondsLeft", "RoomState", "RoomMode", "RoomLeader" } do
+for _, name in { "RoomCapacity", "RoomCount", "RoomSecondsLeft", "RoomState", "RoomMode", "RoomLeader", "RoomUnlocked" } do
 	player:GetAttributeChangedSignal(name):Connect(refresh)
 end
 refresh()

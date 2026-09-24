@@ -6,6 +6,7 @@ local TeleportService = game:GetService("TeleportService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Modes = require(ReplicatedStorage.Shared.Modes)
+local ProgressStore = require(ReplicatedStorage.Shared.ProgressStore)
 local HubWorld = require(script.HubWorld)
 
 local PAD_RADIUS = 7
@@ -110,6 +111,12 @@ local function teleportRoom(room)
 	end
 end
 
+Players.PlayerAdded:Connect(ProgressStore.load)
+for _, player in Players:GetPlayers() do
+	task.spawn(ProgressStore.load, player)
+end
+Players.PlayerRemoving:Connect(ProgressStore.release)
+
 TeleportService.TeleportInitFailed:Connect(function(player, _result, message)
 	warn("TeleportInitFailed:", player.Name, message)
 	notice(player, "Не удалось перейти в игру, попробуйте ещё раз")
@@ -122,7 +129,7 @@ end)
 -- Only the first player on the pad (the room leader) picks the mode
 setModeRemote.OnServerEvent:Connect(function(player, modeId)
 	local room = roomOf(player)
-	if room and room.state == "open" and room.members[1] == player and Modes.get(modeId) then
+	if room and room.state == "open" and room.members[1] == player and ProgressStore.isUnlocked(player, modeId) then
 		room.mode = modeId
 	end
 end)
@@ -144,7 +151,8 @@ local function updateMembership(room)
 		end
 	end
 	room.members = stillHere
-	if #stillHere == 0 then
+	-- A new leader may not have unlocked the mode the previous leader picked
+	if #stillHere == 0 or not ProgressStore.isUnlocked(stillHere[1], room.mode) then
 		room.mode = Modes.order[1]
 	end
 
@@ -210,6 +218,7 @@ local function publish(room, now)
 		player:SetAttribute("RoomState", room.state)
 		player:SetAttribute("RoomMode", room.mode)
 		player:SetAttribute("RoomLeader", room.members[1] == player)
+		player:SetAttribute("RoomUnlocked", room.members[1]:GetAttribute("UnlockedModes") or "")
 	end
 end
 

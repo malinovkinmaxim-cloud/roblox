@@ -443,6 +443,7 @@ function Ui.new(player, gameState, callbacks)
 		TextSize = 32,
 		Text = "Выберите режим",
 	})
+	local pickerButtons = {}
 	for i, id in Modes.order do
 		local modeInfo = Modes.get(id)
 		local button = UiStyle.button(pickerBody, {
@@ -468,10 +469,31 @@ function Ui.new(player, gameState, callbacks)
 			Text = modeInfo.description,
 			ZIndex = 3,
 		})
+		local lockLabel = UiStyle.outlinedText(button, {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -14, 0.5, 0),
+			Size = UDim2.fromOffset(40, 40),
+			TextSize = 26,
+			Text = "🔒",
+			ZIndex = 3,
+		}, 2)
+		pickerButtons[id] = { button = button, lock = lockLabel }
 		button.Activated:Connect(function()
-			callbacks.chooseMode(id)
+			if not lockLabel.Visible then
+				callbacks.chooseMode(id)
+			end
 		end)
 	end
+	local function refreshLocks()
+		local unlocked = string.split(player:GetAttribute("UnlockedModes") or "", ",")
+		for id, entry in pickerButtons do
+			local open = table.find(unlocked, id) ~= nil
+			entry.lock.Visible = not open
+			entry.button.BackgroundTransparency = if open then 0 else 0.5
+		end
+	end
+	player:GetAttributeChangedSignal("UnlockedModes"):Connect(refreshLocks)
+	refreshLocks()
 	local function refreshPicker()
 		local choosing = gameState:GetAttribute("ChoosingMode") == true
 		if choosing and not picker.Visible then
