@@ -7,8 +7,10 @@ local TeleportService = game:GetService("TeleportService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Levels = require(ReplicatedStorage.Shared.Levels)
+local Modes = require(ReplicatedStorage.Shared.Modes)
 local CharacterFactory = require(script.CharacterFactory)
 local LevelBuilder = require(script.LevelBuilder)
+local LevelGenerator = require(script.LevelGenerator)
 local Mechanics = require(script.Mechanics)
 
 Players.CharacterAutoLoads = false
@@ -42,30 +44,43 @@ CharacterFactory.buildStarterCharacter().Parent = StarterPlayer
 
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-local inputRemote = Instance.new("RemoteEvent")
-inputRemote.Name = "Input"
-inputRemote.Parent = remotes
-local restartRemote = Instance.new("RemoteEvent")
-restartRemote.Name = "Restart"
-restartRemote.Parent = remotes
-local toHubRemote = Instance.new("RemoteEvent")
-toHubRemote.Name = "ToHub"
-toHubRemote.Parent = remotes
+local function remote(name)
+	local event = Instance.new("RemoteEvent")
+	event.Name = name
+	event.Parent = remotes
+	return event
+end
+local inputRemote = remote("Input")
+local restartRemote = remote("Restart")
+local toHubRemote = remote("ToHub")
+local chooseModeRemote = remote("ChooseMode")
 remotes.Parent = ReplicatedStorage
 
 local gameState = Instance.new("Folder")
 gameState.Name = "GameState"
-gameState:SetAttribute("LevelCount", #Levels)
 gameState:SetAttribute("HubAvailable", Config.HUB_PLACE_ID ~= 0)
+gameState:SetAttribute("TimeLeft", -1)
+gameState:SetAttribute("Signal", "")
 gameState.Parent = ReplicatedStorage
+
+local FAIL_TEXT = {
+	death = "Упс! Ещё разок",
+	shot = "Попадание из пушки!",
+	scroll = "Экран вас обогнал!",
+	stop = "Кто-то двигался на красный!",
+	time = "Время вышло!",
+}
 
 local playerDir = {}
 local lastHubRequest = {}
 local slots = {}
+local mode = nil
+local runSeed = 0
 local levelIndex = 1
 local level = nil
-local phase = "loading"
+local phase = "waiting"
 local messageId = 0
+local modeChosen = Instance.new("BindableEvent")
 
 -- kind: "success" | "fail" | "info" (picks the banner colour on the client)
 local function setMessage(text, kind)
@@ -73,6 +88,17 @@ local function setMessage(text, kind)
 	gameState:SetAttribute("Message", text)
 	gameState:SetAttribute("MessageKind", kind or "info")
 	gameState:SetAttribute("MessageId", messageId)
+end
+
+local function levelCount()
+	return if mode.endless then 0 else #Levels[mode.pack]
+end
+
+local function levelData(index)
+	if mode.endless then
+		return LevelGenerator.generate(runSeed, index)
+	end
+	return Levels[mode.pack][index]
 end
 
 local function activePositions(except)
@@ -99,19 +125,27 @@ local function spawnPlayer(player, position)
 	character:PivotTo(CFrame.lookAt(position, position + Vector3.new(1, 0, 0)))
 end
 
+local function clearLevel()
+	if level then
+		level.folder:Destroy()
+		level = nil
+	end
+	gameState:SetAttribute("TimeLeft", -1)
+	gameState:SetAttribute("Signal", "")
+end
+
 local function loadLevel(index)
 	phase = "loading"
 	levelIndex = index
-	if level then
-		level.folder:Destroy()
-	end
-	local data = Levels[index]
+	clearLevel()
+	local data = levelData(index)
 	level = LevelBuilder.build(data, index)
 	level.folder.Parent = workspace
 
 	gameState:SetAttribute("LevelIndex", index)
 	gameState:SetAttribute("LevelName", data.name)
 	gameState:SetAttribute("LevelHint", data.hint or "")
+	gameState:SetAttribute("LevelSerial", (gameState:GetAttribute("LevelSerial") or 0) + 1)
 
 	for order, player in Players:GetPlayers() do
 		spawnPlayer(player, level.spawn + Vector3.new((order - 1) * Config.SPAWN_SPACING, 0, 0))
@@ -123,16 +157,6 @@ local function loadLevel(index)
 		end
 	end
 	phase = "playing"
-end
-
-local function restartLevel(text, kind)
-	if phase ~= "playing" then
-		return
-	end
-	phase = "transition"
-	setMessage(text, kind or "fail")
-	task.wait(Config.FAIL_DELAY)
-	loadLevel(levelIndex)
 end
 
 local function sendToHub(players)
@@ -148,20 +172,80 @@ local function sendToHub(players)
 	return ok
 end
 
+local function chooseMode()
+	phase = "choosing"
+	clearLevel()
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			player.Character:Destroy()
+		end
+	end
+	gameState:SetAttribute("ChoosingMode", true)
+	local chosen = Modes.get(modeChosen.Event:Wait())
+	gameState:SetAttribute("ChoosingMode", false)
+	return chosen
+end
+
+local function startRun(newMode)
+	mode = newMode
+	runSeed = math.random(1, 1000000)
+	gameState:SetAttribute("ModeId", mode.id)
+	gameState:SetAttribute("ModeName", mode.name)
+	gameState:SetAttribute("LevelCount", levelCount())
+	gameState:SetAttribute("GameOver", false)
+	loadLevel(1)
+end
+
+-- After the last level or a hardcore game over: back to the hub, or (in Studio) pick a mode again
+local function endRun()
+	if sendToHub(Players:GetPlayers()) then
+		setMessage("Возвращаемся в хаб…", "info")
+		task.wait(15)
+		if #Players:GetPlayers() == 0 then
+			return
+		end
+	end
+	gameState:SetAttribute("GameOver", false)
+	startRun(chooseMode())
+end
+
+local function fail(reason, customText)
+	if phase ~= "playing" then
+		return
+	end
+	phase = "transition"
+	local text = customText or FAIL_TEXT[reason] or FAIL_TEXT.death
+
+	if mode.oneLife then
+		phase = "gameover"
+		gameState:SetAttribute("GameOverReason", text)
+		gameState:SetAttribute("GameOverLevel", levelIndex)
+		gameState:SetAttribute("GameOver", true)
+		task.wait(6)
+		endRun()
+		return
+	end
+
+	setMessage(text, "fail")
+	task.wait(Config.FAIL_DELAY)
+	loadLevel(levelIndex)
+end
+
 local function completeLevel()
 	if phase ~= "playing" then
 		return
 	end
 	phase = "transition"
-	local isLast = levelIndex >= #Levels
-	setMessage(if isLast then "Все уровни пройдены!" else "Уровень пройден!", "success")
-	task.wait(Config.COMPLETE_DELAY)
-	if isLast and sendToHub(Players:GetPlayers()) then
-		setMessage("Возвращаемся в хаб…", "info")
-		-- If some teleports failed, keep playing with whoever is still here
-		task.wait(15)
+	local isLast = not mode.endless and levelIndex >= levelCount()
+	if isLast then
+		setMessage(`{mode.name}: все уровни пройдены!`, "success")
+		task.wait(Config.COMPLETE_DELAY + 1.5)
+		endRun()
+		return
 	end
-	loadLevel(if isLast then 1 else levelIndex + 1)
+	setMessage(if mode.endless then `Уровень {levelIndex} пройден!` else "Уровень пройден!", "success")
+	task.wait(Config.COMPLETE_DELAY)
+	loadLevel(levelIndex + 1)
 end
 
 local function claimSlot(player)
@@ -180,7 +264,7 @@ local function onCharacterAdded(player, character)
 	local humanoid = character:WaitForChild("Humanoid")
 	humanoid.Died:Connect(function()
 		if player.Character == character then
-			task.spawn(restartLevel, "Упс! Ещё разок")
+			task.spawn(fail, "death")
 		end
 	end)
 end
@@ -192,7 +276,7 @@ local function onPlayerAdded(player)
 		onCharacterAdded(player, character)
 	end)
 
-	if level and phase ~= "loading" then
+	if level and (phase == "playing" or phase == "transition") then
 		local others = activePositions(player)
 		local position = level.spawn
 		if #others > 0 then
@@ -229,7 +313,22 @@ inputRemote.OnServerEvent:Connect(function(player, dir)
 end)
 
 restartRemote.OnServerEvent:Connect(function(player)
-	task.spawn(restartLevel, `{player.DisplayName} начинает заново`, "info")
+	if phase ~= "playing" then
+		return
+	end
+	if mode.oneLife then
+		task.spawn(fail, "giveup", `{player.DisplayName} сдаётся`)
+	else
+		phase = "transition"
+		setMessage(`{player.DisplayName} начинает заново`, "info")
+		task.delay(Config.FAIL_DELAY, loadLevel, levelIndex)
+	end
+end)
+
+chooseModeRemote.OnServerEvent:Connect(function(_player, id)
+	if phase == "choosing" and Modes.get(id) then
+		modeChosen:Fire(id)
+	end
 end)
 
 toHubRemote.OnServerEvent:Connect(function(player)
@@ -264,8 +363,11 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 	end
 
-	if Mechanics.step(level, dt, infos, #all, os.clock()) == "fail" then
-		task.spawn(restartLevel, "Упс! Ещё разок")
+	local reason = Mechanics.step(level, dt, infos, #all, os.clock())
+	gameState:SetAttribute("TimeLeft", level.timeLeft or -1)
+	gameState:SetAttribute("Signal", level.signal or "")
+	if reason then
+		task.spawn(fail, reason)
 		return
 	end
 
@@ -280,22 +382,27 @@ RunService.Heartbeat:Connect(function(dt)
 	task.spawn(completeLevel)
 end)
 
--- Players from one hub room arrive one by one; give the whole team a moment before level 1
-local function waitForTeam()
-	phase = "waiting"
+-- Players from one hub room arrive one by one; give the whole team a moment before level 1.
+-- The hub also tells us which mode the room picked; without it (Studio) the players choose here.
+local function start()
 	local first = Players:GetPlayers()[1] or Players.PlayerAdded:Wait()
 	local expected = 1
 	local data = first:GetJoinData().TeleportData
-	if type(data) == "table" and type(data.roomSize) == "number" and data.roomSize == data.roomSize then
-		expected = math.clamp(math.floor(data.roomSize), 1, #Config.PLAYER_COLORS)
+	local teleportMode = nil
+	if type(data) == "table" then
+		if type(data.roomSize) == "number" and data.roomSize == data.roomSize then
+			expected = math.clamp(math.floor(data.roomSize), 1, #Config.PLAYER_COLORS)
+		end
+		teleportMode = Modes.get(data.mode)
 	end
+
 	local deadline = os.clock() + Config.TEAM_ARRIVAL_TIMEOUT
 	while #Players:GetPlayers() < expected and os.clock() < deadline do
 		gameState:SetAttribute("Waiting", `Ждём команду: {#Players:GetPlayers()}/{expected}`)
 		task.wait(0.5)
 	end
 	gameState:SetAttribute("Waiting", "")
-	loadLevel(1)
+	startRun(teleportMode or chooseMode())
 end
 
-waitForTeam()
+start()

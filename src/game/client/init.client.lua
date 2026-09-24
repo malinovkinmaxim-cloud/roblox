@@ -23,11 +23,19 @@ task.spawn(function()
 	controls:Disable()
 end)
 
-local ui = Ui.new(player, gameState, function()
-	restartRemote:FireServer()
-end, function()
-	toHubRemote:FireServer()
-end)
+local chooseModeRemote = remotes:WaitForChild("ChooseMode")
+
+local ui = Ui.new(player, gameState, {
+	restart = function()
+		restartRemote:FireServer()
+	end,
+	hub = function()
+		toHubRemote:FireServer()
+	end,
+	chooseMode = function(modeId)
+		chooseModeRemote:FireServer(modeId)
+	end,
+})
 
 local facing = 1
 local lastSentDir = 0
@@ -52,7 +60,7 @@ end
 
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == Enum.KeyCode.R then
-		restartRemote:FireServer()
+		ui.requestRestart()
 	end
 end)
 

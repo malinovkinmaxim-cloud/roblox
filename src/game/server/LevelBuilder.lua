@@ -206,6 +206,14 @@ function LevelBuilder.build(data, levelIndex)
 		key = nil,
 		door = nil,
 		channels = {},
+		crumbles = {},
+		movers = {},
+		cannons = {},
+		bullets = {},
+		cannonOptions = data.cannon or {},
+		timeLimit = data.time,
+		stopgo = data.stopgo and { go = data.stopgo.go or 3.5, stop = data.stopgo.stop or 2.5 } or nil,
+		time = 0,
 		boxes = {},
 		lifts = {},
 		hazards = {},
@@ -313,6 +321,60 @@ function LevelBuilder.build(data, levelIndex)
 		end
 	end
 
+	-- Sand blocks (one part per tile so each crumbles on its own)
+	for r = 1, height do
+		for c = 1, width do
+			if grid[r][c] == "o" then
+				local x, bottom = tileX(c), tileBottom(r)
+				local home = CFrame.new(x, bottom + T / 2, 0)
+				local part = makePart("Sand", Vector3.new(T, T, DEPTH - 1), home, PALETTE.sand, solids)
+				part.Material = Enum.Material.Sand
+				table.insert(level.crumbles, {
+					part = part,
+					home = home,
+					x = x,
+					top = bottom + T,
+					state = "solid",
+					timer = 0,
+				})
+			end
+		end
+	end
+
+	-- Cannons
+	for r = 1, height do
+		for c = 1, width do
+			local ch = grid[r][c]
+			if ch == "<" or ch == ">" then
+				local dir = if ch == "<" then -1 else 1
+				local x, bottom = tileX(c), tileBottom(r)
+				local center = Vector3.new(x, bottom + T / 2, 0)
+				makePart("Cannon", Vector3.new(T, T, DEPTH - 2), CFrame.new(center), PALETTE.cannon, solids)
+				local barrel = makeDecor(
+					makePart(
+						"Barrel",
+						Vector3.new(1.4, 1.6, 1.6),
+						CFrame.new(center + Vector3.new(dir * (T / 2 + 0.6), 0.2, 0)),
+						PALETTE.cannon,
+						decor
+					)
+				)
+				barrel.Shape = Enum.PartType.Cylinder
+				table.insert(level.cannons, {
+					dir = dir,
+					muzzle = center + Vector3.new(dir * (T / 2 + 1.4), 0, 0),
+					timer = 1 + (c % 3) * 0.4,
+				})
+			end
+		end
+	end
+	if #level.cannons > 0 then
+		local bulletFolder = Instance.new("Folder")
+		bulletFolder.Name = "Bullets"
+		bulletFolder.Parent = folder
+		level.bulletFolder = bulletFolder
+	end
+
 	-- Trampolines
 	for r = 1, height do
 		for c = 1, width do
@@ -359,12 +421,22 @@ function LevelBuilder.build(data, levelIndex)
 
 	-- Push boxes and lifts
 	eachGroup(grid, width, height, function(ch)
-		return string.match(ch, "%d") ~= nil or ch == "L"
+		return string.match(ch, "%d") ~= nil or ch == "L" or ch == "M"
 	end, function(ch, minR, maxR, minC, maxC)
 		local w = (maxC - minC + 1) * T
 		local h = (maxR - minR + 1) * T
 		local center = Vector3.new((minC - 1) * T + w / 2, tileBottom(maxR) + h / 2, 0)
-		if ch == "L" then
+		if ch == "M" then
+			local moverData = data.mover or {}
+			local part = makePart("Mover", Vector3.new(w, h, DEPTH - 2), CFrame.new(center), PALETTE.mover, solids)
+			table.insert(level.movers, {
+				part = part,
+				baseY = center.Y,
+				rise = (moverData.rise or 3) * T,
+				period = moverData.period or 4,
+				phase = center.X / 11,
+			})
+		elseif ch == "L" then
 			local liftData = data.lift or {}
 			local part = makePart("Lift", Vector3.new(w, h, DEPTH - 2), CFrame.new(center), PALETTE.lift, solids)
 			local need = liftData.need or 99
@@ -422,6 +494,21 @@ function LevelBuilder.build(data, levelIndex)
 				}
 			end
 		end
+	end
+
+	if data.scroll then
+		local wall = makeDecor(
+			makePart("ScrollWall", Vector3.new(1.5, height * T + 80, DEPTH + 0.6), CFrame.new(0, height * T / 2, 0), PALETTE.scrollWall, decor)
+		)
+		wall.Material = Enum.Material.Neon
+		wall.Transparency = 0.3
+		level.scroll = {
+			speed = data.scroll.speed or 3.5,
+			delay = data.scroll.delay or 4,
+			x = 0,
+			stopX = if level.door then level.door.x - 30 else width * T - 60,
+			wall = wall,
+		}
 	end
 
 	local overlapParams = OverlapParams.new()

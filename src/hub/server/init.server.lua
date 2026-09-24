@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Modes = require(ReplicatedStorage.Shared.Modes)
 local HubWorld = require(script.HubWorld)
 
 local PAD_RADIUS = 7
@@ -27,6 +28,9 @@ remotes.Name = "HubRemotes"
 local startNowRemote = Instance.new("RemoteEvent")
 startNowRemote.Name = "StartNow"
 startNowRemote.Parent = remotes
+local setModeRemote = Instance.new("RemoteEvent")
+setModeRemote.Name = "SetMode"
+setModeRemote.Parent = remotes
 local noticeRemote = Instance.new("RemoteEvent")
 noticeRemote.Name = "Notice"
 noticeRemote.Parent = remotes
@@ -35,6 +39,7 @@ remotes.Parent = ReplicatedStorage
 local rooms = HubWorld.build(PAD_RADIUS)
 for _, room in rooms do
 	room.members = {}
+	room.mode = Modes.order[1]
 	room.state = "open"
 	room.deadline = nil
 	room.teleportStarted = 0
@@ -90,7 +95,7 @@ local function teleportRoom(room)
 	room.teleportStarted = os.clock()
 	local options = Instance.new("TeleportOptions")
 	options.ShouldReserveServer = true
-	options:SetTeleportData({ roomSize = #members })
+	options:SetTeleportData({ roomSize = #members, mode = room.mode })
 	local ok, err = pcall(function()
 		TeleportService:TeleportAsync(Config.GAME_PLACE_ID, members, options)
 	end)
@@ -114,6 +119,14 @@ TeleportService.TeleportInitFailed:Connect(function(player, _result, message)
 	end
 end)
 
+-- Only the first player on the pad (the room leader) picks the mode
+setModeRemote.OnServerEvent:Connect(function(player, modeId)
+	local room = roomOf(player)
+	if room and room.state == "open" and room.members[1] == player and Modes.get(modeId) then
+		room.mode = modeId
+	end
+end)
+
 startNowRemote.OnServerEvent:Connect(function(player)
 	local room = roomOf(player)
 	if room and room.state == "open" and #room.members >= Config.ROOM_MIN_PLAYERS then
@@ -131,6 +144,9 @@ local function updateMembership(room)
 		end
 	end
 	room.members = stillHere
+	if #stillHere == 0 then
+		room.mode = Modes.order[1]
+	end
 
 	for _, player in Players:GetPlayers() do
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -173,13 +189,14 @@ local function publish(room, now)
 	local count = #room.members
 	local secondsLeft = if room.deadline then math.max(0, math.ceil(room.deadline - now)) else -1
 
+	local modeInfo = Modes.get(room.mode)
 	local status
 	if room.state == "teleporting" then
 		status = "Переход в игру…"
 	elseif secondsLeft >= 0 then
-		status = `{count}/{room.capacity} · старт через {secondsLeft}`
+		status = `{modeInfo.name} · {count}/{room.capacity} · старт {secondsLeft}`
 	elseif count > 0 then
-		status = `{count}/{room.capacity} · нужно ещё {Config.ROOM_MIN_PLAYERS - count}`
+		status = `{modeInfo.name} · {count}/{room.capacity} · ждём игроков`
 	else
 		status = `0/{room.capacity} · свободно`
 	end
@@ -191,6 +208,8 @@ local function publish(room, now)
 		player:SetAttribute("RoomCount", count)
 		player:SetAttribute("RoomSecondsLeft", secondsLeft)
 		player:SetAttribute("RoomState", room.state)
+		player:SetAttribute("RoomMode", room.mode)
+		player:SetAttribute("RoomLeader", room.members[1] == player)
 	end
 end
 

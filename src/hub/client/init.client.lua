@@ -5,9 +5,11 @@ local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local UiStyle = require(Shared:WaitForChild("UiStyle"))
+local Modes = require(Shared:WaitForChild("Modes"))
 
 local remotes = ReplicatedStorage:WaitForChild("HubRemotes")
 local startNowRemote = remotes:WaitForChild("StartNow")
+local setModeRemote = remotes:WaitForChild("SetMode")
 local noticeRemote = remotes:WaitForChild("Notice")
 
 local player = Players.LocalPlayer
@@ -54,7 +56,7 @@ UiStyle.text(titleBody, {
 local panelBody, panel = UiStyle.card(gui, {
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -24),
-	Size = UDim2.fromOffset(400, 150),
+	Size = UDim2.fromOffset(460, 222),
 	Visible = false,
 })
 local roomTitle = UiStyle.text(panelBody, {
@@ -69,6 +71,53 @@ local roomStatus = UiStyle.text(panelBody, {
 	TextSize = 17,
 	TextColor3 = C.muted,
 })
+-- Mode selector: the leader picks, everybody sees the choice
+local modeRow = Instance.new("Frame")
+modeRow.BackgroundTransparency = 1
+modeRow.Position = UDim2.fromOffset(12, 76)
+modeRow.Size = UDim2.new(1, -24, 0, 40)
+local modeLayout = Instance.new("UIListLayout")
+modeLayout.FillDirection = Enum.FillDirection.Horizontal
+modeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+modeLayout.Padding = UDim.new(0, 6)
+modeLayout.Parent = modeRow
+modeRow.Parent = panelBody
+
+local modeButtons = {}
+for i, id in Modes.order do
+	local modeInfo = Modes.get(id)
+	local button = Instance.new("TextButton")
+	button.LayoutOrder = i
+	button.Size = UDim2.new(1 / #Modes.order, -6, 1, 0)
+	button.BackgroundColor3 = modeInfo.color
+	button.AutoButtonColor = false
+	button.FontFace = F.heavy
+	button.TextScaled = true
+	button.TextColor3 = C.white
+	button.Text = modeInfo.name
+	UiStyle.corner(button, UDim.new(0.5, 0))
+	local stroke = UiStyle.stroke(button, 2)
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0.22, 0)
+	pad.PaddingBottom = UDim.new(0.22, 0)
+	pad.PaddingLeft = UDim.new(0.08, 0)
+	pad.PaddingRight = UDim.new(0.08, 0)
+	pad.Parent = button
+	button.Parent = modeRow
+	button.Activated:Connect(function()
+		setModeRemote:FireServer(id)
+	end)
+	modeButtons[id] = { button = button, stroke = stroke }
+end
+
+local modeHint = UiStyle.text(panelBody, {
+	Position = UDim2.fromOffset(12, 118),
+	Size = UDim2.new(1, -24, 0, 20),
+	FontFace = F.bold,
+	TextSize = 14,
+	TextColor3 = C.muted,
+})
+
 local startButton, startContainer = UiStyle.button(panelBody, {
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -18),
@@ -118,9 +167,21 @@ local function refresh()
 		roomStatus.Text = `Ждём ещё игроков: минимум {Config.ROOM_MIN_PLAYERS}`
 	end
 	startContainer.Visible = state ~= "teleporting" and count >= Config.ROOM_MIN_PLAYERS
+
+	local selected = player:GetAttribute("RoomMode")
+	local isLeader = player:GetAttribute("RoomLeader") == true
+	for id, entry in modeButtons do
+		local on = id == selected
+		entry.button.BackgroundTransparency = if on then 0 else 0.55
+		entry.stroke.Thickness = if on then 3.5 else 1.5
+		entry.button.Active = isLeader
+	end
+	local selectedInfo = Modes.get(selected)
+	local description = if selectedInfo then selectedInfo.description else ""
+	modeHint.Text = if isLeader then `Вы лидер — выберите режим. {description}` else `Режим выбирает лидер. {description}`
 end
 
-for _, name in { "RoomCapacity", "RoomCount", "RoomSecondsLeft", "RoomState" } do
+for _, name in { "RoomCapacity", "RoomCount", "RoomSecondsLeft", "RoomState", "RoomMode", "RoomLeader" } do
 	player:GetAttributeChangedSignal(name):Connect(refresh)
 end
 refresh()

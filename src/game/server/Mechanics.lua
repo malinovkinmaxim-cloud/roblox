@@ -26,11 +26,11 @@ local function canPlace(level, part, cframe)
 end
 
 -- Players standing on (or stacked above) a horizontal surface
-local function countAbove(active, x, halfWidth, top)
+local function countAbove(active, x, halfWidth, top, reach)
 	local count = 0
 	for _, info in active do
 		local p = info.pos
-		if math.abs(p.X - x) < halfWidth + HALF_W * 0.8 and p.Y > top and p.Y < top + Config.STACK_REACH then
+		if math.abs(p.X - x) < halfWidth + HALF_W * 0.8 and p.Y > top and p.Y < top + (reach or Config.STACK_REACH) then
 			count += 1
 		end
 	end
@@ -279,8 +279,157 @@ local function updateDoor(level, infos, active, playerCount)
 	end
 end
 
--- Advances all level mechanics by dt. Returns "fail" when someone died.
+local function updateCrumbles(level, dt, active)
+	for _, sand in level.crumbles do
+		local part = sand.part
+		if sand.state == "solid" then
+			if countAbove(active, sand.x, T / 2, sand.top, Config.CHAR_BOTTOM + 0.7) > 0 then
+				sand.state = "shaking"
+				sand.timer = Config.SAND_DELAY
+				part.Color = PALETTE.sandShake
+			end
+		elseif sand.state == "shaking" then
+			sand.timer -= dt
+			part.CFrame = sand.home + Vector3.new((math.random() - 0.5) * 0.3, 0, 0)
+			if sand.timer <= 0 then
+				sand.state = "gone"
+				sand.timer = Config.SAND_RESPAWN
+				part.CFrame = sand.home
+				part.CanCollide = false
+				part.Transparency = 1
+			end
+		else
+			sand.timer -= dt
+			if sand.timer <= 0 then
+				local blocked = false
+				for _, info in active do
+					local p = info.pos
+					if
+						math.abs(p.X - sand.x) < T / 2 + HALF_W
+						and p.Y - Config.CHAR_BOTTOM < sand.top
+						and p.Y + Config.CHAR_TOP > sand.top - T
+					then
+						blocked = true
+						break
+					end
+				end
+				if not blocked then
+					sand.state = "solid"
+					part.CanCollide = true
+					part.Transparency = 0
+					part.Color = PALETTE.sand
+				end
+			end
+		end
+	end
+end
+
+local function updateMovers(level)
+	for _, mover in level.movers do
+		local angle = level.time / mover.period * 2 * math.pi + mover.phase
+		local y = mover.baseY + mover.rise * (0.5 - 0.5 * math.cos(angle))
+		mover.part.CFrame = CFrame.new(mover.part.Position.X, y, 0)
+	end
+end
+
+local function updateCannons(level, dt, active)
+	if #level.cannons == 0 then
+		return nil
+	end
+	local interval = level.cannonOptions.interval or 2.5
+	local speed = level.cannonOptions.speed or 14
+
+	for _, cannon in level.cannons do
+		cannon.timer -= dt
+		if cannon.timer <= 0 then
+			cannon.timer = interval
+			local ball = Instance.new("Part")
+			ball.Name = "Bullet"
+			ball.Shape = Enum.PartType.Ball
+			ball.Size = Vector3.new(1.3, 1.3, 1.3)
+			ball.Anchored = true
+			ball.CanCollide = false
+			ball.CanQuery = false
+			ball.CanTouch = false
+			ball.CastShadow = false
+			ball.Color = PALETTE.bullet
+			ball.Material = Enum.Material.SmoothPlastic
+			ball.CFrame = CFrame.new(cannon.muzzle)
+			ball.Parent = level.bulletFolder
+			table.insert(level.bullets, { part = ball, dir = cannon.dir, pos = cannon.muzzle })
+		end
+	end
+
+	for i = #level.bullets, 1, -1 do
+		local bullet = level.bullets[i]
+		bullet.pos += Vector3.new(bullet.dir * speed * dt, 0, 0)
+		local hits = workspace:GetPartBoundsInBox(CFrame.new(bullet.pos), Vector3.new(0.8, 0.8, 0.8), level.overlapParams)
+		if #hits > 0 or bullet.pos.X < -5 or bullet.pos.X > level.width + 5 then
+			bullet.part:Destroy()
+			table.remove(level.bullets, i)
+		else
+			bullet.part.CFrame = CFrame.new(bullet.pos)
+			for _, info in active do
+				local p = info.pos
+				if
+					math.abs(p.X - bullet.pos.X) < HALF_W + 0.6
+					and bullet.pos.Y > p.Y - Config.CHAR_BOTTOM - 0.5
+					and bullet.pos.Y < p.Y + Config.CHAR_TOP + 0.5
+				then
+					return "shot"
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function updateScroll(level, dt, active)
+	local scroll = level.scroll
+	if not scroll then
+		return nil
+	end
+	if level.time > scroll.delay then
+		scroll.x = math.min(scroll.stopX, scroll.x + scroll.speed * dt)
+	end
+	scroll.wall.CFrame = CFrame.new(scroll.x, scroll.wall.Position.Y, 0)
+	for _, info in active do
+		if info.pos.X - HALF_W < scroll.x then
+			return "scroll"
+		end
+	end
+	return nil
+end
+
+local function updateStopGo(level, active)
+	local stopgo = level.stopgo
+	if not stopgo then
+		level.signal = nil
+		return nil
+	end
+	local t = level.time % (stopgo.go + stopgo.stop)
+	if t < stopgo.go - 1 then
+		level.signal = "go"
+	elseif t < stopgo.go then
+		level.signal = "warn"
+	else
+		level.signal = "stop"
+		if t - stopgo.go > Config.STOP_GRACE then
+			for _, info in active do
+				if math.abs(info.root.AssemblyLinearVelocity.X) > Config.STOP_SPEED then
+					return "stop"
+				end
+			end
+		end
+	end
+	return nil
+end
+
+-- Advances all level mechanics by dt.
+-- Returns a failure reason ("death", "shot", "scroll", "stop", "time") or nil.
 function Mechanics.step(level, dt, infos, playerCount, now)
+	level.time += dt
+
 	local active = {}
 	for _, info in infos do
 		if not info.inDoor then
@@ -290,11 +439,25 @@ function Mechanics.step(level, dt, infos, playerCount, now)
 
 	for _, info in active do
 		if info.pos.Y < level.killY or touchesHazard(level, info.pos) then
-			return "fail"
+			return "death"
 		end
 	end
 
+	if level.timeLimit then
+		level.timeLeft = math.max(0, math.ceil(level.timeLimit - level.time))
+		if level.time >= level.timeLimit then
+			return "time"
+		end
+	end
+
+	local reason = updateScroll(level, dt, active) or updateStopGo(level, active) or updateCannons(level, dt, active)
+	if reason then
+		return reason
+	end
+
 	updateButtons(level, active, playerCount)
+	updateCrumbles(level, dt, active)
+	updateMovers(level)
 	updateBoxes(level, dt, active, playerCount)
 	updateLifts(level, dt, active, playerCount)
 	updateKey(level, dt, active, now)

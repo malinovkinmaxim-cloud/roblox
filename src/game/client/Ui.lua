@@ -6,6 +6,7 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local UiStyle = require(Shared:WaitForChild("UiStyle"))
+local Modes = require(Shared:WaitForChild("Modes"))
 
 local C = UiStyle.colors
 local F = UiStyle.fonts
@@ -114,7 +115,8 @@ local function caption(parent, text, order)
 	}, 2)
 end
 
-function Ui.new(player, gameState, onRestart, onHub)
+-- callbacks: restart(), hub(), chooseMode(modeId)
+function Ui.new(player, gameState, callbacks)
 	local self = setmetatable({}, Ui)
 	self.touch = { left = false, right = false, jump = false }
 
@@ -182,14 +184,16 @@ function Ui.new(player, gameState, onRestart, onHub)
 		Position = UDim2.new(1, -16, 0, 12),
 		Size = UDim2.fromOffset(56, 56),
 	}, "↻")
-	restart.Activated:Connect(onRestart)
+	restart.Activated:Connect(function()
+		self.requestRestart()
+	end)
 	if gameState:GetAttribute("HubAvailable") then
 		local hub = UiStyle.button(gui, {
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.new(1, -84, 0, 12),
 			Size = UDim2.fromOffset(96, 56),
 		}, "Хаб", C.info, C.white)
-		hub.Activated:Connect(onHub)
+		hub.Activated:Connect(callbacks.hub)
 	end
 
 	-- Team list (right side)
@@ -365,38 +369,213 @@ function Ui.new(player, gameState, onRestart, onHub)
 		bar.Parent = gui
 	end
 
-	-- State bindings
-	local shownIndex = nil
-	local function refreshLevel()
-		local index = gameState:GetAttribute("LevelIndex")
-		if not index then
+	-- Timer and stop/go signal (top centre)
+	local timerBody, timerCard = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 12),
+		Size = UDim2.fromOffset(130, 52),
+		Visible = false,
+	})
+	local timerText = UiStyle.text(timerBody, {
+		Size = UDim2.fromScale(1, 1),
+		FontFace = F.logo,
+		TextSize = 30,
+	})
+
+	local signalBody, signalCard = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 72),
+		Size = UDim2.fromOffset(300, 56),
+		Visible = false,
+	})
+	local signalText = UiStyle.outlinedText(signalBody, {
+		Size = UDim2.fromScale(1, 1),
+		TextSize = 28,
+	}, 3)
+	local edge = Instance.new("Frame")
+	edge.BackgroundTransparency = 1
+	-- A Border stroke is drawn outside the frame, so inset the frame by the stroke thickness
+	edge.Position = UDim2.fromOffset(14, 14)
+	edge.Size = UDim2.new(1, -28, 1, -28)
+	edge.Visible = false
+	local edgeStroke = UiStyle.stroke(edge, 14, C.danger)
+	edgeStroke.Transparency = 0.25
+	edge.Parent = gui
+
+	local SIGNALS = {
+		go = { text = "ИДИТЕ", color = C.success },
+		warn = { text = "ВНИМАНИЕ…", color = C.gold },
+		stop = { text = "СТОП! ЗАМРИТЕ", color = C.danger },
+	}
+	local function refreshSignal()
+		local signal = SIGNALS[gameState:GetAttribute("Signal")]
+		signalCard.Visible = signal ~= nil
+		edge.Visible = signal ~= nil and signal ~= SIGNALS.go
+		if signal then
+			signalText.Text = signal.text
+			signalBody.BackgroundColor3 = signal.color
+			edgeStroke.Color = signal.color
+		end
+	end
+	gameState:GetAttributeChangedSignal("Signal"):Connect(refreshSignal)
+	refreshSignal()
+
+	local function refreshTimer()
+		local left = gameState:GetAttribute("TimeLeft") or -1
+		timerCard.Visible = left >= 0
+		timerText.Text = `{left}`
+		timerText.TextColor3 = if left <= 10 then C.danger else C.ink
+	end
+	gameState:GetAttributeChangedSignal("TimeLeft"):Connect(refreshTimer)
+	refreshTimer()
+
+	-- Mode picker (only when the server was started without a hub room, e.g. in Studio)
+	local pickerBody, picker = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(440, 76 + #Modes.order * 66),
+		Visible = false,
+	})
+	local pickerScale = withScale(picker)
+	UiStyle.text(pickerBody, {
+		Position = UDim2.fromOffset(0, 14),
+		Size = UDim2.new(1, 0, 0, 40),
+		TextSize = 32,
+		Text = "Выберите режим",
+	})
+	for i, id in Modes.order do
+		local modeInfo = Modes.get(id)
+		local button = UiStyle.button(pickerBody, {
+			Position = UDim2.fromOffset(20, 62 + (i - 1) * 66),
+			Size = UDim2.new(1, -40, 0, 54),
+		}, "", modeInfo.color, C.white)
+		button:FindFirstChildOfClass("UIPadding"):Destroy()
+		UiStyle.outlinedText(button, {
+			Position = UDim2.fromOffset(18, 4),
+			Size = UDim2.new(1, -36, 0.55, 0),
+			TextSize = 24,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Text = modeInfo.name,
+			ZIndex = 3,
+		}, 2)
+		UiStyle.text(button, {
+			Position = UDim2.new(0, 18, 0.55, 0),
+			Size = UDim2.new(1, -36, 0.4, 0),
+			FontFace = F.bold,
+			TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = C.white,
+			Text = modeInfo.description,
+			ZIndex = 3,
+		})
+		button.Activated:Connect(function()
+			callbacks.chooseMode(id)
+		end)
+	end
+	local function refreshPicker()
+		local choosing = gameState:GetAttribute("ChoosingMode") == true
+		if choosing and not picker.Visible then
+			pop(picker, pickerScale)
+		elseif not choosing then
+			picker.Visible = false
+		end
+	end
+	gameState:GetAttributeChangedSignal("ChoosingMode"):Connect(refreshPicker)
+	refreshPicker()
+
+	-- Game over (hardcore)
+	local overBody, over = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.42),
+		Size = UDim2.fromOffset(480, 190),
+		Visible = false,
+	}, C.danger)
+	local overScale = withScale(over)
+	UiStyle.outlinedText(overBody, {
+		Position = UDim2.fromOffset(0, 18),
+		Size = UDim2.new(1, 0, 0, 50),
+		TextSize = 44,
+		Text = "ИГРА ОКОНЧЕНА",
+	}, 4)
+	local overReason = UiStyle.outlinedText(overBody, {
+		Position = UDim2.fromOffset(12, 78),
+		Size = UDim2.new(1, -24, 0, 30),
+		TextSize = 22,
+	}, 2)
+	local overStats = UiStyle.outlinedText(overBody, {
+		Position = UDim2.fromOffset(12, 116),
+		Size = UDim2.new(1, -24, 0, 26),
+		FontFace = F.bold,
+		TextSize = 19,
+	}, 2)
+	local function refreshGameOver()
+		if gameState:GetAttribute("GameOver") == true then
+			local reached = gameState:GetAttribute("GameOverLevel") or 1
+			overReason.Text = gameState:GetAttribute("GameOverReason") or ""
+			overStats.Text = `Пройдено уровней: {reached - 1}. Хардкор прощает только идеальную игру.`
+			pop(over, overScale)
+		else
+			over.Visible = false
+		end
+	end
+	gameState:GetAttributeChangedSignal("GameOver"):Connect(refreshGameOver)
+	refreshGameOver()
+
+	-- Restart; in hardcore it means giving up, so it needs a second press
+	local giveUpArmedUntil = 0
+	function self.requestRestart()
+		local modeInfo = Modes.get(gameState:GetAttribute("ModeId"))
+		if modeInfo and modeInfo.oneLife and os.clock() > giveUpArmedUntil then
+			giveUpArmedUntil = os.clock() + 3
+			bannerBody.BackgroundColor3 = C.danger
+			bannerText.Text = "Нажмите ещё раз, чтобы сдаться"
+			pop(banner, bannerScale, 2)
 			return
 		end
-		local count = gameState:GetAttribute("LevelCount") or 1
+		giveUpArmedUntil = 0
+		callbacks.restart()
+	end
+
+	-- State bindings
+	local shownKey = nil
+	local function refreshLevel()
+		local index = gameState:GetAttribute("LevelIndex")
+		local modeInfo = Modes.get(gameState:GetAttribute("ModeId"))
+		if not index or not modeInfo then
+			return
+		end
+		local count = gameState:GetAttribute("LevelCount") or 0
 		local name = gameState:GetAttribute("LevelName") or ""
+		badge.BackgroundColor3 = modeInfo.color
+		badgeNumber.TextColor3 = C.white
 		badgeNumber.Text = tostring(index)
-		levelCounter.Text = `УРОВЕНЬ {index} ИЗ {count}`
+		local counter = if count > 0 then `УРОВЕНЬ {index} ИЗ {count}` else `УРОВЕНЬ {index} · ∞`
+		levelCounter.Text = `{string.upper(modeInfo.name)} · {counter}` .. (if modeInfo.oneLife then " · ❤ 1" else "")
 		levelName.Text = name
 		hintText.Text = gameState:GetAttribute("LevelHint") or ""
 
-		if index ~= shownIndex then
-			shownIndex = index
-			introCounter.Text = `УРОВЕНЬ {index}`
+		local key = `{modeInfo.id}:{index}`
+		if key ~= shownKey then
+			shownKey = key
+			introCounter.Text = `{string.upper(modeInfo.name)} · УРОВЕНЬ {index}`
 			introName.Text = name
 			pop(intro, introScale, 2.4)
 
 			hintCard.Position = hintHidden
 			tween(hintCard, 0.5, { Position = hintHome }, Enum.EasingStyle.Back)
 			task.delay(10, function()
-				if shownIndex == index then
+				if shownKey == key then
 					tween(hintCard, 0.4, { Position = hintHidden }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 				end
 			end)
 		end
 	end
-	for _, name in { "LevelIndex", "LevelName", "LevelHint" } do
+	for _, name in { "LevelIndex", "LevelName", "LevelHint", "ModeId" } do
 		gameState:GetAttributeChangedSignal(name):Connect(refreshLevel)
 	end
+	gameState:GetAttributeChangedSignal("ChoosingMode"):Connect(function()
+		shownKey = nil
+	end)
 	refreshLevel()
 
 	local function refreshWaiting()
