@@ -9,6 +9,7 @@ local Ui = require(script:WaitForChild("Ui"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local inputRemote = remotes:WaitForChild("Input")
 local restartRemote = remotes:WaitForChild("Restart")
+local toHubRemote = remotes:WaitForChild("ToHub")
 local gameState = ReplicatedStorage:WaitForChild("GameState")
 
 local player = Players.LocalPlayer
@@ -23,6 +24,8 @@ end)
 
 local ui = Ui.new(player, gameState, function()
 	restartRemote:FireServer()
+end, function()
+	toHubRemote:FireServer()
 end)
 
 local facing = 1

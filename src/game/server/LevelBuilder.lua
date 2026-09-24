@@ -157,9 +157,9 @@ local function buildKey(position, parent)
 	hole.Shape = Enum.PartType.Cylinder
 	makeDecor(makePart("Shaft", Vector3.new(1.6, 0.35, 0.3), CFrame.new(position + Vector3.new(1.3, 0, 0)), PALETTE.key, model)).Material =
 		Enum.Material.Neon
-	makeDecor(makePart("Tooth1", Vector3.new(0.3, 0.45, 0.3), CFrame.new(position + Vector3.new(1.75, -0.35, 0)), PALETTE.key, model)).Material =
+	makeDecor(makePart("Tooth1", Vector3.new(0.3, 0.45, 0.26), CFrame.new(position + Vector3.new(1.75, -0.35, 0)), PALETTE.key, model)).Material =
 		Enum.Material.Neon
-	makeDecor(makePart("Tooth2", Vector3.new(0.3, 0.3, 0.3), CFrame.new(position + Vector3.new(1.3, -0.3, 0)), PALETTE.key, model)).Material =
+	makeDecor(makePart("Tooth2", Vector3.new(0.3, 0.3, 0.26), CFrame.new(position + Vector3.new(1.3, -0.3, 0)), PALETTE.key, model)).Material =
 		Enum.Material.Neon
 	model.PrimaryPart = ring
 	model.Parent = parent
@@ -263,7 +263,8 @@ function LevelBuilder.build(data, levelIndex)
 		runPart("Ground", r, c0, c1, PALETTE.ground, solids)
 	end)
 
-	-- Grass strip on exposed ground tops
+	-- Grass strip on exposed ground tops. It is slightly bigger than the ground on every side
+	-- so no face is coplanar with the ground block (coplanar faces flicker / z-fight).
 	eachRun(width, height, function(r, c)
 		return grid[r][c] == "#" and charAt(r - 1, c) ~= "#"
 	end, function(r, c0, c1)
@@ -271,8 +272,8 @@ function LevelBuilder.build(data, levelIndex)
 		makeDecor(
 			makePart(
 				"Grass",
-				Vector3.new(len * T, 0.5, DEPTH + 0.1),
-				CFrame.new((c0 - 1) * T + len * T / 2, tileBottom(r) + T - 0.25, 0),
+				Vector3.new(len * T + 0.1, 0.6, DEPTH + 0.1),
+				CFrame.new((c0 - 1) * T + len * T / 2, tileBottom(r) + T - 0.24, 0),
 				PALETTE.groundTop,
 				decor
 			)

@@ -2,6 +2,20 @@ local Config = {}
 
 Config.GAME_TITLE = "HOP PALS"
 
+-- Place IDs from the Creator Dashboard (see README). 0 = not set up yet.
+Config.HUB_PLACE_ID = 0
+Config.GAME_PLACE_ID = 0
+
+-- Hub rooms: one pad per capacity. A room starts with at least MIN players.
+Config.ROOM_CAPACITIES = { 2, 3, 4, 5, 6, 8 }
+Config.ROOM_MIN_PLAYERS = 2
+Config.ROOM_WAIT = 20 -- countdown once MIN players are in
+Config.ROOM_FULL_WAIT = 5 -- countdown once the room is full
+Config.ROOM_START_NOW_WAIT = 3
+
+-- Game server waits this long for the whole room to arrive before level 1
+Config.TEAM_ARRIVAL_TIMEOUT = 20
+
 Config.TILE = 3
 Config.TILE_DEPTH = 6
 Config.GRAVITY = 150

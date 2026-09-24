@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterPlayer = game:GetService("StarterPlayer")
+local TeleportService = game:GetService("TeleportService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Levels = require(ReplicatedStorage.Shared.Levels)
@@ -33,7 +34,7 @@ for _, item in workspace:GetChildren() do
 	end
 end
 
-local existingStarter =StarterPlayer:FindFirstChild("StarterCharacter")
+local existingStarter = StarterPlayer:FindFirstChild("StarterCharacter")
 if existingStarter then
 	existingStarter:Destroy()
 end
@@ -47,14 +48,19 @@ inputRemote.Parent = remotes
 local restartRemote = Instance.new("RemoteEvent")
 restartRemote.Name = "Restart"
 restartRemote.Parent = remotes
+local toHubRemote = Instance.new("RemoteEvent")
+toHubRemote.Name = "ToHub"
+toHubRemote.Parent = remotes
 remotes.Parent = ReplicatedStorage
 
 local gameState = Instance.new("Folder")
 gameState.Name = "GameState"
 gameState:SetAttribute("LevelCount", #Levels)
+gameState:SetAttribute("HubAvailable", Config.HUB_PLACE_ID ~= 0)
 gameState.Parent = ReplicatedStorage
 
 local playerDir = {}
+local lastHubRequest = {}
 local slots = {}
 local levelIndex = 1
 local level = nil
@@ -127,6 +133,19 @@ local function restartLevel(text)
 	loadLevel(levelIndex)
 end
 
+local function sendToHub(players)
+	if Config.HUB_PLACE_ID == 0 or RunService:IsStudio() or #players == 0 then
+		return false
+	end
+	local ok, err = pcall(function()
+		TeleportService:TeleportAsync(Config.HUB_PLACE_ID, players)
+	end)
+	if not ok then
+		warn("Teleport to hub failed:", err)
+	end
+	return ok
+end
+
 local function completeLevel()
 	if phase ~= "playing" then
 		return
@@ -135,6 +154,11 @@ local function completeLevel()
 	local isLast = levelIndex >= #Levels
 	setMessage(if isLast then "Все уровни пройдены! 🎉" else "Уровень пройден!")
 	task.wait(Config.COMPLETE_DELAY)
+	if isLast and sendToHub(Players:GetPlayers()) then
+		setMessage("Возвращаемся в хаб…")
+		-- If some teleports failed, keep playing with whoever is still here
+		task.wait(15)
+	end
 	loadLevel(if isLast then 1 else levelIndex + 1)
 end
 
@@ -187,6 +211,7 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	playerDir[player] = nil
+	lastHubRequest[player] = nil
 	for i, owner in slots do
 		if owner == player then
 			slots[i] = nil
@@ -203,6 +228,15 @@ end)
 
 restartRemote.OnServerEvent:Connect(function(player)
 	task.spawn(restartLevel, `{player.DisplayName} перезапускает уровень`)
+end)
+
+toHubRemote.OnServerEvent:Connect(function(player)
+	local now = os.clock()
+	if lastHubRequest[player] and now - lastHubRequest[player] < 5 then
+		return
+	end
+	lastHubRequest[player] = now
+	sendToHub({ player })
 end)
 
 RunService.Heartbeat:Connect(function(dt)
@@ -244,4 +278,22 @@ RunService.Heartbeat:Connect(function(dt)
 	task.spawn(completeLevel)
 end)
 
-loadLevel(1)
+-- Players from one hub room arrive one by one; give the whole team a moment before level 1
+local function waitForTeam()
+	phase = "waiting"
+	local first = Players:GetPlayers()[1] or Players.PlayerAdded:Wait()
+	local expected = 1
+	local data = first:GetJoinData().TeleportData
+	if type(data) == "table" and type(data.roomSize) == "number" and data.roomSize == data.roomSize then
+		expected = math.clamp(math.floor(data.roomSize), 1, #Config.PLAYER_COLORS)
+	end
+	local deadline = os.clock() + Config.TEAM_ARRIVAL_TIMEOUT
+	while #Players:GetPlayers() < expected and os.clock() < deadline do
+		gameState:SetAttribute("Waiting", `Ждём команду: {#Players:GetPlayers()}/{expected}`)
+		task.wait(0.5)
+	end
+	gameState:SetAttribute("Waiting", "")
+	loadLevel(1)
+end
+
+waitForTeam()

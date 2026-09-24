@@ -1,5 +1,5 @@
 {
-  "name": "HopPals",
+  "name": "HopPals-Game",
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
@@ -11,7 +11,7 @@
     "ServerScriptService": {
       "$className": "ServerScriptService",
       "Server": {
-        "$path": "src/server"
+        "$path": "src/game/server"
       }
     },
     "StarterPlayer": {
@@ -26,13 +26,13 @@
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "Client": {
-          "$path": "src/client"
+          "$path": "src/game/client"
         }
       },
       "StarterCharacterScripts": {
         "$className": "StarterCharacterScripts",
         "Animate": {
-          "$path": "src/character/Animate.client.lua"
+          "$path": "src/game/character/Animate.client.lua"
         }
       }
     },

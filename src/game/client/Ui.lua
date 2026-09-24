@@ -58,7 +58,7 @@ local function bindHold(button, touch, key)
 	end)
 end
 
-function Ui.new(player, gameState, onRestart)
+function Ui.new(player, gameState, onRestart, onHub)
 	local self = setmetatable({}, Ui)
 	self.touch = { left = false, right = false, jump = false }
 
@@ -95,6 +95,11 @@ function Ui.new(player, gameState, onRestart)
 	local restart = roundButton(gui, "↻", UDim2.new(1, -40, 0, 70), UDim2.fromOffset(52, 52))
 	restart.Activated:Connect(onRestart)
 
+	if gameState:GetAttribute("HubAvailable") then
+		local hub = roundButton(gui, "В хаб", UDim2.new(1, -120, 0, 70), UDim2.fromOffset(90, 44))
+		hub.Activated:Connect(onHub)
+	end
+
 	if UserInputService.TouchEnabled then
 		local left = roundButton(gui, "◀", UDim2.new(0, 70, 1, -80), UDim2.fromOffset(96, 96))
 		local right = roundButton(gui, "▶", UDim2.new(0, 180, 1, -80), UDim2.fromOffset(96, 96))
@@ -114,6 +119,12 @@ function Ui.new(player, gameState, onRestart)
 	end
 
 	local function refreshTitle()
+		local waiting = gameState:GetAttribute("Waiting")
+		if waiting and waiting ~= "" then
+			title.Text = `{Config.GAME_TITLE}  ·  {waiting}`
+			hint.Text = "Остальные игроки ещё загружаются"
+			return
+		end
 		local index = gameState:GetAttribute("LevelIndex") or 1
 		local count = gameState:GetAttribute("LevelCount") or 1
 		local name = gameState:GetAttribute("LevelName") or ""
@@ -123,6 +134,7 @@ function Ui.new(player, gameState, onRestart)
 	gameState:GetAttributeChangedSignal("LevelIndex"):Connect(refreshTitle)
 	gameState:GetAttributeChangedSignal("LevelName"):Connect(refreshTitle)
 	gameState:GetAttributeChangedSignal("LevelHint"):Connect(refreshTitle)
+	gameState:GetAttributeChangedSignal("Waiting"):Connect(refreshTitle)
 	refreshTitle()
 
 	local shownId = gameState:GetAttribute("MessageId")
