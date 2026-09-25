@@ -21,6 +21,15 @@
         "HubClient": {
           "$path": "src/hub/client"
         }
+      },
+      "$properties": {
+        "LoadCharacterAppearance": false
+      },
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "Animate": {
+          "$path": "src/game/character/Animate.client.lua"
+        }
       }
     }
   }

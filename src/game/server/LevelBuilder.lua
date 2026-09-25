@@ -284,6 +284,9 @@ function LevelBuilder.build(data, levelIndex)
 			color = tiles.color,
 			need = options.need or 1,
 			latch = options.latch or false,
+			-- heavy plate: the need is not scaled to the team and only one pal standing right on it
+			-- counts, so weight 2 means "only a bear can press it"
+			heavy = options.heavy == true,
 			on = false,
 			buttons = {},
 			walls = {},
@@ -306,7 +309,11 @@ function LevelBuilder.build(data, levelIndex)
 			for c = 1, width do
 				if grid[r][c] == tiles.button then
 					local x, bottom = tileX(c), tileBottom(r)
-					local plate = makePart("Button", Vector3.new(T * 0.9, 0.5, 2.6), CFrame.new(x, bottom + 0.25, 0), tiles.color, solids)
+					local plateColor = if channel.heavy then PALETTE.key else tiles.color
+					local plate = makePart("Button", Vector3.new(T * 0.9, 0.5, 2.6), CFrame.new(x, bottom + 0.25, 0), plateColor, solids)
+					if channel.heavy then
+						makeDecor(makePart("HeavyRim", Vector3.new(T * 0.9 + 0.3, 0.2, 2.9), CFrame.new(x, bottom + 0.1, 0), PALETTE.doorFrame, decor))
+					end
 					table.insert(channel.buttons, {
 						part = plate,
 						x = x,
@@ -314,7 +321,7 @@ function LevelBuilder.build(data, levelIndex)
 						top = bottom + 0.5,
 						restY = bottom + 0.25,
 						pressed = false,
-						label = UiStyle.worldTag(plate, Vector3.new(0, 2.6, 0), "", tiles.color, Color3.new(1, 1, 1)),
+						label = UiStyle.worldTag(plate, Vector3.new(0, 2.6, 0), "", plateColor, Color3.new(1, 1, 1)),
 						shownText = nil,
 					})
 				end

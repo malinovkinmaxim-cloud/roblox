@@ -223,7 +223,7 @@ function Ui.new(player, gameState, callbacks)
 	local rewardBody, rewardCard = UiStyle.card(gui, {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(420, 120),
+		Size = UDim2.fromOffset(460, 140),
 		Visible = false,
 	}, Color3.fromRGB(255, 246, 214))
 	local rewardScale = withScale(rewardCard)
@@ -234,9 +234,9 @@ function Ui.new(player, gameState, callbacks)
 	})
 	local rewardDetails = UiStyle.text(rewardBody, {
 		Position = UDim2.fromOffset(12, 58),
-		Size = UDim2.new(1, -24, 0, 50),
+		Size = UDim2.new(1, -24, 0, 72),
 		FontFace = F.bold,
-		TextSize = 16,
+		TextSize = 15,
 		TextWrapped = true,
 		TextColor3 = C.muted,
 	})
@@ -248,6 +248,18 @@ function Ui.new(player, gameState, callbacks)
 		end
 		if reward.noFalls then
 			table.insert(parts, "No falls bonus!")
+		end
+		if reward.daily then
+			table.insert(parts, "First clear today: x2!")
+		end
+		if reward.replay then
+			table.insert(parts, "Replay: half rewards")
+		end
+		if reward.group then
+			table.insert(parts, "Group member +10% Paws")
+		end
+		if reward.referral then
+			table.insert(parts, `Friend bonus with {reward.referral}!`)
 		end
 		if reward.finishers < 5 then
 			table.insert(parts, "More friends at the finish = bigger rewards")
@@ -324,7 +336,8 @@ function Ui.new(player, gameState, callbacks)
 			seen[p] = true
 			local slot = p:GetAttribute("Slot") or 1
 			local chip = chips[p]
-			local buddyKey = `{slot}:{p:GetAttribute("Class")}`
+			local buddyClass = p:GetAttribute("LoanClass") or p:GetAttribute("Class")
+			local buddyKey = `{slot}:{buddyClass}`
 			if not chip or chip.key ~= buddyKey then
 				if chip then
 					chip.frame:Destroy()
@@ -343,7 +356,7 @@ function Ui.new(player, gameState, callbacks)
 					TextSize = 15,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextTruncate = Enum.TextTruncate.AtEnd,
-					Text = `{Buddies.getClass(p:GetAttribute("Class")).emoji} {p.DisplayName}`,
+					Text = `{Buddies.getClass(buddyClass).emoji} {p.DisplayName}`,
 				})
 				local status = UiStyle.text(frame, {
 					AnchorPoint = Vector2.new(1, 0.5),
@@ -742,7 +755,8 @@ function Ui.new(player, gameState, callbacks)
 		local key = `{modeInfo.id}:{index}`
 		if key ~= shownKey then
 			shownKey = key
-			introCounter.Text = `{string.upper(modeInfo.name)} · LEVEL {index}`
+			local chapter = gameState:GetAttribute("LevelChapter") or ""
+			introCounter.Text = `{string.upper(modeInfo.name)} · LEVEL {index}` .. (if chapter ~= "" then ` · {chapter}` else "")
 			introName.Text = name
 			pop(intro, introScale, 2.4)
 

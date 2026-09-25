@@ -11,7 +11,9 @@ local Modes = require(ReplicatedStorage.Shared.Modes)
 local Parties = require(ReplicatedStorage.Shared.Parties)
 local ProgressStore = require(ReplicatedStorage.Shared.ProgressStore)
 local UiStyle = require(ReplicatedStorage.Shared.UiStyle)
-local CharacterFactory = require(script.CharacterFactory)
+local Buddies = require(ReplicatedStorage.Shared.Buddies)
+local CharacterFactory = require(ReplicatedStorage.Shared.CharacterFactory)
+local Community = require(ReplicatedStorage.Shared.Community)
 local LevelBuilder = require(script.LevelBuilder)
 local LevelGenerator = require(script.LevelGenerator)
 local Mechanics = require(script.Mechanics)
@@ -213,6 +215,28 @@ local function loadLevel(index)
 	gameState:SetAttribute("LevelName", data.name)
 	gameState:SetAttribute("LevelHint", data.hint or "")
 	gameState:SetAttribute("LevelSerial", (gameState:GetAttribute("LevelSerial") or 0) + 1)
+	gameState:SetAttribute("LevelChapter", data.chapter or "")
+
+	-- Buddy levels are built around one ability. If nobody brought that buddy, one pal borrows it
+	-- for this level, so a team is never stuck without it.
+	local loanMessage = nil
+	local players = Players:GetPlayers()
+	for _, player in players do
+		player:SetAttribute("LoanClass", nil)
+	end
+	if data.needsClass and #players > 0 then
+		local hasIt = false
+		for _, player in players do
+			if player:GetAttribute("Class") == data.needsClass then
+				hasIt = true
+			end
+		end
+		if not hasIt then
+			local borrower = players[math.random(1, #players)]
+			borrower:SetAttribute("LoanClass", data.needsClass)
+			loanMessage = `{borrower.DisplayName} borrows the {Buddies.getClass(data.needsClass).name} for this level!`
+		end
+	end
 
 	for order, player in Players:GetPlayers() do
 		spawnPlayer(player, level.spawn + Vector3.new((order - 1) * Config.SPAWN_SPACING, 0, 0))
@@ -224,6 +248,9 @@ local function loadLevel(index)
 		end
 	end
 	phase = "playing"
+	if loanMessage then
+		setMessage(loanMessage, "info")
+	end
 end
 
 -- Win streaks live for the whole visit to the experience, so they travel with teleports
@@ -421,11 +448,34 @@ local function completeLevel()
 	local squad = Parties.squadMultiplier(finishers)
 	local basePaws = Config.PAWS[mode.id] or 10
 	local baseStars = (Config.STARS[mode.id] or 1) + (if level.koCount == 0 then Config.STARS_NO_FALL_BONUS else 0)
+	local levelKey = `{party.id}:{mode.pack or "endless"}:{levelIndex}`
+
+	-- Referral: a new player invited by a friend gets a one-time bonus, for both, on their first
+	-- level cleared together with that friend
+	local referralBonus = {}
+	for _, player in Players:GetPlayers() do
+		local referrerId = ProgressStore.pendingReferrer(player)
+		local referrer = referrerId and Players:GetPlayerByUserId(referrerId)
+		if referrer then
+			ProgressStore.completeReferral(player)
+			referralBonus[player] = referrer.DisplayName
+			referralBonus[referrer] = player.DisplayName
+		end
+	end
+
 	for _, player in Players:GetPlayers() do
 		local streak = player:GetAttribute("Streak") or 0
 		local streakBonus = 1 + math.min(streak, Config.STREAK_CAP) * Config.STREAK_STEP
-		local paws = math.round(basePaws * squad * streakBonus)
-		local stars = math.round(baseStars * squad * streakBonus)
+		local daily = ProgressStore.claimDaily(player)
+		local firstClear = mode.endless or ProgressStore.markLevelCleared(player, levelKey)
+		local multiplier = squad * streakBonus
+			* (if daily then Config.DAILY_FIRST_CLEAR_MULT else 1)
+			* (if firstClear then 1 else Config.REPLAY_MULT)
+		local paws = math.round(basePaws * multiplier * Community.pawsMultiplier(player))
+		local stars = math.round(baseStars * multiplier)
+		if referralBonus[player] then
+			paws += Config.REFERRAL_PAWS
+		end
 		ProgressStore.addReward(player, paws, stars)
 		player:SetAttribute("Streak", streak + 1)
 		rewardRemote:FireClient(player, {
@@ -436,7 +486,25 @@ local function completeLevel()
 			streak = streak + 1,
 			streakBonus = streakBonus,
 			noFalls = level.koCount == 0,
+			daily = daily,
+			replay = not firstClear,
+			group = player:GetAttribute("InGroup") == true,
+			referral = referralBonus[player],
 		})
+
+		Community.award(player, "firstClear")
+		if finishers >= 4 then
+			Community.award(player, "squadOf4")
+		end
+		if finishers >= 8 then
+			Community.award(player, "partyOf8")
+		end
+		if level.koCount == 0 and mode.pack == "hard" then
+			Community.award(player, "noFalls")
+		end
+		if mode.endless and levelIndex >= 10 then
+			Community.award(player, "endless10")
+		end
 	end
 
 	local isLast = not mode.endless and levelIndex >= levelCount()
@@ -448,6 +516,9 @@ local function completeLevel()
 	if isLast then
 		for _, player in Players:GetPlayers() do
 			ProgressStore.markCompleted(player, party.id, mode.id)
+			if mode.id == "hardcore" then
+				Community.award(player, "hardcoreHero")
+			end
 		end
 		local unlockedNext = nil
 		for _, id in Modes.order do
@@ -489,7 +560,7 @@ local function onCharacterAdded(player, character)
 		character,
 		Config.PLAYER_COLORS[slot],
 		player.DisplayName,
-		player:GetAttribute("Class"),
+		player:GetAttribute("LoanClass") or player:GetAttribute("Class"),
 		player:GetAttribute("Skin")
 	)
 	local humanoid = character:WaitForChild("Humanoid")
@@ -555,7 +626,7 @@ restartRemote.OnServerEvent:Connect(function(player)
 		task.spawn(fail, "giveup", `{player.DisplayName} gave up`)
 	else
 		phase = "transition"
-		resetStreaks()
+		-- A voluntary restart is not a failure, so win streaks survive it
 		setMessage(`{player.DisplayName} restarted the level`, "info")
 		task.delay(Config.FAIL_DELAY, loadLevel, levelIndex)
 	end
@@ -637,7 +708,7 @@ RunService.Heartbeat:Connect(function(dt)
 				root = root,
 				pos = root.Position,
 				dir = playerDir[player] or 0,
-				weight = if player:GetAttribute("Class") == "bear" then 2 else 1,
+				weight = if (player:GetAttribute("LoanClass") or player:GetAttribute("Class")) == "bear" then 2 else 1,
 				inDoor = player:GetAttribute("InDoor") == true,
 				knockedOut = player:GetAttribute("KnockedOut") == true,
 			})
@@ -705,4 +776,5 @@ local function start()
 end
 
 ProgressStore.start()
+Community.start()
 start()

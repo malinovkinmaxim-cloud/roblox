@@ -27,6 +27,9 @@
         "$className": "StarterPlayerScripts",
         "Client": {
           "$path": "src/game/client"
+        },
+        "PlayerModule": {
+          "$path": "src/game/PlayerModule.lua"
         }
       },
       "StarterCharacterScripts": {

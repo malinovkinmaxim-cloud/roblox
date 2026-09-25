@@ -60,19 +60,33 @@ local function applyChannel(channel)
 	end
 end
 
+-- Weight of the single pal standing on the middle of a heavy plate (towers do not count)
+local function weightOnHeavyPlate(active, button)
+	local weight = 0
+	for _, info in active do
+		local p = info.pos
+		if math.abs(p.X - button.x) < 0.8 and p.Y > button.top and p.Y < button.top + Config.CHAR_BOTTOM + 0.7 then
+			weight = math.max(weight, info.weight)
+		end
+	end
+	return weight
+end
+
 local function updateButtons(level, active, playerCount)
 	for _, channel in level.channels do
-		local need = Config.needFor(channel.need, playerCount)
+		local need = if channel.heavy then channel.need else Config.needFor(channel.need, playerCount)
 		local anyPressed = false
 		for _, button in channel.buttons do
-			local count = countAbove(active, button.x, button.halfWidth, button.top)
+			local count = if channel.heavy
+				then weightOnHeavyPlate(active, button)
+				else countAbove(active, button.x, button.halfWidth, button.top)
 			local pressed = count >= need
 			if pressed ~= button.pressed then
 				button.pressed = pressed
 				button.part.Material = if pressed then Enum.Material.Neon else Enum.Material.SmoothPlastic
 				button.part.CFrame = CFrame.new(button.x, button.restY - (if pressed then 0.3 else 0), 0)
 			end
-			setText(button, `{count}/{need}`)
+			setText(button, if channel.heavy then `🐻 {count}/{need}` else `{count}/{need}`)
 			anyPressed = anyPressed or pressed
 		end
 		local on = anyPressed or (channel.latch and channel.on)

@@ -3,6 +3,7 @@
 --   stars     score; only ever grows, sorts the leaderboards
 --   completed modes per party size ("duo:easy" = true), endless records per party size
 --   owned buddies/skins, current selection, processed Robux receipts
+--   lastPlayedDate (daily bonus), clearedLevels (replays pay less), referral state
 -- Loaded on join, saved on leave, on shutdown, before teleports and every AUTOSAVE seconds.
 -- Publishes leaderstats (Paws, Stars) and player attributes for the UI, plus "SaveStatus".
 local DataStoreService = game:GetService("DataStoreService")
@@ -18,6 +19,7 @@ local ProgressStore = {}
 
 local STORE_NAME = "HopPalsProgress_v2"
 local MAX_RECEIPTS = 50
+local MAX_CLEARED = 600
 local AUTOSAVE = 60
 
 local STUDIO_HINT = "Progress is NOT saved: in Studio open Game Settings > Security and turn on "
@@ -56,7 +58,15 @@ local function fresh()
 		class = "bunny",
 		skin = "classic",
 		receipts = {},
+		lastPlayedDate = "",
+		clearedLevels = {},
+		referredBy = 0,
+		referralDone = false,
 	}
+end
+
+local function today()
+	return os.date("!%Y-%m-%d")
 end
 
 local function copySet(source, order)
@@ -110,6 +120,20 @@ local function sanitize(saved)
 			end
 		end
 	end
+	if type(saved.lastPlayedDate) == "string" then
+		data.lastPlayedDate = saved.lastPlayedDate
+	end
+	if type(saved.clearedLevels) == "table" then
+		local count = 0
+		for key, value in saved.clearedLevels do
+			if value == true and type(key) == "string" and count < MAX_CLEARED then
+				data.clearedLevels[key] = true
+				count += 1
+			end
+		end
+	end
+	data.referredBy = math.max(0, math.floor(tonumber(saved.referredBy) or 0))
+	data.referralDone = saved.referralDone == true
 	return data
 end
 
@@ -140,6 +164,16 @@ local function mergeInto(saved, current)
 	while #merged.receipts > MAX_RECEIPTS do
 		table.remove(merged.receipts, 1)
 	end
+	if current.lastPlayedDate > merged.lastPlayedDate then
+		merged.lastPlayedDate = current.lastPlayedDate
+	end
+	for key in current.clearedLevels do
+		merged.clearedLevels[key] = true
+	end
+	if merged.referredBy == 0 then
+		merged.referredBy = current.referredBy
+	end
+	merged.referralDone = merged.referralDone or current.referralDone
 	return merged
 end
 
@@ -304,6 +338,53 @@ function ProgressStore.addReward(player, paws, stars)
 	change(player, function(data)
 		data.paws += paws
 		data.stars += stars
+	end)
+end
+
+-- First level cleared on a new (UTC) calendar day? Returns true once per day.
+function ProgressStore.claimDaily(player)
+	if ProgressStore.get(player).lastPlayedDate == today() then
+		return false
+	end
+	change(player, function(data)
+		data.lastPlayedDate = today()
+	end)
+	return true
+end
+
+-- Remembers a cleared level ("duo:easy:3"); returns true the first time, so replays can pay less
+function ProgressStore.markLevelCleared(player, key)
+	if ProgressStore.get(player).clearedLevels[key] then
+		return false
+	end
+	change(player, function(data)
+		data.clearedLevels[key] = true
+	end)
+	return true
+end
+
+-- Referral: only brand-new players (no Stars yet) can be referred, once
+function ProgressStore.setReferrer(player, referrerId)
+	local data = ProgressStore.get(player)
+	if referrerId == player.UserId or referrerId <= 0 or data.referredBy ~= 0 or data.stars > 0 then
+		return
+	end
+	change(player, function(d)
+		d.referredBy = referrerId
+	end)
+end
+
+function ProgressStore.pendingReferrer(player)
+	local data = ProgressStore.get(player)
+	if data.referredBy ~= 0 and not data.referralDone then
+		return data.referredBy
+	end
+	return nil
+end
+
+function ProgressStore.completeReferral(player)
+	change(player, function(data)
+		data.referralDone = true
 	end)
 end
 

@@ -22,13 +22,18 @@ Level options:
   scroll  = { speed = 3.5, delay = 4 }   -- the screen scrolls right; whoever falls behind loses
   stopgo  = { go = 3.5, stop = 2.5 }     -- red light: nobody may move while it is red
   time    = 60                           -- time limit in seconds
+  button  = { need = 2, latch = true, heavy = true }  -- heavy plate: need is not scaled to the team and
+                                         -- only one pal standing on it counts (so only a bear presses it)
+  needsClass = "frog"                    -- buddy level: if nobody brought one, a pal borrows it
+  chapter = "First Steps"                -- shown on the level intro
 
 Requirements are capped by the current player count, so 99 means "everyone".
 ]]
 
 -- Level packs per party size, then per difficulty: Levels.duo.easy[3].
--- Duo levels are hand-made; Solo, Squad and Party packs are composed from tested building blocks
--- (solo packs never need a partner; squad/party packs use crates, plates and towers for 3-5 pals).
+-- Each pack is split into chapters of 4 levels, each chapter about one idea, then ideas mix
+-- (Easy 2 chapters, Medium 4, Hard 5 with the "Last Park" finale). Solo packs never need a partner;
+-- squad/party packs scale crates, plates and towers to the team.
 local function pack(folder)
 	return {
 		easy = require(folder.Easy),

@@ -28,6 +28,27 @@ Config.STREAK_CAP = 10 -- so the streak bonus tops out at +100%
 Config.SKIN_PRODUCTS = { mint = 0, caramel = 0, candy = 0, night = 0, gold = 0 }
 Config.PAW_PACK = { productId = 0, paws = 500 }
 
+-- Retention: the first clear of a new UTC day pays more; replaying an already cleared level pays less
+Config.DAILY_FIRST_CLEAR_MULT = 2
+Config.REPLAY_MULT = 0.5
+
+-- Referral: a brand-new player invited by a friend, clearing their first level together with them
+Config.REFERRAL_PAWS = 100
+
+-- Roblox group (0 = none yet). Members get a Paws bonus; the hub shows a "join our group" banner.
+Config.GROUP_ID = 0
+Config.GROUP_PAWS_BONUS = 0.1
+
+-- Badge IDs from the Creator Dashboard (0 = not created yet, nothing is awarded)
+Config.BADGES = {
+	firstClear = 0, -- clear any level
+	noFalls = 0, -- clear a Hard level with nobody falling
+	squadOf4 = 0, -- finish a level with 4+ pals at the door
+	partyOf8 = 0, -- finish a level with 8 pals at the door
+	endless10 = 0, -- reach level 10 in Endless
+	hardcoreHero = 0, -- clear Hardcore
+}
+
 Config.LEADERBOARD_REFRESH = 3
 Config.INVITE_COOLDOWN = 6
 

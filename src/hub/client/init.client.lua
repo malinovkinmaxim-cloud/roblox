@@ -261,6 +261,29 @@ end
 player:GetAttributeChangedSignal("SaveStatus"):Connect(refreshSave)
 refreshSave()
 
+-- Group banner (only when a group is configured)
+if Config.GROUP_ID ~= 0 then
+	local groupBody = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -16, 1, -24),
+		Size = UDim2.fromOffset(300, 56),
+	}, C.info)
+	local groupText = UiStyle.outlinedText(groupBody, {
+		Position = UDim2.fromOffset(10, 4),
+		Size = UDim2.new(1, -20, 1, -8),
+		TextScaled = true,
+		TextWrapped = true,
+	}, 2)
+	local function refreshGroup()
+		local bonus = math.round(Config.GROUP_PAWS_BONUS * 100)
+		groupText.Text = if player:GetAttribute("InGroup") == true
+			then `Group member: +{bonus}% Paws ✓`
+			else `Join our Roblox group for +{bonus}% Paws!`
+	end
+	player:GetAttributeChangedSignal("InGroup"):Connect(refreshGroup)
+	refreshGroup()
+end
+
 local wardrobe = Wardrobe.new(gui, player, shopRemote)
 local wardrobeButton = UiStyle.button(gui, {
 	AnchorPoint = Vector2.new(0, 1),

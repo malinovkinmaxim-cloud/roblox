@@ -23,12 +23,6 @@ local gameState = ReplicatedStorage:WaitForChild("GameState")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-local controls = nil
-task.spawn(function()
-	local playerModule = require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"))
-	controls = playerModule:GetControls()
-	controls:Disable()
-end)
 
 local facing = 1
 local lastSentDir = 0
@@ -60,9 +54,6 @@ local ui = Ui.new(player, gameState, {
 
 local function onCharacterAdded(character)
 	facing = 1
-	if controls then
-		controls:Disable()
-	end
 	local humanoid = character:WaitForChild("Humanoid")
 	humanoid.AutoRotate = false
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
@@ -245,7 +236,7 @@ end
 -- Frog passive: teammates near a frog get one extra jump in the air
 local function frogNearby(root)
 	for _, other in Players:GetPlayers() do
-		if other ~= player and other:GetAttribute("Class") == "frog" then
+		if other ~= player and (other:GetAttribute("LoanClass") or other:GetAttribute("Class")) == "frog" then
 			local otherRoot = isActive(other)
 			if otherRoot and (otherRoot.Position - root.Position).Magnitude < Config.FROG_RADIUS then
 				return true
@@ -390,7 +381,7 @@ local function updateCharacter(dt)
 		end
 
 		local clinging = false
-		if not grounded and player:GetAttribute("Class") == "gecko" then
+		if not grounded and (player:GetAttribute("LoanClass") or player:GetAttribute("Class")) == "gecko" then
 			clinging = geckoCling(root, dir, jumpPressed, dt)
 		end
 

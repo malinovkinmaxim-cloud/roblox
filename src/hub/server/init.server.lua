@@ -3,9 +3,12 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local StarterPlayer = game:GetService("StarterPlayer")
 local TeleportService = game:GetService("TeleportService")
 
 local Buddies = require(ReplicatedStorage.Shared.Buddies)
+local CharacterFactory = require(ReplicatedStorage.Shared.CharacterFactory)
+local Community = require(ReplicatedStorage.Shared.Community)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Modes = require(ReplicatedStorage.Shared.Modes)
 local Parties = require(ReplicatedStorage.Shared.Parties)
@@ -33,6 +36,25 @@ for _, item in workspace:GetChildren() do
 	if item:IsA("SpawnLocation") or (item:IsA("BasePart") and item.Name == "Baseplate") then
 		item:Destroy()
 	end
+end
+
+-- Same pixel buddy as in the game place instead of the default avatar
+StarterPlayer.LoadCharacterAppearance = false
+local existingStarter = StarterPlayer:FindFirstChild("StarterCharacter")
+if existingStarter then
+	existingStarter:Destroy()
+end
+CharacterFactory.buildStarterCharacter().Parent = StarterPlayer
+
+local slots = {}
+local function claimSlot(player)
+	for i = 1, #Config.PLAYER_COLORS do
+		if not slots[i] then
+			slots[i] = player
+			return i
+		end
+	end
+	return (#Players:GetPlayers() - 1) % #Config.PLAYER_COLORS + 1
 end
 
 local remotes = Instance.new("Folder")
@@ -106,7 +128,7 @@ local function showPartyBadge(player)
 	if old then
 		old:Destroy()
 	end
-	local label, gui = UiStyle.worldTag(head, Vector3.new(0, 3, 0), `{partyInfo.name} · {BONUS_TEXT[partyInfo.id]}`, partyInfo.color, UiStyle.colors.white)
+	local label, gui = UiStyle.worldTag(head, Vector3.new(0, 5, 0), `{partyInfo.name} · {BONUS_TEXT[partyInfo.id]}`, partyInfo.color, UiStyle.colors.white)
 	gui.Name = "PartyBadge"
 	gui.Size = UDim2.fromOffset(190, 32)
 	UiStyle.stroke(label, 1.5, UiStyle.colors.ink, Enum.ApplyStrokeMode.Contextual)
@@ -166,10 +188,59 @@ local function onPlayerAdded(player)
 	local data = player:GetJoinData().TeleportData
 	local streaks = type(data) == "table" and type(data.streaks) == "table" and data.streaks or {}
 	player:SetAttribute("Streak", math.clamp(math.floor(tonumber(streaks[tostring(player.UserId)]) or 0), 0, 1000))
+	player:SetAttribute("Slot", claimSlot(player))
+
+	-- Invited by a friend? Remember who, once the save has loaded (only brand-new players count)
+	local referrerId = player:GetJoinData().ReferredByPlayerId
+	if type(referrerId) == "number" and referrerId > 0 then
+		task.spawn(function()
+			while player.Parent and player:GetAttribute("SaveStatus") == nil do
+				task.wait(0.2)
+			end
+			if player.Parent then
+				ProgressStore.setReferrer(player, referrerId)
+			end
+		end)
+	end
 	player.CharacterAdded:Connect(function(character)
 		character:WaitForChild("Head")
+		CharacterFactory.decorate(
+			character,
+			Config.PLAYER_COLORS[player:GetAttribute("Slot")],
+			player.DisplayName,
+			player:GetAttribute("Class"),
+			player:GetAttribute("Skin")
+		)
+		-- The hub is a free 3D lobby: normal camera-relative walking and turning
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.AutoRotate = true
+			humanoid.WalkSpeed = 18
+		end
 		showPartyBadge(player)
 	end)
+
+	-- Rebuild the buddy when the wardrobe (or the save loading) changes class or skin
+	local pending = false
+	local function refreshLook()
+		if pending then
+			return
+		end
+		pending = true
+		task.delay(0.3, function()
+			pending = false
+			local root = rootOf(player)
+			if player.Parent and root and not roomOf(player) then
+				local position = root.CFrame
+				player:LoadCharacter()
+				if player.Character then
+					player.Character:PivotTo(position)
+				end
+			end
+		end)
+	end
+	player:GetAttributeChangedSignal("Class"):Connect(refreshLook)
+	player:GetAttributeChangedSignal("Skin"):Connect(refreshLook)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
@@ -178,8 +249,14 @@ for _, player in Players:GetPlayers() do
 end
 Players.PlayerRemoving:Connect(function(player)
 	lastInvite[player] = nil
+	for i, owner in slots do
+		if owner == player then
+			slots[i] = nil
+		end
+	end
 end)
 ProgressStore.start()
+Community.start()
 
 -- Wardrobe: buddies and skins are bought with Paws; Robux only buys skins and Paw packs
 shopRemote.OnServerEvent:Connect(function(player, action, kind, id)
