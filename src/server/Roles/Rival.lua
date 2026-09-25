@@ -353,9 +353,14 @@ function Rival:_decide(now: number)
 			return
 		end
 	end
-	-- vanishing / falling platform currently gone: wait for it
-	if nextNode.Attach and not self.Services.ObstacleService:IsElementSolid(nextNode.Attach) then
-		if not (nextNode.Attach.Type == "Fake") and now - (self.WaitSince or now) < 8 then
+	-- vanishing / falling platform currently gone (or about to go): wait for it
+	local attach = nextNode.Attach
+	if attach and now - (self.WaitSince or now) < 8 then
+		local obstacles = self.Services.ObstacleService
+		if attach.Type ~= "Fake" and not obstacles:IsElementSolid(attach) then
+			return
+		end
+		if obstacles:VisibleRemaining(self.Instance, attach) < 1.0 then
 			return
 		end
 	end
@@ -370,10 +375,11 @@ function Rival:_decide(now: number)
 			end
 		end
 	end
-	-- occasional hesitation
+	-- occasional hesitation (never while standing on something that vanishes or falls)
 	if not self.PauseRolled then
 		self.PauseRolled = true
-		local chance = if node.Pause then 0 else Config.RIVAL_PAUSE_CHANCE
+		local unstable = node.Attach ~= nil and (node.Attach.Type == "Disappearing" or node.Attach.Type == "Falling")
+		local chance = if node.Pause or unstable then 0 else Config.RIVAL_PAUSE_CHANCE
 		if self.Rng:NextNumber() < chance then
 			local range = Config.RIVAL_PAUSE_TIME
 			self.Mode = "Paused"
@@ -388,14 +394,16 @@ function Rival:_needsJump(from: Vector3, to: Vector3, node): boolean
 	if node.Jump ~= nil then
 		return node.Jump
 	end
-	if math.abs(to.Y - from.Y) > 1 then
+	if math.abs(to.Y - from.Y) > 0.6 then
 		return true
 	end
 	if node.Attach and node.Attach.Type == "MovingPlatform" then
 		return true
 	end
-	for _, alpha in { 0.25, 0.5, 0.75 } do
-		if not self.Actor:HasGroundAt(from:Lerp(to, alpha), 1.5) then
+	-- any gap along the way (thin probes every half stud) means we have to jump
+	local steps = math.max(2, math.ceil((to - from).Magnitude * 2))
+	for i = 1, steps - 1 do
+		if not self.Actor:HasGroundAt(from:Lerp(to, i / steps), 1.5, true) then
 			return true
 		end
 	end

@@ -116,7 +116,19 @@ local function stubTweenInfo()
 	}
 end
 
+local fakeClock = 0
+local fakeOs = setmetatable({
+	clock = function()
+		return fakeClock
+	end,
+}, { __index = os })
+
+function Harness.SetClock(t: number)
+	fakeClock = t
+end
+
 environment = {
+	os = fakeOs,
 	Vector3 = roblox.Vector3,
 	Vector2 = roblox.Vector2,
 	CFrame = roblox.CFrame,

@@ -333,6 +333,21 @@ function ObstacleService:GhostShimmer(element, now: number)
 	end)
 end
 
+-- Seconds a vanishing platform stays visible from now (0 when hidden). Other elements: huge.
+function ObstacleService:VisibleRemaining(inst, element): number
+	if not element or element.Type ~= "Disappearing" then
+		return math.huge
+	end
+	local cycle = element.Cycle
+	local visible = cycle.Visible or 2
+	local period = visible + (cycle.Hidden or 1.5)
+	local p = (os.clock() - inst.StartClock + (cycle.Phase or 0)) % period
+	if p < visible then
+		return visible - p
+	end
+	return 0
+end
+
 -- Is there solid ground at a node attached to a platform? (used by AI)
 function ObstacleService:IsElementSolid(element): boolean
 	if not element then

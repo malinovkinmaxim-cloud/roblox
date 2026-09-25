@@ -195,13 +195,13 @@ function DoppelActor:Teleport(cf: CFrame)
 	self.Grounded = true
 end
 
-function DoppelActor:HasGroundAt(position: Vector3, extra: number?): boolean
-	local result = workspace:Blockcast(
-		CFrame.new(position),
-		FOOT_BOX,
-		Vector3.new(0, -(self.RootOffset + (extra or 1.3)), 0),
-		self.Instance.GroundParams
-	)
+-- narrow = a thin ray instead of the foot box (used to detect small gaps when planning a walk)
+function DoppelActor:HasGroundAt(position: Vector3, extra: number?, narrow: boolean?): boolean
+	local direction = Vector3.new(0, -(self.RootOffset + (extra or 1.3)), 0)
+	if narrow then
+		return workspace:Raycast(position, direction, self.Instance.GroundParams) ~= nil
+	end
+	local result = workspace:Blockcast(CFrame.new(position), FOOT_BOX, direction, self.Instance.GroundParams)
 	return result ~= nil
 end
 

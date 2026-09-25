@@ -33,9 +33,10 @@ return K.Level({
 		K.Checkpoint(1, 82, 0, 0),
 
 		-- vanishing steps
-		K.Vanish(93, 1, 0, 6, 6, { Visible = 2.4, Hidden = 1.2, Phase = 0 }, { Id = "V1" }),
-		K.Vanish(101, 2, 0, 6, 6, { Visible = 2.4, Hidden = 1.2, Phase = 0.9 }, { Id = "V2" }),
-		K.Vanish(109, 3, 0, 6, 6, { Visible = 2.4, Hidden = 1.2, Phase = 1.8 }, { Id = "V3" }),
+		-- a forward "wave": each step appears 0.8 s after the previous one
+		K.Vanish(93, 1, 0, 6, 6, { Visible = 2.6, Hidden = 1.0, Phase = 0 }, { Id = "V1" }),
+		K.Vanish(101, 2, 0, 6, 6, { Visible = 2.6, Hidden = 1.0, Phase = -0.8 }, { Id = "V2" }),
+		K.Vanish(109, 3, 0, 6, 6, { Visible = 2.6, Hidden = 1.0, Phase = -1.6 }, { Id = "V3" }),
 		K.Floor(119, 3, 0, 14, 10),
 
 		-- moving platform

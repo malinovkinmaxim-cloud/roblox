@@ -362,6 +362,60 @@ Test("circle mover starts at its base position", function()
 end)
 
 ---------------------------------------------------------------------------
+print("\n[AI simulations]")
+---------------------------------------------------------------------------
+local Sim = require("./sim")
+
+for _, def in levels do
+	local rivalLevel = def.Role == "Rival" or def.RivalStartCheckpoint ~= nil
+	if rivalLevel then
+		Test(string.format("rival finishes level %02d (20 seeds, never stuck)", def.Id), function()
+			local worst, deaths, revealed = 0, 0, 0
+			for seed = 1, 20 do
+				local result = Sim.RunRival(def, seed, 300)
+				Expect(result.Finished, "seed " .. seed .. ": rival never reached the finish")
+				worst = math.max(worst, result.Time)
+				deaths += result.Deaths
+				revealed += result.Revealed
+			end
+			print(string.format("       slowest %.1fs, avg deaths %.2f, avg fakes revealed %.2f", worst, deaths / 20, revealed / 20))
+		end)
+	end
+end
+
+Test("shadow replays the player 0.7 s later", function()
+	local samples = Sim.RunShadow({ Delay = 0.7, Seconds = 4 })
+	for _, sample in samples do
+		if sample.T > 1 and sample.T < 3.5 then
+			local expected = math.min((sample.T - 0.7) * 16, 95)
+			Near(sample.Shadow.X, expected, 1.2, string.format("t=%.2f", sample.T))
+		end
+	end
+end)
+
+Test("shadow waits at a closed door, then catches up when it opens", function()
+	local samples = Sim.RunShadow({ Delay = 0.7, Seconds = 6, Door = 30, OpenDoorAt = 3, Phase = false })
+	local atDoor, caughtUp = false, false
+	for _, sample in samples do
+		if sample.T > 2.5 and sample.T < 2.9 then
+			Expect(sample.Shadow.X < 30, "passed a closed door at t=" .. sample.T)
+			atDoor = sample.Shadow.X > 28
+		end
+		if sample.T > 5.8 then
+			caughtUp = math.abs(sample.Shadow.X - math.min((sample.T - 0.7) * 16, 95)) < 1.5
+		end
+	end
+	Expect(atDoor, "shadow should wait right at the door")
+	Expect(caughtUp, "shadow should catch up after the door opens")
+end)
+
+Test("shadow phases through a door that stays closed", function()
+	local samples = Sim.RunShadow({ Delay = 0.7, Seconds = 7, Door = 30, Phase = true })
+	local last = samples[#samples]
+	Expect(last.Shadow.X > 60, "shadow stuck at " .. tostring(last.Shadow.X))
+end)
+
+---------------------------------------------------------------------------
 local results = H.Results()
 print(string.format("\n%d passed, %d failed", results.passed, results.failed))
 if results.failed > 0 then

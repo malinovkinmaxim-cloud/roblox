@@ -7,7 +7,6 @@
 ]]
 
 local K = require(game:GetService("ServerScriptService").Server.Level.LevelKit)
-local V = Vector3.new
 
 return K.Level({
 	Id = 3,

@@ -31,14 +31,14 @@ local elements = {
 local fakeGroups = {}
 for rowIndex, x in { 84, 92 } do
 	local group = "t" .. rowIndex
-	fakeGroups[group] = { Fake = 2 }
+	fakeGroups[group] = { Fake = 1 }
 	for laneIndex, z in LANES do
 		table.insert(elements, K.Fake(string.format("T%d%s", rowIndex, LANE_NAMES[laneIndex]), x, 0, z, 5, 5, { Group = group }))
 	end
 end
 
 for _, element in {
-	K.Sign(76, 0, 0, "TWO OF EACH THREE ARE FAKE.\nSEND YOUR DOUBLE TO TEST ONE.", { Width = 20, Height = 4 }),
+	K.Sign(76, 0, 0, "ONE OF EACH THREE IS FAKE.\nSEND YOUR DOUBLE TO TEST IT FIRST.", { Width = 20, Height = 4 }),
 	K.Floor(104, 0, 0, 14, 10),
 
 	K.Checkpoint(2, 116, 0, 0),
