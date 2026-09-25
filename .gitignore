@@ -6,3 +6,6 @@ sourcemap.json
 /build/
 # tools
 /.lune/
+tools/rojo
+tools/rojo.exe
+tools/rojo.zip
