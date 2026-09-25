@@ -110,6 +110,19 @@ function OverlayController:PlayReveal(roleName: string)
 	if not info then
 		return
 	end
+	-- never on top of the level intro card: wait until it is gone
+	local introLeft = (self.IntroShownAt or -10) + 2.9 - os.clock()
+	if introLeft > 0 then
+		self.RevealToken = (self.RevealToken or 0) + 1
+		local token = self.RevealToken
+		task.delay(introLeft, function()
+			if self.RevealToken == token then
+				self.IntroShownAt = nil
+				self:PlayReveal(roleName)
+			end
+		end)
+		return
+	end
 	self.Controllers.SoundController:Play("Reveal")
 	self.RevealToken = (self.RevealToken or 0) + 1
 	local token = self.RevealToken
@@ -196,6 +209,7 @@ function OverlayController:ShowIntro(info)
 	self.IntroLevel.Text = if info.IsPartner then "DUO - YOU ARE THE DOPPELGÄNGER" else "LEVEL " .. Format.LevelNumber(info.LevelId)
 	self.IntroName.Text = info.Name
 	self.IntroSub.Text = info.Hint or info.Subtitle or ""
+	self.IntroShownAt = os.clock()
 	card.Visible = true
 	card.Position = UDim2.fromScale(0.5, 0.28)
 	card.BackgroundTransparency = 1

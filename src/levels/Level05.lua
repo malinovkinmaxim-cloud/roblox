@@ -7,6 +7,7 @@
 ]]
 
 local K = require(game:GetService("ServerScriptService").Server.Level.LevelKit)
+local V = Vector3.new
 
 return K.Level({
 	Id = 5,
@@ -48,6 +49,10 @@ return K.Level({
 		K.Sign(143, 4, 0, "STAND ON THE PLATE FOR A MOMENT...\nTHEN GO. YOUR SHADOW WILL HOLD IT.", { Width = 22, Height = 4 }),
 		K.Bridge("BR1", 159, 4, 0, 14, 6),
 		K.Floor(172, 4, 0, 12, 8),
-		K.Finish(184, 4, 0),
+
+		-- launch pad up to the finish (your shadow flies the same arc a moment later)
+		K.Launch(174, 4, 0, V(0, 75, 0)),
+		K.Sign(169, 4, 0, "LAUNCH PAD! STEER FORWARD IN THE AIR.", { Width = 20, Height = 3 }),
+		K.Finish(184, 14, 0),
 	},
 })

@@ -42,6 +42,11 @@ return K.Level({
 		K.Sign(110, 2, 0, "WAIT AT THE DOOR.\nLET YOUR DOUBLE STAND ON THE PLATE.", { Width = 22, Height = 4 }),
 		K.Gate("D3", 125, 2, 0, 10, 10),
 		K.Floor(134, 2, 0, 18, 10),
-		K.Finish(149, 2, 0),
+
+		-- teleport to the finish balcony: your Echo follows you even through teleports
+		K.Teleport(139, 2, 0, Vector3.new(150, 12, 0)),
+		K.Sign(133, 2, 0, "TELEPORT PAD. YOUR DOUBLE WILL FOLLOW.", { Width = 20, Height = 3 }),
+		K.Floor(152, 12, 0, 14, 10),
+		K.Finish(165, 12, 0),
 	},
 })

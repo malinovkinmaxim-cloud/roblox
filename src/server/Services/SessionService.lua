@@ -20,7 +20,11 @@ end
 
 function SessionService:Start()
 	local services = self.Services
+	local bootstrapLimiter = RateLimiter.new(0.5, 3)
 	Net.Function("GetBootstrap").OnServerInvoke = function(player)
+		if not bootstrapLimiter:Allow(player) then
+			return nil
+		end
 		local data = services.DataService:WaitForData(player, 20)
 		local run = services.RoundService:GetRun(player)
 		return {
