@@ -1,0 +1,8 @@
+# build outputs
+*.rbxl
+*.rbxlx.lock
+*.rbxl.lock
+sourcemap.json
+/build/
+# tools
+/.lune/
