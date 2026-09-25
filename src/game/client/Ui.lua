@@ -8,6 +8,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local UiStyle = require(Shared:WaitForChild("UiStyle"))
 local Modes = require(Shared:WaitForChild("Modes"))
 local Buddies = require(Shared:WaitForChild("Buddies"))
+local Parties = require(Shared:WaitForChild("Parties"))
 
 local C = UiStyle.colors
 local F = UiStyle.fonts
@@ -194,25 +195,96 @@ function Ui.new(player, gameState, callbacks)
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.new(1, -84, 0, 12),
 			Size = UDim2.fromOffset(96, 56),
-		}, "Хаб", C.info, C.white)
+		}, "Hub", C.info, C.white)
 		hub.Activated:Connect(callbacks.hub)
 	end
 
-	-- Stars (soft currency) and the frog double-jump hint
-	local starsBody = UiStyle.card(gui, {
+	-- Paws (currency), Stars (score) and win streak
+	local walletBody = UiStyle.card(gui, {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 86 + 330 + 8),
-		Size = UDim2.fromOffset(120, 40),
+		Size = UDim2.fromOffset(190, 40),
 	}, Color3.fromRGB(255, 246, 214))
-	local starsText = UiStyle.text(starsBody, {
+	local walletText = UiStyle.text(walletBody, {
 		Size = UDim2.fromScale(1, 1),
-		TextSize = 22,
+		TextSize = 19,
 	})
-	local function refreshStars()
-		starsText.Text = `⭐ {player:GetAttribute("Stars") or 0}`
+	local function refreshWallet()
+		local streak = player:GetAttribute("Streak") or 0
+		walletText.Text = `🐾 {player:GetAttribute("Paws") or 0}   ⭐ {player:GetAttribute("Stars") or 0}`
+			.. (if streak > 0 then `   🔥{streak}` else "")
 	end
-	player:GetAttributeChangedSignal("Stars"):Connect(refreshStars)
-	refreshStars()
+	for _, name in { "Paws", "Stars", "Streak" } do
+		player:GetAttributeChangedSignal(name):Connect(refreshWallet)
+	end
+	refreshWallet()
+
+	-- Personal reward card after each cleared level
+	local rewardBody, rewardCard = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(420, 120),
+		Visible = false,
+	}, Color3.fromRGB(255, 246, 214))
+	local rewardScale = withScale(rewardCard)
+	local rewardMain = UiStyle.text(rewardBody, {
+		Position = UDim2.fromOffset(0, 12),
+		Size = UDim2.new(1, 0, 0, 40),
+		TextSize = 34,
+	})
+	local rewardDetails = UiStyle.text(rewardBody, {
+		Position = UDim2.fromOffset(12, 58),
+		Size = UDim2.new(1, -24, 0, 50),
+		FontFace = F.bold,
+		TextSize = 16,
+		TextWrapped = true,
+		TextColor3 = C.muted,
+	})
+	function self.showReward(reward)
+		rewardMain.Text = `+{reward.paws} 🐾   +{reward.stars} ⭐`
+		local parts = { `Squad bonus x{reward.squad} ({reward.finishers} at the door)` }
+		if reward.streakBonus > 1 then
+			table.insert(parts, `Win streak {reward.streak - 1}: x{string.format("%.1f", reward.streakBonus)}`)
+		end
+		if reward.noFalls then
+			table.insert(parts, "No falls bonus!")
+		end
+		if reward.finishers < 5 then
+			table.insert(parts, "More friends at the finish = bigger rewards")
+		end
+		rewardDetails.Text = table.concat(parts, "  ·  ")
+		task.delay(0.8, pop, rewardCard, rewardScale, 3)
+	end
+
+	-- Warns when progress cannot be saved (e.g. Studio without API access) instead of failing silently
+	local saveBody, saveCard = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -96),
+		Size = UDim2.fromOffset(560, 64),
+		Visible = false,
+	}, C.gold)
+	local saveText = UiStyle.text(saveBody, {
+		Position = UDim2.fromOffset(12, 4),
+		Size = UDim2.new(1, -24, 1, -8),
+		FontFace = F.bold,
+		TextScaled = true,
+		TextWrapped = true,
+	})
+	local saveLimit = Instance.new("UITextSizeConstraint")
+	saveLimit.MaxTextSize = 16
+	saveLimit.Parent = saveText
+	local function refreshSave()
+		local status = player:GetAttribute("SaveStatus")
+		if status and status ~= "ok" then
+			saveText.Text = "⚠ " .. (player:GetAttribute("SaveMessage") or "")
+			saveCard.Visible = true
+			task.delay(12, function()
+				saveCard.Visible = false
+			end)
+		end
+	end
+	player:GetAttributeChangedSignal("SaveStatus"):Connect(refreshSave)
+	refreshSave()
 
 	local boostBody, boostCard = UiStyle.card(gui, {
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -224,7 +296,7 @@ function Ui.new(player, gameState, callbacks)
 		Size = UDim2.fromScale(1, 1),
 		FontFace = F.bold,
 		TextSize = 17,
-		Text = "🐸 Лягушка рядом: двойной прыжок!",
+		Text = "🐸 Frog nearby: double jump!",
 	})
 	function self.setFrogBoost(on)
 		if boostCard.Visible ~= on then
@@ -364,7 +436,7 @@ function Ui.new(player, gameState, callbacks)
 		FontFace = F.bold,
 		TextSize = 17,
 		TextColor3 = C.muted,
-		Text = "Остальные игроки ещё загружаются",
+		Text = "The rest of the team is still loading",
 	})
 
 	-- Controls
@@ -408,13 +480,13 @@ function Ui.new(player, gameState, callbacks)
 		layout.Parent = bar
 		keycap(bar, "A", 1)
 		keycap(bar, "D", 2)
-		caption(bar, "ходить     ", 3)
-		keycap(bar, "Пробел", 4)
-		caption(bar, "прыжок     ", 5)
+		caption(bar, "move     ", 3)
+		keycap(bar, "Space", 4)
+		caption(bar, "jump     ", 5)
 		keycap(bar, "E", 6)
-		caption(bar, "взять / бросить     ", 7)
+		caption(bar, "grab / throw     ", 7)
 		keycap(bar, "R", 8)
-		caption(bar, "заново", 9)
+		caption(bar, "restart", 9)
 		bar.Parent = gui
 	end
 
@@ -452,9 +524,9 @@ function Ui.new(player, gameState, callbacks)
 	edge.Parent = gui
 
 	local SIGNALS = {
-		go = { text = "ИДИТЕ", color = C.success },
-		warn = { text = "ВНИМАНИЕ…", color = C.gold },
-		stop = { text = "СТОП! ЗАМРИТЕ", color = C.danger },
+		go = { text = "GO", color = C.success },
+		warn = { text = "GET READY...", color = C.gold },
+		stop = { text = "STOP! FREEZE", color = C.danger },
 	}
 	local function refreshSignal()
 		local signal = SIGNALS[gameState:GetAttribute("Signal")]
@@ -490,7 +562,7 @@ function Ui.new(player, gameState, callbacks)
 		Position = UDim2.fromOffset(0, 14),
 		Size = UDim2.new(1, 0, 0, 40),
 		TextSize = 32,
-		Text = "Выберите режим",
+		Text = "Choose a mode",
 	})
 	local pickerButtons = {}
 	for i, id in Modes.order do
@@ -534,14 +606,18 @@ function Ui.new(player, gameState, callbacks)
 		end)
 	end
 	local function refreshLocks()
-		local unlocked = string.split(player:GetAttribute("UnlockedModes") or "", ",")
+		local partyId = gameState:GetAttribute("PartyId") or "duo"
+		local unlocked = string.split(player:GetAttribute(`Unlocked_{partyId}`) or "", ",")
 		for id, entry in pickerButtons do
 			local open = table.find(unlocked, id) ~= nil
 			entry.lock.Visible = not open
 			entry.button.BackgroundTransparency = if open then 0 else 0.5
 		end
 	end
-	player:GetAttributeChangedSignal("UnlockedModes"):Connect(refreshLocks)
+	for _, partyId in Parties.order do
+		player:GetAttributeChangedSignal(`Unlocked_{partyId}`):Connect(refreshLocks)
+	end
+	gameState:GetAttributeChangedSignal("PartyId"):Connect(refreshLocks)
 	refreshLocks()
 
 	-- Buddy row in the picker (the hub wardrobe does the same thing)
@@ -602,7 +678,7 @@ function Ui.new(player, gameState, callbacks)
 		Position = UDim2.fromOffset(0, 18),
 		Size = UDim2.new(1, 0, 0, 50),
 		TextSize = 44,
-		Text = "ИГРА ОКОНЧЕНА",
+		Text = "GAME OVER",
 	}, 4)
 	local overReason = UiStyle.outlinedText(overBody, {
 		Position = UDim2.fromOffset(12, 78),
@@ -619,7 +695,7 @@ function Ui.new(player, gameState, callbacks)
 		if gameState:GetAttribute("GameOver") == true then
 			local reached = gameState:GetAttribute("GameOverLevel") or 1
 			overReason.Text = gameState:GetAttribute("GameOverReason") or ""
-			overStats.Text = `Пройдено уровней: {reached - 1}. Хардкор прощает только идеальную игру.`
+			overStats.Text = `Levels cleared: {reached - 1}. Hardcore only forgives perfect play.`
 			pop(over, overScale)
 		else
 			over.Visible = false
@@ -635,7 +711,7 @@ function Ui.new(player, gameState, callbacks)
 		if modeInfo and modeInfo.oneLife and os.clock() > giveUpArmedUntil then
 			giveUpArmedUntil = os.clock() + 3
 			bannerBody.BackgroundColor3 = C.danger
-			bannerText.Text = "Нажмите ещё раз, чтобы сдаться"
+			bannerText.Text = "Press again to give up"
 			pop(banner, bannerScale, 2)
 			return
 		end
@@ -656,15 +732,17 @@ function Ui.new(player, gameState, callbacks)
 		badge.BackgroundColor3 = modeInfo.color
 		badgeNumber.TextColor3 = C.white
 		badgeNumber.Text = tostring(index)
-		local counter = if count > 0 then `УРОВЕНЬ {index} ИЗ {count}` else `УРОВЕНЬ {index} · ∞`
-		levelCounter.Text = `{string.upper(modeInfo.name)} · {counter}` .. (if modeInfo.oneLife then " · ❤ 1" else "")
+		local counter = if count > 0 then `LEVEL {index} OF {count}` else `LEVEL {index} · ∞`
+		local partyInfo = Parties.get(gameState:GetAttribute("PartyId"))
+		local partyName = if partyInfo then partyInfo.name .. " · " else ""
+		levelCounter.Text = `{partyName}{string.upper(modeInfo.name)} · {counter}` .. (if modeInfo.oneLife then " · ❤ 1" else "")
 		levelName.Text = name
 		hintText.Text = gameState:GetAttribute("LevelHint") or ""
 
 		local key = `{modeInfo.id}:{index}`
 		if key ~= shownKey then
 			shownKey = key
-			introCounter.Text = `{string.upper(modeInfo.name)} · УРОВЕНЬ {index}`
+			introCounter.Text = `{string.upper(modeInfo.name)} · LEVEL {index}`
 			introName.Text = name
 			pop(intro, introScale, 2.4)
 

@@ -8,6 +8,7 @@ local TeleportService = game:GetService("TeleportService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Levels = require(ReplicatedStorage.Shared.Levels)
 local Modes = require(ReplicatedStorage.Shared.Modes)
+local Parties = require(ReplicatedStorage.Shared.Parties)
 local ProgressStore = require(ReplicatedStorage.Shared.ProgressStore)
 local UiStyle = require(ReplicatedStorage.Shared.UiStyle)
 local CharacterFactory = require(script.CharacterFactory)
@@ -60,6 +61,7 @@ local selectBuddyRemote = remote("SelectBuddy")
 local grabRemote = remote("Grab")
 local wriggleRemote = remote("Wriggle")
 local thrownRemote = remote("Thrown")
+local rewardRemote = remote("Reward")
 remotes.Parent = ReplicatedStorage
 
 local gameState = Instance.new("Folder")
@@ -70,15 +72,15 @@ gameState:SetAttribute("Signal", "")
 gameState.Parent = ReplicatedStorage
 
 local FAIL_TEXT = {
-	time = "Время вышло!",
+	time = "Time's up!",
 }
 
 -- Per-player gag lines when someone tumbles (used as the hardcore game-over reason too)
 local KO_TEXT = {
-	death = "Упс, {name}!",
-	shot = "Бум! Ядро попало в {name}",
-	scroll = "Экран догнал: {name}",
-	stop = "{name}, на красный нельзя!",
+	death = "Oops, {name}!",
+	shot = "Boom! {name} caught a cannonball",
+	scroll = "The screen caught {name}",
+	stop = "{name}, no moving on red!",
 }
 
 local carrying = {} -- carrier -> carried player
@@ -88,6 +90,7 @@ local playerDir = {}
 local lastHubRequest = {}
 local slots = {}
 local mode = nil
+local party = Parties.list.duo
 local runSeed = 0
 local levelIndex = 1
 local level = nil
@@ -104,14 +107,14 @@ local function setMessage(text, kind)
 end
 
 local function levelCount()
-	return if mode.endless then 0 else #Levels[mode.pack]
+	return if mode.endless then 0 else #Levels[party.id][mode.pack]
 end
 
 local function levelData(index)
 	if mode.endless then
-		return LevelGenerator.generate(runSeed, index)
+		return LevelGenerator.generate(runSeed, index, party.id)
 	end
-	return Levels[mode.pack][index]
+	return Levels[party.id][mode.pack][index]
 end
 
 local function activePositions(except)
@@ -223,12 +226,32 @@ local function loadLevel(index)
 	phase = "playing"
 end
 
+-- Win streaks live for the whole visit to the experience, so they travel with teleports
+local function streakData(players)
+	local streaks = {}
+	for _, player in players do
+		streaks[tostring(player.UserId)] = player:GetAttribute("Streak") or 0
+	end
+	return { streaks = streaks }
+end
+
+local function resetStreaks()
+	for _, player in Players:GetPlayers() do
+		player:SetAttribute("Streak", 0)
+	end
+end
+
 local function sendToHub(players)
 	if Config.HUB_PLACE_ID == 0 or RunService:IsStudio() or #players == 0 then
 		return false
 	end
+	for _, player in players do
+		ProgressStore.save(player)
+	end
+	local options = Instance.new("TeleportOptions")
+	options:SetTeleportData(streakData(players))
 	local ok, err = pcall(function()
-		TeleportService:TeleportAsync(Config.HUB_PLACE_ID, players)
+		TeleportService:TeleportAsync(Config.HUB_PLACE_ID, players, options)
 	end)
 	if not ok then
 		warn("Teleport to hub failed:", err)
@@ -238,6 +261,7 @@ end
 
 local function chooseMode()
 	phase = "choosing"
+	gameState:SetAttribute("PartyId", Parties.forCount(#Players:GetPlayers()).id)
 	clearLevel()
 	for _, player in Players:GetPlayers() do
 		if player.Character then
@@ -250,8 +274,11 @@ local function chooseMode()
 	return chosen
 end
 
-local function startRun(newMode)
+local function startRun(newMode, newParty)
 	mode = newMode
+	party = newParty or Parties.forCount(#Players:GetPlayers())
+	gameState:SetAttribute("PartyId", party.id)
+	gameState:SetAttribute("PartyName", party.name)
 	runSeed = math.random(1, 1000000)
 	gameState:SetAttribute("ModeId", mode.id)
 	gameState:SetAttribute("ModeName", mode.name)
@@ -263,7 +290,7 @@ end
 -- After the last level or a hardcore game over: back to the hub, or (in Studio) pick a mode again
 local function endRun()
 	if sendToHub(Players:GetPlayers()) then
-		setMessage("Возвращаемся в хаб…", "info")
+		setMessage("Heading back to the hub...", "info")
 		task.wait(15)
 		if #Players:GetPlayers() == 0 then
 			return
@@ -280,6 +307,7 @@ local function fail(reason, customText)
 	phase = "transition"
 	local text = customText or FAIL_TEXT[reason] or FAIL_TEXT.death
 
+	resetStreaks()
 	if mode.oneLife then
 		phase = "gameover"
 		gameState:SetAttribute("GameOverReason", text)
@@ -386,20 +414,40 @@ local function completeLevel()
 	end
 	phase = "transition"
 	celebrate()
-	local stars = (Config.STARS[mode.id] or 1) + (if level.koCount == 0 then Config.STARS_NO_FALL_BONUS else 0)
+
+	-- Rewards: base Paws/Stars x squad bonus (real number of pals who reached the door together)
+	-- x personal win streak (levels cleared in a row this visit, capped)
+	local finishers = #Players:GetPlayers()
+	local squad = Parties.squadMultiplier(finishers)
+	local basePaws = Config.PAWS[mode.id] or 10
+	local baseStars = (Config.STARS[mode.id] or 1) + (if level.koCount == 0 then Config.STARS_NO_FALL_BONUS else 0)
 	for _, player in Players:GetPlayers() do
-		ProgressStore.addStars(player, stars)
+		local streak = player:GetAttribute("Streak") or 0
+		local streakBonus = 1 + math.min(streak, Config.STREAK_CAP) * Config.STREAK_STEP
+		local paws = math.round(basePaws * squad * streakBonus)
+		local stars = math.round(baseStars * squad * streakBonus)
+		ProgressStore.addReward(player, paws, stars)
+		player:SetAttribute("Streak", streak + 1)
+		rewardRemote:FireClient(player, {
+			paws = paws,
+			stars = stars,
+			squad = squad,
+			finishers = finishers,
+			streak = streak + 1,
+			streakBonus = streakBonus,
+			noFalls = level.koCount == 0,
+		})
 	end
-	local starText = `+{stars} ⭐` .. (if level.koCount == 0 then " без падений!" else "")
+
 	local isLast = not mode.endless and levelIndex >= levelCount()
 	if mode.endless then
 		for _, player in Players:GetPlayers() do
-			ProgressStore.recordEndless(player, levelIndex)
+			ProgressStore.recordEndless(player, party.id, levelIndex)
 		end
 	end
 	if isLast then
 		for _, player in Players:GetPlayers() do
-			ProgressStore.markCompleted(player, mode.id)
+			ProgressStore.markCompleted(player, party.id, mode.id)
 		end
 		local unlockedNext = nil
 		for _, id in Modes.order do
@@ -409,15 +457,18 @@ local function completeLevel()
 		end
 		setMessage(
 			if unlockedNext
-				then `{mode.name} пройден! Открыт режим «{unlockedNext.name}» {starText}`
-				else `{mode.name} пройден! Вы легенды! {starText}`,
+				then `{party.name} {mode.name} cleared! {unlockedNext.name} unlocked for {party.name}`
+				else `{party.name} {mode.name} cleared! You are legends!`,
 			"success"
 		)
 		task.wait(Config.COMPLETE_DELAY + 3)
 		endRun()
 		return
 	end
-	setMessage(if mode.endless then `Уровень {levelIndex} пройден! {starText}` else `Уровень пройден! {starText}`, "success")
+	setMessage(
+		if mode.endless then `Level {levelIndex} cleared! Squad x{squad}` else `Level cleared! Squad x{squad}`,
+		"success"
+	)
 	task.wait(Config.COMPLETE_DELAY + 1)
 	loadLevel(levelIndex + 1)
 end
@@ -450,7 +501,9 @@ local function onCharacterAdded(player, character)
 end
 
 local function onPlayerAdded(player)
-	task.spawn(ProgressStore.load, player)
+	local joinData = player:GetJoinData().TeleportData
+	local streaks = type(joinData) == "table" and type(joinData.streaks) == "table" and joinData.streaks or {}
+	player:SetAttribute("Streak", math.clamp(math.floor(tonumber(streaks[tostring(player.UserId)]) or 0), 0, 1000))
 	player:SetAttribute("Slot", claimSlot(player))
 	player:SetAttribute("InDoor", false)
 	player.CharacterAdded:Connect(function(character)
@@ -478,7 +531,6 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	releaseCarry(player)
-	ProgressStore.release(player)
 	playerDir[player] = nil
 	lastHubRequest[player] = nil
 	for i, owner in slots do
@@ -500,16 +552,17 @@ restartRemote.OnServerEvent:Connect(function(player)
 		return
 	end
 	if mode.oneLife then
-		task.spawn(fail, "giveup", `{player.DisplayName} сдаётся`)
+		task.spawn(fail, "giveup", `{player.DisplayName} gave up`)
 	else
 		phase = "transition"
-		setMessage(`{player.DisplayName} начинает заново`, "info")
+		resetStreaks()
+		setMessage(`{player.DisplayName} restarted the level`, "info")
 		task.delay(Config.FAIL_DELAY, loadLevel, levelIndex)
 	end
 end)
 
 chooseModeRemote.OnServerEvent:Connect(function(player, id)
-	if phase == "choosing" and ProgressStore.isUnlocked(player, id) then
+	if phase == "choosing" and ProgressStore.isUnlocked(player, id, Parties.forCount(#Players:GetPlayers()).id) then
 		modeChosen:Fire(id)
 	end
 end)
@@ -629,20 +682,27 @@ local function start()
 	local expected = 1
 	local data = first:GetJoinData().TeleportData
 	local teleportMode = nil
+	local teleportParty = nil
 	if type(data) == "table" then
 		if type(data.roomSize) == "number" and data.roomSize == data.roomSize then
 			expected = math.clamp(math.floor(data.roomSize), 1, #Config.PLAYER_COLORS)
 		end
 		teleportMode = Modes.get(data.mode)
+		teleportParty = Parties.get(data.party)
 	end
 
 	local deadline = os.clock() + Config.TEAM_ARRIVAL_TIMEOUT
 	while #Players:GetPlayers() < expected and os.clock() < deadline do
-		gameState:SetAttribute("Waiting", `Ждём команду: {#Players:GetPlayers()}/{expected}`)
+		gameState:SetAttribute("Waiting", `Waiting for the team: {#Players:GetPlayers()}/{expected}`)
 		task.wait(0.5)
 	end
 	gameState:SetAttribute("Waiting", "")
-	startRun(teleportMode or chooseMode())
+	if teleportMode then
+		startRun(teleportMode, teleportParty)
+	else
+		startRun(chooseMode())
+	end
 end
 
+ProgressStore.start()
 start()

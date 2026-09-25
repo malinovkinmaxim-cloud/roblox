@@ -17,6 +17,7 @@ local selectBuddyRemote = remotes:WaitForChild("SelectBuddy")
 local grabRemote = remotes:WaitForChild("Grab")
 local wriggleRemote = remotes:WaitForChild("Wriggle")
 local thrownRemote = remotes:WaitForChild("Thrown")
+local rewardRemote = remotes:WaitForChild("Reward")
 local gameState = ReplicatedStorage:WaitForChild("GameState")
 
 local player = Players.LocalPlayer
@@ -296,6 +297,12 @@ local function followCarrier(root, jumpPressed)
 	root.AssemblyLinearVelocity = carrierRoot.AssemblyLinearVelocity
 	return true
 end
+
+rewardRemote.OnClientEvent:Connect(function(reward)
+	if type(reward) == "table" then
+		ui.showReward(reward)
+	end
+end)
 
 thrownRemote.OnClientEvent:Connect(function(velocity)
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")

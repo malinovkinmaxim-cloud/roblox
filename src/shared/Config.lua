@@ -6,9 +6,9 @@ Config.GAME_TITLE = "HOP PALS"
 Config.HUB_PLACE_ID = 0
 Config.GAME_PLACE_ID = 0
 
--- Hub rooms: one pad per capacity. A room starts with at least MIN players.
-Config.ROOM_CAPACITIES = { 2, 3, 4, 5, 6, 8 }
-Config.ROOM_MIN_PLAYERS = 2
+-- Hub rooms (kiosks): one pad per entry; each party size has its own min/max players.
+Config.ROOMS = { "solo", "duo", "duo", "squad", "squad", "party" }
+Config.ROOM_SOLO_WAIT = 3
 Config.ROOM_WAIT = 20 -- countdown once MIN players are in
 Config.ROOM_FULL_WAIT = 5 -- countdown once the room is full
 Config.ROOM_START_NOW_WAIT = 3
@@ -16,13 +16,20 @@ Config.ROOM_START_NOW_WAIT = 3
 -- In Studio every mode is unlocked so all levels can be tested (DataStores are often off there)
 Config.STUDIO_UNLOCK_ALL = true
 
--- Stars for finishing a level (+1 bonus if nobody fell)
+-- Rewards for finishing a level, before the squad bonus (Parties.squadMultiplier) and win streak.
+-- Paws are spent in the wardrobe; Stars are score only (leaderboard, never spent).
+Config.PAWS = { easy = 10, medium = 15, hard = 20, hardcore = 30, endless = 10 }
 Config.STARS = { easy = 1, medium = 2, hard = 3, hardcore = 4, endless = 1 }
 Config.STARS_NO_FALL_BONUS = 1
+Config.STREAK_STEP = 0.1 -- +10% per level cleared in a row
+Config.STREAK_CAP = 10 -- so the streak bonus tops out at +100%
 
--- Robux products (0 = not sold). Robux only buys colour skins and star packs, never buddies.
+-- Robux products (0 = not sold). Robux only buys colour skins and Paw packs, never buddies.
 Config.SKIN_PRODUCTS = { mint = 0, caramel = 0, candy = 0, night = 0, gold = 0 }
-Config.STAR_PACK = { productId = 0, stars = 50 }
+Config.PAW_PACK = { productId = 0, paws = 500 }
+
+Config.LEADERBOARD_REFRESH = 3
+Config.INVITE_COOLDOWN = 6
 
 -- Falling is a gag: a short tumble, then back to the last checkpoint
 Config.KO_TIME = 1.6

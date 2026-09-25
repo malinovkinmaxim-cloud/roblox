@@ -1,7 +1,7 @@
 return {
 	{
-		name = "Привет, друзья!",
-		hint = "Найдите ключ, откройте дверь и зайдите в неё все вместе.",
+		name = "Hello, Pals!",
+		hint = "Grab the key, open the door and walk in together.",
 		map = {
 			"                                            ",
 			"                                            ",
@@ -18,8 +18,8 @@ return {
 		},
 	},
 	{
-		name = "Прогулка",
-		hint = "Возьмите ключ и все вместе зайдите в дверь.",
+		name = "Easy Stroll",
+		hint = "Take the key, then everyone into the door.",
 		map = {
 			"                                                       ",
 			"                                                       ",
@@ -37,8 +37,8 @@ return {
 		},
 	},
 	{
-		name = "Встань на голову",
-		hint = "Ключ слишком высоко — встаньте друг другу на голову!",
+		name = "Head Start",
+		hint = "The key is up high - stand on each other's heads!",
 		map = {
 			"                                          ",
 			"                                          ",
@@ -55,8 +55,8 @@ return {
 		},
 	},
 	{
-		name = "Держи дверь",
-		hint = "Один держит розовую кнопку, пока другой бегает за ключом в комнату.",
+		name = "Hold the Door",
+		hint = "One pal holds the pink plate while the other runs in for the key.",
 		button2 = { need = 1, latch = false },
 		map = {
 			"              y                       ",
@@ -74,8 +74,8 @@ return {
 		},
 	},
 	{
-		name = "Лестница",
-		hint = "Поднимитесь по ступенькам за ключом.",
+		name = "Stairway",
+		hint = "Climb the steps to reach the key.",
 		map = {
 			"                                            ",
 			"                                            ",
@@ -92,8 +92,8 @@ return {
 		},
 	},
 	{
-		name = "Повыше",
-		hint = "Ключ высоко — встаньте друг другу на голову.",
+		name = "A Bit Higher",
+		hint = "The key is high - build a tower of pals.",
 		map = {
 			"                                            ",
 			"                                            ",
@@ -111,8 +111,8 @@ return {
 		},
 	},
 	{
-		name = "Тяжёлый ящик",
-		hint = "Число на ящике — сколько игроков нужно, чтобы его сдвинуть.",
+		name = "Heavy Crate",
+		hint = "The number on a crate is how many pals must push it.",
 		map = {
 			"                                              ",
 			"                                              ",
@@ -130,8 +130,8 @@ return {
 		},
 	},
 	{
-		name = "Кнопка",
-		hint = "Встаньте на кнопку вместе — стена откроется.",
+		name = "The Plate",
+		hint = "Stand on the plate together to open the wall.",
 		button = { need = 2, latch = true },
 		map = {
 			"                         x                  ",
@@ -149,8 +149,8 @@ return {
 		},
 	},
 	{
-		name = "Дружный тоннель",
-		hint = "Толкайте ящик вдвоём, чтобы выйти из тоннеля.",
+		name = "Buddy Tunnel",
+		hint = "Push the crate together to get out of the tunnel.",
 		map = {
 			"                                              ",
 			"                                              ",
@@ -168,8 +168,8 @@ return {
 		},
 	},
 	{
-		name = "Толкаем вместе",
-		hint = "Столкните ящик в яму с шипами и пройдите по нему.",
+		name = "Push Together",
+		hint = "Push the crate into the spike pit and walk across it.",
 		map = {
 			"                                              ",
 			"                                              ",
@@ -187,8 +187,8 @@ return {
 		},
 	},
 	{
-		name = "Мост",
-		hint = "Мост держится, только пока кто-то стоит на кнопке.",
+		name = "The Bridge",
+		hint = "The bridge only stays while someone stands on the plate.",
 		button = { need = 1, latch = false },
 		map = {
 			"                                              ",
@@ -206,8 +206,8 @@ return {
 		},
 	},
 	{
-		name = "Батут",
-		hint = "Батут подбрасывает очень высоко — прыгайте за ключом!",
+		name = "Trampoline",
+		hint = "Trampolines launch you sky high - go get the key!",
 		map = {
 			"                                            ",
 			"                                            ",
@@ -224,8 +224,8 @@ return {
 		},
 	},
 	{
-		name = "Кнопка и батут",
-		hint = "Откройте стену кнопкой и перелетите шипы на батуте.",
+		name = "Plate and Bounce",
+		hint = "Open the wall with the plate and bounce over the spikes.",
 		button = { need = 2, latch = true },
 		map = {
 			"                  x                               ",
@@ -244,8 +244,8 @@ return {
 		},
 	},
 	{
-		name = "Лифт",
-		hint = "Лифт поедет наверх, только когда на нём стоят все.",
+		name = "The Lift",
+		hint = "The lift only goes up when everyone is on it.",
 		lift = { need = 99, rise = 5 },
 		map = {
 			"                                          ",
@@ -263,8 +263,8 @@ return {
 		},
 	},
 	{
-		name = "Ступенька",
-		hint = "Подвиньте ящик к стене и заберитесь по нему наверх.",
+		name = "Step Up",
+		hint = "Push the crate to the wall and climb on it.",
 		map = {
 			"                                              ",
 			"                                              ",

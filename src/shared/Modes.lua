@@ -5,31 +5,31 @@ Modes.order = { "easy", "medium", "hard", "hardcore", "endless" }
 Modes.list = {
 	easy = {
 		id = "easy",
-		name = "Лёгкий",
-		description = "15 простых уровней с основами",
+		name = "Easy",
+		description = "15 simple levels to learn the basics",
 		pack = "easy",
 		color = Color3.fromRGB(80, 195, 110),
 	},
 	medium = {
 		id = "medium",
-		name = "Средний",
-		description = "25 уровней: песок, пушки, качели",
+		name = "Medium",
+		description = "25 levels: sand, cannons, moving platforms",
 		pack = "medium",
 		requires = "easy",
 		color = Color3.fromRGB(95, 155, 240),
 	},
 	hard = {
 		id = "hard",
-		name = "Сложный",
-		description = "35 самых трудных уровней",
+		name = "Hard",
+		description = "35 of the toughest levels",
 		pack = "hard",
 		requires = "medium",
 		color = Color3.fromRGB(255, 150, 50),
 	},
 	hardcore = {
 		id = "hardcore",
-		name = "Хардкор",
-		description = "35 сложных уровней, одна жизнь на всех",
+		name = "Hardcore",
+		description = "The hard levels with one life for the team",
 		pack = "hard",
 		oneLife = true,
 		requires = "hard",
@@ -37,25 +37,28 @@ Modes.list = {
 	},
 	endless = {
 		id = "endless",
-		name = "Бесконечный",
-		description = "Случайные уровни, всё сложнее. Всегда открыт",
+		name = "Endless",
+		description = "Random levels that keep getting harder. Always open",
 		endless = true,
 		color = Color3.fromRGB(160, 110, 240),
 	},
 }
-
--- Each mode except Easy and Endless opens once the previous one is completed.
--- `completed` is a set of mode ids the player has finished.
-function Modes.isUnlocked(id, completed)
-	local mode = Modes.get(id)
-	return mode ~= nil and (mode.requires == nil or completed[mode.requires] == true)
-end
 
 function Modes.get(id)
 	if type(id) == "string" then
 		return Modes.list[id]
 	end
 	return nil
+end
+
+-- Progress is tracked per party size: `completed` holds keys like "duo:easy".
+function Modes.completedKey(partyId, modeId)
+	return `{partyId}:{modeId}`
+end
+
+function Modes.isUnlocked(id, completed, partyId)
+	local mode = Modes.get(id)
+	return mode ~= nil and (mode.requires == nil or completed[Modes.completedKey(partyId, mode.requires)] == true)
 end
 
 return Modes

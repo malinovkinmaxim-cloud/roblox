@@ -1,23 +1,41 @@
 -- Server-only: per-player save shared by the hub and the game place (same experience).
--- Holds completed modes, endless record, stars, owned buddies/skins and the current selection.
--- Publishes player attributes: UnlockedModes, EndlessBest, Stars, OwnedClasses, OwnedSkins, Class, Skin.
+--   paws      soft currency, spent in the wardrobe
+--   stars     score; only ever grows, sorts the leaderboards
+--   completed modes per party size ("duo:easy" = true), endless records per party size
+--   owned buddies/skins, current selection, processed Robux receipts
+-- Loaded on join, saved on leave, on shutdown, before teleports and every AUTOSAVE seconds.
+-- Publishes leaderstats (Paws, Stars) and player attributes for the UI, plus "SaveStatus".
 local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local Buddies = require(script.Parent.Buddies)
 local Config = require(script.Parent.Config)
 local Modes = require(script.Parent.Modes)
+local Parties = require(script.Parent.Parties)
 
 local ProgressStore = {}
 
+local STORE_NAME = "HopPalsProgress_v2"
 local MAX_RECEIPTS = 50
+local AUTOSAVE = 60
+
+local STUDIO_HINT = "Progress is NOT saved: in Studio open Game Settings > Security and turn on "
+	.. "'Enable Studio Access to API Services' (the place must be published)."
 
 local store = nil
-pcall(function()
-	store = DataStoreService:GetDataStore("HopPalsProgress_v1")
-end)
+local storeError = nil
+do
+	local ok, err = pcall(function()
+		store = DataStoreService:GetDataStore(STORE_NAME)
+	end)
+	if not ok then
+		storeError = tostring(err)
+	end
+end
 
 local cache = {}
+local dirty = {}
 
 local function storeKey(player)
 	return `p_{player.UserId}`
@@ -30,7 +48,8 @@ end
 local function fresh()
 	return {
 		completed = {},
-		endlessBest = 0,
+		endlessBest = {},
+		paws = 0,
 		stars = 0,
 		classes = { bunny = true },
 		skins = { classic = true },
@@ -57,8 +76,22 @@ local function sanitize(saved)
 	if type(saved) ~= "table" then
 		return data
 	end
-	data.completed = copySet(saved.completed, Modes.order)
-	data.endlessBest = math.max(0, tonumber(saved.endlessBest) or 0)
+	if type(saved.completed) == "table" then
+		for _, partyId in Parties.order do
+			for _, modeId in Modes.order do
+				local key = Modes.completedKey(partyId, modeId)
+				if saved.completed[key] == true then
+					data.completed[key] = true
+				end
+			end
+		end
+	end
+	if type(saved.endlessBest) == "table" then
+		for _, partyId in Parties.order do
+			data.endlessBest[partyId] = math.max(0, math.floor(tonumber(saved.endlessBest[partyId]) or 0))
+		end
+	end
+	data.paws = math.max(0, math.floor(tonumber(saved.paws) or 0))
 	data.stars = math.max(0, math.floor(tonumber(saved.stars) or 0))
 	data.classes = copySet(saved.classes, Buddies.classOrder)
 	data.classes.bunny = true
@@ -80,15 +113,60 @@ local function sanitize(saved)
 	return data
 end
 
+-- Keeps the best of both copies, so a slower save from another server never loses progress
+local function mergeInto(saved, current)
+	local merged = sanitize(saved)
+	for key in current.completed do
+		merged.completed[key] = true
+	end
+	for partyId, best in current.endlessBest do
+		merged.endlessBest[partyId] = math.max(merged.endlessBest[partyId] or 0, best)
+	end
+	merged.paws = current.paws
+	merged.stars = math.max(merged.stars, current.stars)
+	for id in current.classes do
+		merged.classes[id] = true
+	end
+	for id in current.skins do
+		merged.skins[id] = true
+	end
+	merged.class = current.class
+	merged.skin = current.skin
+	for _, receipt in current.receipts do
+		if not table.find(merged.receipts, receipt) then
+			table.insert(merged.receipts, receipt)
+		end
+	end
+	while #merged.receipts > MAX_RECEIPTS do
+		table.remove(merged.receipts, 1)
+	end
+	return merged
+end
+
+local function setSaveStatus(player, status, message)
+	player:SetAttribute("SaveStatus", status)
+	player:SetAttribute("SaveMessage", message or "")
+end
+
+local function describeFailure(err)
+	local text = tostring(err)
+	if RunService:IsStudio() then
+		warn(`[HopPals] DataStore unavailable ({text}). {STUDIO_HINT}`)
+		return "off", STUDIO_HINT
+	end
+	warn(`[HopPals] DataStore error: {text}`)
+	return "failed", "Saving is having trouble right now. Your progress this session may not be kept."
+end
+
 function ProgressStore.get(player)
 	return cache[player] or fresh()
 end
 
-function ProgressStore.isUnlocked(player, modeId)
+function ProgressStore.isUnlocked(player, modeId, partyId)
 	if studioUnlocked() then
 		return Modes.get(modeId) ~= nil
 	end
-	return Modes.isUnlocked(modeId, ProgressStore.get(player).completed)
+	return Modes.isUnlocked(modeId, ProgressStore.get(player).completed, partyId)
 end
 
 function ProgressStore.owns(player, kind, id)
@@ -115,19 +193,45 @@ local function ownedList(player, kind)
 	return table.concat(list, ",")
 end
 
+local function ensureLeaderstats(player)
+	local stats = player:FindFirstChild("leaderstats")
+	if not stats then
+		stats = Instance.new("Folder")
+		stats.Name = "leaderstats"
+		for _, name in { "Paws", "Stars" } do
+			local value = Instance.new("IntValue")
+			value.Name = name
+			value.Parent = stats
+		end
+		stats.Parent = player
+	end
+	return stats
+end
+
 local function publish(player)
 	if not player.Parent then
 		return
 	end
 	local data = ProgressStore.get(player)
-	local unlocked = {}
-	for _, id in Modes.order do
-		if ProgressStore.isUnlocked(player, id) then
-			table.insert(unlocked, id)
+	local stats = ensureLeaderstats(player)
+	stats.Paws.Value = data.paws
+	stats.Stars.Value = data.stars
+
+	for _, partyId in Parties.order do
+		local unlocked = {}
+		for _, modeId in Modes.order do
+			if ProgressStore.isUnlocked(player, modeId, partyId) then
+				table.insert(unlocked, modeId)
+			end
 		end
+		player:SetAttribute(`Unlocked_{partyId}`, table.concat(unlocked, ","))
 	end
-	player:SetAttribute("UnlockedModes", table.concat(unlocked, ","))
-	player:SetAttribute("EndlessBest", data.endlessBest)
+	local best = 0
+	for _, value in data.endlessBest do
+		best = math.max(best, value)
+	end
+	player:SetAttribute("EndlessBest", best)
+	player:SetAttribute("Paws", data.paws)
 	player:SetAttribute("Stars", data.stars)
 	player:SetAttribute("OwnedClasses", ownedList(player, "class"))
 	player:SetAttribute("OwnedSkins", ownedList(player, "skin"))
@@ -138,77 +242,82 @@ end
 function ProgressStore.load(player)
 	cache[player] = fresh()
 	publish(player)
-	if store then
-		local ok, saved = pcall(function()
-			return store:GetAsync(storeKey(player))
-		end)
-		if ok then
-			cache[player] = sanitize(saved)
-		else
-			warn("Loading progress failed:", saved)
-		end
+	if not store then
+		setSaveStatus(player, describeFailure(storeError or "no DataStore"))
+		return
+	end
+	local ok, saved = pcall(function()
+		return store:GetAsync(storeKey(player))
+	end)
+	if not player.Parent then
+		return
+	end
+	if ok then
+		cache[player] = sanitize(saved)
+		setSaveStatus(player, "ok")
+	else
+		setSaveStatus(player, describeFailure(saved))
 	end
 	publish(player)
 end
 
--- Applies `mutate` to the cached copy right away and to the saved copy in the background.
--- `mutate` must be safe to run on both (it re-checks its own conditions).
-local function update(player, mutate)
+-- Writes the player's data now (yields). Safe to call often; merges with what is stored.
+function ProgressStore.save(player)
+	local data = cache[player]
+	if not store or not data or player:GetAttribute("SaveStatus") == "off" then
+		return false
+	end
+	local ok, err = pcall(function()
+		store:UpdateAsync(storeKey(player), function(saved)
+			return mergeInto(saved, data)
+		end)
+	end)
+	if ok then
+		dirty[player] = nil
+	elseif player.Parent then
+		setSaveStatus(player, describeFailure(err))
+	end
+	return ok
+end
+
+local function change(player, mutate)
 	local data = ProgressStore.get(player)
 	mutate(data)
 	cache[player] = data
+	dirty[player] = true
 	publish(player)
-	if not store then
-		return
-	end
-	task.spawn(function()
-		local ok, err = pcall(function()
-			store:UpdateAsync(storeKey(player), function(saved)
-				local merged = sanitize(saved)
-				mutate(merged)
-				return merged
-			end)
-		end)
-		if not ok then
-			warn("Saving progress failed:", err)
-		end
+end
+
+function ProgressStore.markCompleted(player, partyId, modeId)
+	change(player, function(data)
+		data.completed[Modes.completedKey(partyId, modeId)] = true
 	end)
 end
 
-function ProgressStore.markCompleted(player, modeId)
-	update(player, function(data)
-		data.completed[modeId] = true
+function ProgressStore.recordEndless(player, partyId, level)
+	change(player, function(data)
+		data.endlessBest[partyId] = math.max(data.endlessBest[partyId] or 0, level)
 	end)
 end
 
-function ProgressStore.recordEndless(player, level)
-	if level <= ProgressStore.get(player).endlessBest then
-		return
-	end
-	update(player, function(data)
-		data.endlessBest = math.max(data.endlessBest, level)
+function ProgressStore.addReward(player, paws, stars)
+	change(player, function(data)
+		data.paws += paws
+		data.stars += stars
 	end)
 end
 
-function ProgressStore.addStars(player, amount)
-	update(player, function(data)
-		data.stars += amount
-	end)
-end
-
--- Buys a buddy or skin with stars. Returns true on success.
+-- Buys a buddy or skin with Paws. Returns true on success.
 function ProgressStore.buy(player, kind, id)
 	local catalog = Buddies.catalog(kind)
 	local item = catalog and catalog[id]
-	if not item or ProgressStore.owns(player, kind, id) or ProgressStore.get(player).stars < item.cost then
+	if not item or ProgressStore.owns(player, kind, id) or ProgressStore.get(player).paws < item.cost then
 		return false
 	end
-	update(player, function(data)
+	change(player, function(data)
 		local owned = if kind == "class" then data.classes else data.skins
-		if not owned[id] and data.stars >= item.cost then
-			data.stars -= item.cost
-			owned[id] = true
-		end
+		data.paws -= item.cost
+		owned[id] = true
 	end)
 	ProgressStore.select(player, kind, id)
 	return true
@@ -218,7 +327,7 @@ function ProgressStore.select(player, kind, id)
 	if not ProgressStore.owns(player, kind, id) then
 		return false
 	end
-	update(player, function(data)
+	change(player, function(data)
 		if kind == "class" then
 			data.class = id
 			data.classes[id] = true
@@ -233,35 +342,47 @@ end
 -- For MarketplaceService.ProcessReceipt: saves synchronously and ignores receipts already granted.
 -- Returns true once the grant is safely stored.
 function ProgressStore.grantReceipt(player, receiptId, grant)
-	if not store then
+	local data = cache[player]
+	if not store or not data then
 		return false
 	end
-	local merged = nil
-	local ok, err = pcall(function()
-		store:UpdateAsync(storeKey(player), function(saved)
-			merged = sanitize(saved)
-			if table.find(merged.receipts, receiptId) then
-				return merged
-			end
-			grant(merged)
-			table.insert(merged.receipts, receiptId)
-			while #merged.receipts > MAX_RECEIPTS do
-				table.remove(merged.receipts, 1)
-			end
-			return merged
-		end)
-	end)
-	if not ok then
-		warn("Granting purchase failed:", err)
-		return false
+	if not table.find(data.receipts, receiptId) then
+		grant(data)
+		table.insert(data.receipts, receiptId)
+		publish(player)
 	end
-	cache[player] = merged
-	publish(player)
-	return true
+	return ProgressStore.save(player)
 end
 
 function ProgressStore.release(player)
+	if dirty[player] then
+		ProgressStore.save(player)
+	end
 	cache[player] = nil
+	dirty[player] = nil
+end
+
+-- Call once per place: wires joining, leaving, autosave and shutdown
+function ProgressStore.start()
+	Players.PlayerAdded:Connect(ProgressStore.load)
+	for _, player in Players:GetPlayers() do
+		task.spawn(ProgressStore.load, player)
+	end
+	Players.PlayerRemoving:Connect(ProgressStore.release)
+	game:BindToClose(function()
+		for _, player in Players:GetPlayers() do
+			task.spawn(ProgressStore.save, player)
+		end
+		task.wait(if RunService:IsStudio() then 1 else 5)
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(AUTOSAVE)
+			for player in dirty do
+				task.spawn(ProgressStore.save, player)
+			end
+		end
+	end)
 end
 
 return ProgressStore

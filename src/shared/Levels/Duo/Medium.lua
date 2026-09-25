@@ -1,7 +1,7 @@
 return {
 	{
-		name = "Три в одном",
-		hint = "Ящик, пирамида и кнопка в одном уровне.",
+		name = "Three in One",
+		hint = "A crate, a pal tower and a plate in one level.",
 		button = { need = 2, latch = true },
 		map = {
 			"                                              x     ",
@@ -20,8 +20,8 @@ return {
 		},
 	},
 	{
-		name = "Песчаная тропа",
-		hint = "Песок осыпается — не стойте на месте.",
+		name = "Sandy Path",
+		hint = "Sand crumbles - don't stand still.",
 		map = {
 			"                                                             ",
 			"                                                             ",
@@ -39,8 +39,8 @@ return {
 		},
 	},
 	{
-		name = "Две кнопки",
-		hint = "Кнопка держит открытой стену своего цвета. Пропускайте друг друга по очереди.",
+		name = "Two Plates",
+		hint = "Each plate holds its own wall open. Take turns letting each other through.",
 		button = { need = 1, latch = false },
 		button2 = { need = 1, latch = false },
 		map = {
@@ -59,8 +59,8 @@ return {
 		},
 	},
 	{
-		name = "Высокая полка",
-		hint = "Батут поможет перелезть стену, а ключ — на полке.",
+		name = "High Shelf",
+		hint = "A trampoline gets you over the wall; the key is on the shelf.",
 		map = {
 			"                                                      ",
 			"                                                      ",
@@ -78,8 +78,8 @@ return {
 		},
 	},
 	{
-		name = "Крошки",
-		hint = "Песочные блоки осыпаются, если на них стоять. Не задерживайтесь!",
+		name = "Crumbs",
+		hint = "Sand blocks crumble when you stand on them. Keep moving!",
 		map = {
 			"                                                  ",
 			"                                                  ",
@@ -96,8 +96,8 @@ return {
 		},
 	},
 	{
-		name = "Мостики",
-		hint = "Мост держится, пока кто-то стоит на розовой кнопке.",
+		name = "Little Bridges",
+		hint = "The bridge holds while someone stands on the pink plate.",
 		button2 = { need = 1, latch = false },
 		map = {
 			"                                                   ",
@@ -116,8 +116,8 @@ return {
 		},
 	},
 	{
-		name = "Осторожно, шипы",
-		hint = "Перепрыгивайте шипы, а через широкие поможет батут.",
+		name = "Mind the Spikes",
+		hint = "Hop over spikes; the trampoline helps with the wide ones.",
 		map = {
 			"                                                ",
 			"                                                ",
@@ -134,8 +134,8 @@ return {
 		},
 	},
 	{
-		name = "Вверх-вниз",
-		hint = "Запрыгивайте на качели, когда они внизу.",
+		name = "Up and Down",
+		hint = "Jump onto moving platforms when they are low.",
 		mover = { rise = 3, period = 4 },
 		map = {
 			"                                                        ",
@@ -154,8 +154,8 @@ return {
 		},
 	},
 	{
-		name = "Качели",
-		hint = "Платформы ездят вверх-вниз. Прыгайте, когда они внизу.",
+		name = "Elevator Dance",
+		hint = "Platforms go up and down. Jump when they are low.",
 		mover = { rise = 3, period = 4 },
 		map = {
 			"                                                ",
@@ -173,8 +173,8 @@ return {
 		},
 	},
 	{
-		name = "Бросок",
-		hint = "Подойдите к другу и нажмите E, чтобы поднять его, и ещё раз — чтобы бросить через пропасть.",
+		name = "Yeet!",
+		hint = "Walk up to a pal and press E to lift them, press E again to throw them over the gap.",
 		button2 = { need = 1, latch = false },
 		map = {
 			"                                        ",
@@ -192,8 +192,8 @@ return {
 		},
 	},
 	{
-		name = "Лифт и мост",
-		hint = "Все на лифт! Наверху встаньте на кнопку вдвоём — появится мост.",
+		name = "Lift and Bridge",
+		hint = "Everyone on the lift! Up top, two on the plate brings out the bridge.",
 		lift = { need = 99, rise = 5 },
 		button = { need = 2, latch = true },
 		map = {
@@ -212,8 +212,8 @@ return {
 		},
 	},
 	{
-		name = "Тяжёлая работа",
-		hint = "Ящик на троих, потом ящик-ступенька.",
+		name = "Hard Work",
+		hint = "A crate for three, then a crate to climb.",
 		map = {
 			"                                                                  ",
 			"                                                                  ",
@@ -231,8 +231,8 @@ return {
 		},
 	},
 	{
-		name = "Пушка",
-		hint = "Перепрыгивайте ядра и прячьтесь за блоками.",
+		name = "Cannon",
+		hint = "Jump over cannonballs and hide behind blocks.",
 		cannon = { interval = 2.6, speed = 13 },
 		map = {
 			"                                                ",
@@ -250,8 +250,8 @@ return {
 		},
 	},
 	{
-		name = "Батутный парк",
-		hint = "Батуты везде! Ключ на высокой полке.",
+		name = "Bounce Park",
+		hint = "Trampolines everywhere! The key is on a high shelf.",
 		map = {
 			"                                                                ",
 			"                                                                ",
@@ -269,8 +269,8 @@ return {
 		},
 	},
 	{
-		name = "Большой ящик",
-		hint = "Столкните тяжёлый ящик в яму, чтобы пройти по нему.",
+		name = "Big Crate",
+		hint = "Push the heavy crate into the pit to walk over it.",
 		map = {
 			"                                                    ",
 			"                                                    ",
@@ -288,8 +288,8 @@ return {
 		},
 	},
 	{
-		name = "Лифт для всех",
-		hint = "Все на лифт — иначе он не поедет.",
+		name = "Lift for All",
+		hint = "Everyone on the lift - or it won't move.",
 		lift = { need = 99, rise = 4 },
 		map = {
 			"                                                  ",
@@ -308,8 +308,8 @@ return {
 		},
 	},
 	{
-		name = "Стоп — Иди",
-		hint = "На красный сигнал все должны замереть!",
+		name = "Red Light",
+		hint = "When the light turns red, everybody freeze!",
 		stopgo = { go = 3.5, stop = 2.5 },
 		map = {
 			"                                                  ",
@@ -327,8 +327,8 @@ return {
 		},
 	},
 	{
-		name = "Качели с ключом",
-		hint = "Ключ висит над качелями — поймайте момент.",
+		name = "Key on a Ride",
+		hint = "The key hangs over a moving platform - time it right.",
 		mover = { rise = 3, period = 4 },
 		map = {
 			"                                                ",
@@ -347,8 +347,8 @@ return {
 		},
 	},
 	{
-		name = "Кнопочный коридор",
-		hint = "Фиолетовые стены, розовый мост — всё вместе.",
+		name = "Plate Hall",
+		hint = "Purple walls, pink bridge - all together.",
 		button = { need = 2, latch = true },
 		button2 = { need = 1, latch = false },
 		map = {
@@ -368,8 +368,8 @@ return {
 		},
 	},
 	{
-		name = "Пушечный двор",
-		hint = "Прячьтесь за блоками и перепрыгивайте ядра.",
+		name = "Cannon Yard",
+		hint = "Hide behind blocks and jump the cannonballs.",
 		cannon = { interval = 2.8, speed = 12 },
 		map = {
 			"                                            ",
@@ -388,8 +388,8 @@ return {
 		},
 	},
 	{
-		name = "Песочные часы",
-		hint = "Песок и минута времени.",
+		name = "Hourglass",
+		hint = "Sand and one minute on the clock.",
 		time = 60,
 		map = {
 			"                                                 ",
@@ -408,8 +408,8 @@ return {
 		},
 	},
 	{
-		name = "Разделение",
-		hint = "Стену откроют двое, а мост держится, пока кто-то стоит на розовой кнопке.",
+		name = "Split Up",
+		hint = "Two open the wall, and the bridge holds while someone stands on the pink plate.",
 		button = { need = 2, latch = true },
 		button2 = { need = 1, latch = false },
 		map = {
@@ -428,8 +428,8 @@ return {
 		},
 	},
 	{
-		name = "Весы",
-		hint = "Доска качается! Встаньте на разные концы, чтобы держать её ровно.",
+		name = "Seesaw",
+		hint = "The plank tilts! Stand on opposite ends to keep it level.",
 		map = {
 			"                                            ",
 			"                                            ",
@@ -447,8 +447,8 @@ return {
 		},
 	},
 	{
-		name = "Коробка и кнопка",
-		hint = "Выведите ящик из тоннеля и откройте стену.",
+		name = "Crate and Plate",
+		hint = "Get the crate out of the tunnel and open the wall.",
 		button = { need = 2, latch = true },
 		map = {
 			"                                    x                       ",
@@ -467,8 +467,8 @@ return {
 		},
 	},
 	{
-		name = "Средний финал",
-		hint = "Батут, качели, пушка и лифт.",
+		name = "Medium Finale",
+		hint = "Trampoline, moving platforms, cannon and lift.",
 		mover = { rise = 3, period = 4 },
 		cannon = { interval = 2.6, speed = 13 },
 		lift = { need = 99, rise = 4 },

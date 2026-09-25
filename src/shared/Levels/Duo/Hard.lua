@@ -1,7 +1,7 @@
 return {
 	{
-		name = "Бегущий экран",
-		hint = "Экран едет сам! Кто отстанет от красной стены — проиграл.",
+		name = "Runaway Screen",
+		hint = "The screen scrolls by itself! Fall behind the red wall and you tumble.",
 		scroll = { speed = 3.5, delay = 4 },
 		map = {
 			"                                                                        ",
@@ -19,8 +19,8 @@ return {
 		},
 	},
 	{
-		name = "Песчаный марафон",
-		hint = "Длинные песчаные мосты. Бегите!",
+		name = "Sand Marathon",
+		hint = "Long sand bridges. Run!",
 		map = {
 			"                                                                           ",
 			"                                                                           ",
@@ -38,8 +38,8 @@ return {
 		},
 	},
 	{
-		name = "Время пошло",
-		hint = "Ящик, кнопка и пирамида — и всё за 70 секунд!",
+		name = "Clock Is Ticking",
+		hint = "Crate, plate and pal tower - all in 70 seconds!",
 		time = 70,
 		button = { need = 2, latch = true },
 		map = {
@@ -59,8 +59,8 @@ return {
 		},
 	},
 	{
-		name = "Бросок и весы",
-		hint = "Бросьте друга через пропасть, потом вместе перейдите по качающейся доске.",
+		name = "Yeet and Seesaw",
+		hint = "Throw a pal over the gap, then cross the wobbly plank together.",
 		button2 = { need = 1, latch = false },
 		map = {
 			"                                                            ",
@@ -79,8 +79,8 @@ return {
 		},
 	},
 	{
-		name = "Крошащийся мост",
-		hint = "Мост осыпается под ногами, а ключ лежит на песке. Быстрее!",
+		name = "Crumbling Bridge",
+		hint = "The bridge crumbles and the key sits on sand. Hurry!",
 		mover = { rise = 3, period = 3.5 },
 		map = {
 			"                                                        ",
@@ -98,8 +98,8 @@ return {
 		},
 	},
 	{
-		name = "Карусель",
-		hint = "Много качелей, и они быстрые.",
+		name = "Carousel",
+		hint = "Lots of moving platforms, and they are fast.",
 		mover = { rise = 3, period = 3 },
 		map = {
 			"                                                              ",
@@ -118,8 +118,8 @@ return {
 		},
 	},
 	{
-		name = "Перекрёстный огонь",
-		hint = "Ядра летят низко и высоко. Прыгайте вовремя!",
+		name = "Crossfire",
+		hint = "Cannonballs fly low and high. Time your jumps!",
 		cannon = { interval = 2.2, speed = 15 },
 		map = {
 			"                                                        ",
@@ -137,8 +137,8 @@ return {
 		},
 	},
 	{
-		name = "Быстрее ветра",
-		hint = "Всего 45 секунд на всё.",
+		name = "Faster Than Wind",
+		hint = "Only 45 seconds for everything.",
 		time = 45,
 		button2 = { need = 1, latch = false },
 		map = {
@@ -158,8 +158,8 @@ return {
 		},
 	},
 	{
-		name = "Замри!",
-		hint = "Стоп — Иди, но теперь на песке. Не замирайте на осыпающихся блоках!",
+		name = "Freeze!",
+		hint = "Red light again, but on sand. Don't freeze on crumbling blocks!",
 		stopgo = { go = 3, stop = 2.5 },
 		map = {
 			"                                                        ",
@@ -177,8 +177,8 @@ return {
 		},
 	},
 	{
-		name = "Шквальный огонь",
-		hint = "Пушки стреляют часто и сверху, и снизу.",
+		name = "Barrage",
+		hint = "Cannons fire often, from above and below.",
 		cannon = { interval = 1.9, speed = 16 },
 		map = {
 			"                                                                      ",
@@ -197,8 +197,8 @@ return {
 		},
 	},
 	{
-		name = "Бег наперегонки",
-		hint = "Экран едет! Не отставайте.",
+		name = "Race the Screen",
+		hint = "The screen is moving! Keep up.",
 		scroll = { speed = 4, delay = 4 },
 		map = {
 			"                                                                                 ",
@@ -217,8 +217,8 @@ return {
 		},
 	},
 	{
-		name = "Башня",
-		hint = "Взлетайте на батутах всё выше. Ключ — на самом верху.",
+		name = "Tower",
+		hint = "Bounce higher and higher. The key is at the very top.",
 		map = {
 			"                              ",
 			"                              ",
@@ -243,8 +243,8 @@ return {
 		},
 	},
 	{
-		name = "Мишкин вес",
-		hint = "Кнопка на троих — мишка считается за двоих. Дальше весы и бросок.",
+		name = "Bear Weight",
+		hint = "A plate for three - a bear counts as two. Then a seesaw and a throw.",
 		button = { need = 3, latch = true },
 		button2 = { need = 1, latch = false },
 		map = {
@@ -264,8 +264,8 @@ return {
 		},
 	},
 	{
-		name = "Четыре тонны",
-		hint = "Ящик на четверых, кнопка на троих и лифт.",
+		name = "Four Tons",
+		hint = "A crate for four, a plate for three and a lift.",
 		button = { need = 3, latch = true },
 		lift = { need = 99, rise = 4 },
 		map = {
@@ -285,8 +285,8 @@ return {
 		},
 	},
 	{
-		name = "Большой финал",
-		hint = "Ящик, батут и кнопка — покажите всё, чему научились!",
+		name = "Grand Finale",
+		hint = "Crate, trampoline and plate - show what you learned!",
 		button = { need = 2, latch = true },
 		map = {
 			"                                                   x        ",
@@ -305,8 +305,8 @@ return {
 		},
 	},
 	{
-		name = "Качели над пропастью",
-		hint = "Быстрые качели и песок между ними.",
+		name = "Rides Over the Abyss",
+		hint = "Fast moving platforms with sand in between.",
 		mover = { rise = 3, period = 2.8 },
 		map = {
 			"                                                                        ",
@@ -325,8 +325,8 @@ return {
 		},
 	},
 	{
-		name = "Красный свет",
-		hint = "Стоп — Иди на песке. На красный не стойте на песке!",
+		name = "Red Sand",
+		hint = "Red light on sand. Don't stop on sand when it turns red!",
 		stopgo = { go = 2.5, stop = 2.5 },
 		map = {
 			"                                                                      ",
@@ -345,8 +345,8 @@ return {
 		},
 	},
 	{
-		name = "Песок и ядра",
-		hint = "Под обстрелом по осыпающемуся песку.",
+		name = "Sand and Shells",
+		hint = "Crumbling sand under cannon fire.",
 		cannon = { interval = 2.2, speed = 15 },
 		map = {
 			"                                                                  ",
@@ -365,8 +365,8 @@ return {
 		},
 	},
 	{
-		name = "Четверо",
-		hint = "Тяжёлый ящик, кнопка на троих и мост. Нужна вся команда.",
+		name = "Fantastic Four",
+		hint = "Heavy crate, plate for three and a bridge. The whole team is needed.",
 		button = { need = 3, latch = true },
 		button2 = { need = 1, latch = false },
 		map = {
@@ -386,8 +386,8 @@ return {
 		},
 	},
 	{
-		name = "Башня II",
-		hint = "Две башни из батутов.",
+		name = "Tower II",
+		hint = "Two towers of trampolines.",
 		map = {
 			"                                                                ",
 			"                                                                ",
@@ -408,8 +408,8 @@ return {
 		},
 	},
 	{
-		name = "Командная работа",
-		hint = "Ящик, мост, кнопка на троих и лифт.",
+		name = "Teamwork",
+		hint = "Crate, bridge, a plate for three and a lift.",
 		button = { need = 3, latch = true },
 		button2 = { need = 1, latch = false },
 		lift = { need = 99, rise = 4 },
@@ -430,8 +430,8 @@ return {
 		},
 	},
 	{
-		name = "Бегущий экран 2",
-		hint = "Экран едет быстрее, а мосты осыпаются.",
+		name = "Runaway Screen 2",
+		hint = "The screen scrolls faster and the bridges crumble.",
 		scroll = { speed = 4.5, delay = 4 },
 		mover = { rise = 3, period = 3 },
 		map = {
@@ -450,8 +450,8 @@ return {
 		},
 	},
 	{
-		name = "Перестрелка",
-		hint = "Три пушки, мало укрытий.",
+		name = "Shootout",
+		hint = "Three cannons, little cover.",
 		cannon = { interval = 2, speed = 15 },
 		map = {
 			"                                                                        ",
@@ -470,8 +470,8 @@ return {
 		},
 	},
 	{
-		name = "Замри на песке",
-		hint = "Красный свет, песок и качели.",
+		name = "Freeze on Sand",
+		hint = "Red light, sand and moving platforms.",
 		stopgo = { go = 3, stop = 3 },
 		mover = { rise = 3, period = 3.5 },
 		map = {
@@ -491,8 +491,8 @@ return {
 		},
 	},
 	{
-		name = "Бегущий экран 3",
-		hint = "Экран едет, а песок осыпается.",
+		name = "Runaway Screen 3",
+		hint = "The screen scrolls and the sand crumbles.",
 		scroll = { speed = 4.5, delay = 4 },
 		mover = { rise = 3, period = 3 },
 		map = {
@@ -512,8 +512,8 @@ return {
 		},
 	},
 	{
-		name = "Небоскрёб",
-		hint = "Выше, ещё выше!",
+		name = "Skyscraper",
+		hint = "Higher, even higher!",
 		map = {
 			"                                                                            ",
 			"                                                                            ",
@@ -534,8 +534,8 @@ return {
 		},
 	},
 	{
-		name = "Гонка со временем",
-		hint = "Качели, песок, кнопки — и 60 секунд.",
+		name = "Race the Clock",
+		hint = "Platforms, sand, plates - and 60 seconds.",
 		time = 60,
 		mover = { rise = 3, period = 3.5 },
 		button = { need = 2, latch = true },
@@ -557,8 +557,8 @@ return {
 		},
 	},
 	{
-		name = "Ящики и пушки",
-		hint = "Ящики закрывают от ядер.",
+		name = "Crates and Cannons",
+		hint = "Crates block the cannonballs.",
 		cannon = { interval = 2.2, speed = 15 },
 		map = {
 			"                                                                                          ",
@@ -577,8 +577,8 @@ return {
 		},
 	},
 	{
-		name = "Держи дверь 2",
-		hint = "Держите дверь, пока бегун проходит комнату с песком и шипами. 60 секунд!",
+		name = "Hold the Door 2",
+		hint = "Hold the door while the runner crosses a room of sand and spikes. 60 seconds!",
 		button2 = { need = 1, latch = false },
 		time = 60,
 		map = {
@@ -597,8 +597,8 @@ return {
 		},
 	},
 	{
-		name = "Лабиринт кнопок",
-		hint = "Стены, мосты и кнопки на двоих.",
+		name = "Plate Maze",
+		hint = "Walls, bridges and plates for two.",
 		button = { need = 2, latch = true },
 		button2 = { need = 1, latch = false },
 		map = {
@@ -618,8 +618,8 @@ return {
 		},
 	},
 	{
-		name = "Бегущий экран 4",
-		hint = "Самый быстрый экран.",
+		name = "Runaway Screen 4",
+		hint = "The fastest screen yet.",
 		scroll = { speed = 5, delay = 4 },
 		map = {
 			"                                                                                 ",
@@ -638,8 +638,8 @@ return {
 		},
 	},
 	{
-		name = "Шторм",
-		hint = "Качели и пушки со всех сторон.",
+		name = "Storm",
+		hint = "Moving platforms and cannons everywhere.",
 		time = 80,
 		mover = { rise = 3, period = 3 },
 		cannon = { interval = 2, speed = 15 },
@@ -660,8 +660,8 @@ return {
 		},
 	},
 	{
-		name = "Все механики",
-		hint = "Батут, песок, качели, пушка, лифт и мост.",
+		name = "Everything Everywhere",
+		hint = "Trampoline, sand, platforms, cannon, lift and bridge.",
 		mover = { rise = 3, period = 3.5 },
 		cannon = { interval = 2.4, speed = 14 },
 		lift = { need = 99, rise = 4 },
@@ -683,8 +683,8 @@ return {
 		},
 	},
 	{
-		name = "Последнее испытание",
-		hint = "Ящик, лифт, кнопка и пушка — 120 секунд на всё!",
+		name = "The Last Trial",
+		hint = "Crate, lift, plate and cannon - 120 seconds for all of it!",
 		time = 120,
 		lift = { need = 99, rise = 4 },
 		button = { need = 2, latch = true },
@@ -706,8 +706,8 @@ return {
 		},
 	},
 	{
-		name = "Финальный забег",
-		hint = "Последний забег наперегонки с экраном.",
+		name = "Final Sprint",
+		hint = "One last race against the screen.",
 		scroll = { speed = 4, delay = 4 },
 		mover = { rise = 3, period = 3 },
 		map = {

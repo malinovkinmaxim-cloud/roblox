@@ -26,8 +26,20 @@ Level options:
 Requirements are capped by the current player count, so 99 means "everyone".
 ]]
 
+-- Level packs per party size, then per difficulty: Levels.duo.easy[3].
+-- Duo levels are hand-made; Solo, Squad and Party packs are composed from tested building blocks
+-- (solo packs never need a partner; squad/party packs use crates, plates and towers for 3-5 pals).
+local function pack(folder)
+	return {
+		easy = require(folder.Easy),
+		medium = require(folder.Medium),
+		hard = require(folder.Hard),
+	}
+end
+
 return {
-	easy = require(script.Easy),
-	medium = require(script.Medium),
-	hard = require(script.Hard),
+	solo = pack(script.Solo),
+	duo = pack(script.Duo),
+	squad = pack(script.Squad),
+	party = pack(script.Party),
 }

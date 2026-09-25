@@ -1,5 +1,5 @@
--- Wardrobe panel: pick a buddy (class) and a colour skin. Buddies cost stars only;
--- skins cost stars and some can also be bought for Robux if a product ID is configured.
+-- Wardrobe panel: pick a buddy (class) and a colour skin. Buddies cost Paws only;
+-- skins cost Paws and some can also be bought for Robux if a product ID is configured.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -32,7 +32,7 @@ function Wardrobe.new(gui, player, shopRemote)
 		Size = UDim2.fromOffset(300, 40),
 		TextSize = 32,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "Гардероб",
+		Text = "Wardrobe",
 	})
 	local starsLabel = UiStyle.text(bodyFrame, {
 		AnchorPoint = Vector2.new(1, 0),
@@ -118,7 +118,7 @@ function Wardrobe.new(gui, player, shopRemote)
 		table.insert(entries, { kind = kind, item = item, stroke = stroke, action = action, robux = robux })
 	end
 
-	sectionTitle("БАДДИ — помогают команде, открываются за звёзды", 64)
+	sectionTitle("BUDDIES - they help the team, bought with Paws", 64)
 	local classRow = row(92, 190)
 	for i, id in Buddies.classOrder do
 		local buddy = Buddies.classes[id]
@@ -144,7 +144,7 @@ function Wardrobe.new(gui, player, shopRemote)
 		end)
 	end
 
-	sectionTitle("РАСЦВЕТКИ — только внешний вид", 294)
+	sectionTitle("COLOURS - just for looks", 294)
 	local skinRow = row(322, 132)
 	for i, id in Buddies.skinOrder do
 		local skin = Buddies.skins[id]
@@ -169,37 +169,37 @@ function Wardrobe.new(gui, player, shopRemote)
 		end)
 	end
 
-	if Config.STAR_PACK.productId ~= 0 then
+	if Config.PAW_PACK.productId ~= 0 then
 		local pack = UiStyle.button(bodyFrame, {
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, -12),
 			Size = UDim2.fromOffset(300, 40),
-		}, `⭐ {Config.STAR_PACK.stars} звёзд за Robux`, C.gold)
+		}, `🐾 {Config.PAW_PACK.paws} Paws for Robux`, C.gold)
 		pack.Activated:Connect(function()
-			shopRemote:FireServer("robux", "skin", "starPack")
+			shopRemote:FireServer("robux", "skin", "pawPack")
 		end)
 	end
 
 	local function refresh()
-		local stars = player:GetAttribute("Stars") or 0
-		starsLabel.Text = `⭐ {stars}`
+		local paws = player:GetAttribute("Paws") or 0
+		starsLabel.Text = `🐾 {paws}`
 		local ownedClasses = split(player:GetAttribute("OwnedClasses"))
 		local ownedSkins = split(player:GetAttribute("OwnedSkins"))
 		for _, entry in entries do
 			local owned = table.find(if entry.kind == "class" then ownedClasses else ownedSkins, entry.item.id) ~= nil
 			local selected = player:GetAttribute(if entry.kind == "class" then "Class" else "Skin") == entry.item.id
 			if selected then
-				entry.action.Text = "Выбран"
+				entry.action.Text = "Selected"
 				entry.action.BackgroundColor3 = C.success
 				entry.action.TextColor3 = C.white
 			elseif owned then
-				entry.action.Text = "Выбрать"
+				entry.action.Text = "Select"
 				entry.action.BackgroundColor3 = C.paper
 				entry.action.TextColor3 = C.ink
 			else
-				entry.action.Text = `⭐ {entry.item.cost}`
-				entry.action.BackgroundColor3 = if stars >= entry.item.cost then C.gold else C.paper
-				entry.action.TextColor3 = if stars >= entry.item.cost then C.ink else C.muted
+				entry.action.Text = `🐾 {entry.item.cost}`
+				entry.action.BackgroundColor3 = if paws >= entry.item.cost then C.gold else C.paper
+				entry.action.TextColor3 = if paws >= entry.item.cost then C.ink else C.muted
 			end
 			entry.stroke.Thickness = if selected then 4 else 2.5
 			entry.stroke.Color = if selected then C.success else C.ink
@@ -208,7 +208,7 @@ function Wardrobe.new(gui, player, shopRemote)
 			end
 		end
 	end
-	for _, name in { "Stars", "OwnedClasses", "OwnedSkins", "Class", "Skin" } do
+	for _, name in { "Paws", "OwnedClasses", "OwnedSkins", "Class", "Skin" } do
 		player:GetAttributeChangedSignal(name):Connect(refresh)
 	end
 	refresh()

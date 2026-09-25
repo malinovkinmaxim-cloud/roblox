@@ -1,11 +1,13 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SocialService = game:GetService("SocialService")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local UiStyle = require(Shared:WaitForChild("UiStyle"))
 local Modes = require(Shared:WaitForChild("Modes"))
+local Parties = require(Shared:WaitForChild("Parties"))
 
 local remotes = ReplicatedStorage:WaitForChild("HubRemotes")
 local startNowRemote = remotes:WaitForChild("StartNow")
@@ -13,6 +15,7 @@ local setModeRemote = remotes:WaitForChild("SetMode")
 local shopRemote = remotes:WaitForChild("Shop")
 local Wardrobe = require(script:WaitForChild("Wardrobe"))
 local noticeRemote = remotes:WaitForChild("Notice")
+local inviteRemote = remotes:WaitForChild("Invite")
 
 local player = Players.LocalPlayer
 local C = UiStyle.colors
@@ -51,7 +54,7 @@ UiStyle.text(titleBody, {
 	FontFace = F.bold,
 	TextSize = 16,
 	TextColor3 = C.muted,
-	Text = `Встаньте на платформу комнаты · от {Config.ROOM_MIN_PLAYERS} игроков`,
+	Text = "Step on a kiosk: SOLO, DUO, SQUAD 3-4 or PARTY 5-8",
 })
 
 -- Own progress under the title
@@ -66,26 +69,21 @@ local progressText = UiStyle.text(progressBody, {
 	TextSize = 15,
 })
 local function refreshProgress()
-	local unlocked = string.split(player:GetAttribute("UnlockedModes") or "", ",")
-	local names = {}
-	for _, id in Modes.order do
-		local info = Modes.get(id)
-		if table.find(unlocked, id) then
-			table.insert(names, info.name)
-		end
-	end
-	local best = player:GetAttribute("EndlessBest") or 0
-	progressText.Text = `Открыто: {table.concat(names, ", ")} · рекорд ∞: {best}`
+	local streak = player:GetAttribute("Streak") or 0
+	progressText.Text = `🐾 {player:GetAttribute("Paws") or 0}   ⭐ {player:GetAttribute("Stars") or 0}   `
+		.. `∞ best {player:GetAttribute("EndlessBest") or 0}`
+		.. (if streak > 0 then `   🔥 streak {streak}` else "")
 end
-player:GetAttributeChangedSignal("UnlockedModes"):Connect(refreshProgress)
-player:GetAttributeChangedSignal("EndlessBest"):Connect(refreshProgress)
+for _, name in { "Paws", "Stars", "EndlessBest", "Streak" } do
+	player:GetAttributeChangedSignal(name):Connect(refreshProgress)
+end
 refreshProgress()
 
 -- Room panel
 local panelBody, panel = UiStyle.card(gui, {
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -24),
-	Size = UDim2.fromOffset(460, 222),
+	Size = UDim2.fromOffset(480, 222),
 	Visible = false,
 })
 local roomTitle = UiStyle.text(panelBody, {
@@ -151,7 +149,7 @@ local startButton, startContainer = UiStyle.button(panelBody, {
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -18),
 	Size = UDim2.fromOffset(230, 50),
-}, "Начать сейчас", C.success, C.white)
+}, "Start now", C.success, C.white)
 startButton.Activated:Connect(function()
 	startNowRemote:FireServer()
 end)
@@ -180,6 +178,8 @@ local function refresh()
 		return
 	end
 	local count = player:GetAttribute("RoomCount") or 0
+	local minPlayers = player:GetAttribute("RoomMin") or 1
+	local partyInfo = Parties.get(player:GetAttribute("RoomParty")) or Parties.list.duo
 	local secondsLeft = player:GetAttribute("RoomSecondsLeft") or -1
 	local state = player:GetAttribute("RoomState")
 
@@ -187,15 +187,15 @@ local function refresh()
 		panel.Visible = true
 		popIn(panel)
 	end
-	roomTitle.Text = `Комната на {capacity} · {count}/{capacity}`
+	roomTitle.Text = `{partyInfo.name} · {count}/{capacity}`
 	if state == "teleporting" then
-		roomStatus.Text = "Переходим в игру…"
+		roomStatus.Text = "Heading out..."
 	elseif secondsLeft >= 0 then
-		roomStatus.Text = `Старт через {secondsLeft} с · сойдите с платформы, чтобы выйти`
+		roomStatus.Text = `Starting in {secondsLeft}s · step off the pad to leave`
 	else
-		roomStatus.Text = `Ждём ещё игроков: минимум {Config.ROOM_MIN_PLAYERS}`
+		roomStatus.Text = `Waiting for pals: {partyInfo.name} needs at least {minPlayers}`
 	end
-	startContainer.Visible = state ~= "teleporting" and count >= Config.ROOM_MIN_PLAYERS
+	startContainer.Visible = state ~= "teleporting" and count >= minPlayers
 
 	local selected = player:GetAttribute("RoomMode")
 	local isLeader = player:GetAttribute("RoomLeader") == true
@@ -211,35 +211,62 @@ local function refresh()
 	local selectedInfo = Modes.get(selected)
 	local description = if selectedInfo then selectedInfo.description else ""
 	modeHint.Text = if isLeader
-		then `Вы лидер — выберите режим. {description}`
-		else `Режим выбирает лидер. {description}`
+		then `You lead - pick a mode. {description}`
+		else `The leader picks the mode. {description}`
 end
 
-for _, name in { "RoomCapacity", "RoomCount", "RoomSecondsLeft", "RoomState", "RoomMode", "RoomLeader", "RoomUnlocked" } do
+for _, name in { "RoomCapacity", "RoomCount", "RoomSecondsLeft", "RoomState", "RoomMode", "RoomLeader", "RoomUnlocked", "RoomParty" } do
 	player:GetAttributeChangedSignal(name):Connect(refresh)
 end
 refresh()
 
 local toastId = 0
-noticeRemote.OnClientEvent:Connect(function(text)
+local function showToast(text, seconds)
 	toastId += 1
 	local id = toastId
 	toastText.Text = text
 	toast.Visible = true
 	popIn(toast)
-	task.delay(3.5, function()
+	task.delay(seconds or 3.5, function()
 		if id == toastId then
 			toast.Visible = false
 		end
 	end)
+end
+noticeRemote.OnClientEvent:Connect(showToast)
+
+-- The server asks us to open Roblox's invite prompt when we step on the invite kiosk.
+-- In a Studio playtest the prompt may not open - that is a platform limitation, not a bug.
+inviteRemote.OnClientEvent:Connect(function()
+	local ok, err = pcall(function()
+		if SocialService:CanSendGameInviteAsync(player) then
+			SocialService:PromptGameInvite(player)
+		else
+			showToast("Invites are not available for your account right now")
+		end
+	end)
+	if not ok then
+		warn("Invite prompt unavailable:", err)
+		showToast("Invite prompt unavailable here (Studio playtests may block it)")
+	end
 end)
+
+-- Warns when progress cannot be saved (e.g. Studio without API access) instead of failing silently
+local function refreshSave()
+	local status = player:GetAttribute("SaveStatus")
+	if status and status ~= "ok" then
+		showToast("⚠ " .. (player:GetAttribute("SaveMessage") or ""), 10)
+	end
+end
+player:GetAttributeChangedSignal("SaveStatus"):Connect(refreshSave)
+refreshSave()
 
 local wardrobe = Wardrobe.new(gui, player, shopRemote)
 local wardrobeButton = UiStyle.button(gui, {
 	AnchorPoint = Vector2.new(0, 1),
 	Position = UDim2.new(0, 16, 1, -24),
 	Size = UDim2.fromOffset(190, 56),
-}, "🎒 Гардероб", C.gold)
+}, "🎒 Wardrobe", C.gold)
 wardrobeButton.Activated:Connect(wardrobe.toggle)
 
 gui.Parent = player:WaitForChild("PlayerGui")
