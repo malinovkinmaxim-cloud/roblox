@@ -7,6 +7,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local UiStyle = require(Shared:WaitForChild("UiStyle"))
 local Modes = require(Shared:WaitForChild("Modes"))
+local Buddies = require(Shared:WaitForChild("Buddies"))
 
 local C = UiStyle.colors
 local F = UiStyle.fonts
@@ -15,6 +16,7 @@ local BANNER_COLORS = {
 	success = C.success,
 	fail = C.danger,
 	info = C.info,
+	ko = C.gold,
 }
 
 local Ui = {}
@@ -115,7 +117,7 @@ local function caption(parent, text, order)
 	}, 2)
 end
 
--- callbacks: restart(), hub(), chooseMode(modeId)
+-- callbacks: restart(), hub(), chooseMode(modeId), selectBuddy(kind, id), grab()
 function Ui.new(player, gameState, callbacks)
 	local self = setmetatable({}, Ui)
 	self.touch = { left = false, right = false, jump = false }
@@ -196,6 +198,40 @@ function Ui.new(player, gameState, callbacks)
 		hub.Activated:Connect(callbacks.hub)
 	end
 
+	-- Stars (soft currency) and the frog double-jump hint
+	local starsBody = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -16, 0, 86 + 330 + 8),
+		Size = UDim2.fromOffset(120, 40),
+	}, Color3.fromRGB(255, 246, 214))
+	local starsText = UiStyle.text(starsBody, {
+		Size = UDim2.fromScale(1, 1),
+		TextSize = 22,
+	})
+	local function refreshStars()
+		starsText.Text = `⭐ {player:GetAttribute("Stars") or 0}`
+	end
+	player:GetAttributeChangedSignal("Stars"):Connect(refreshStars)
+	refreshStars()
+
+	local boostBody, boostCard = UiStyle.card(gui, {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -52),
+		Size = UDim2.fromOffset(250, 38),
+		Visible = false,
+	}, Color3.fromRGB(190, 240, 170))
+	UiStyle.text(boostBody, {
+		Size = UDim2.fromScale(1, 1),
+		FontFace = F.bold,
+		TextSize = 17,
+		Text = "🐸 Лягушка рядом: двойной прыжок!",
+	})
+	function self.setFrogBoost(on)
+		if boostCard.Visible ~= on then
+			boostCard.Visible = on
+		end
+	end
+
 	-- Team list (right side)
 	local roster = Instance.new("Frame")
 	roster.BackgroundTransparency = 1
@@ -216,7 +252,8 @@ function Ui.new(player, gameState, callbacks)
 			seen[p] = true
 			local slot = p:GetAttribute("Slot") or 1
 			local chip = chips[p]
-			if not chip or chip.slot ~= slot then
+			local buddyKey = `{slot}:{p:GetAttribute("Class")}`
+			if not chip or chip.key ~= buddyKey then
 				if chip then
 					chip.frame:Destroy()
 				end
@@ -234,7 +271,7 @@ function Ui.new(player, gameState, callbacks)
 					TextSize = 15,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextTruncate = Enum.TextTruncate.AtEnd,
-					Text = p.DisplayName,
+					Text = `{Buddies.getClass(p:GetAttribute("Class")).emoji} {p.DisplayName}`,
 				})
 				local status = UiStyle.text(frame, {
 					AnchorPoint = Vector2.new(1, 0.5),
@@ -244,11 +281,14 @@ function Ui.new(player, gameState, callbacks)
 					TextColor3 = C.success,
 				})
 				frame.Parent = roster
-				chip = { frame = frame, status = status, slot = slot }
+				chip = { frame = frame, status = status, key = buddyKey }
 				chips[p] = chip
 			end
 			chip.frame.LayoutOrder = slot
-			chip.status.Text = if p:GetAttribute("InDoor") == true then "✔" else ""
+			chip.status.Text = if p:GetAttribute("KnockedOut") == true
+				then "💫"
+				elseif p:GetAttribute("InDoor") == true then "✔"
+				else ""
 		end
 		for p, chip in chips do
 			if not seen[p] then
@@ -346,6 +386,13 @@ function Ui.new(player, gameState, callbacks)
 		holdButton("◀", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 70, 1, -80), Size = UDim2.fromOffset(92, 92) }, "left")
 		holdButton("▶", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 180, 1, -80), Size = UDim2.fromOffset(92, 92) }, "right")
 		holdButton("▲", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -90, 1, -90), Size = UDim2.fromOffset(116, 116) }, "jump")
+		local grab = UiStyle.button(gui, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -200, 1, -70),
+			Size = UDim2.fromOffset(80, 80),
+		}, "✋")
+		grab.BackgroundTransparency = 0.15
+		grab.Activated:Connect(callbacks.grab)
 	else
 		local bar = Instance.new("Frame")
 		bar.BackgroundTransparency = 1
@@ -364,8 +411,10 @@ function Ui.new(player, gameState, callbacks)
 		caption(bar, "ходить     ", 3)
 		keycap(bar, "Пробел", 4)
 		caption(bar, "прыжок     ", 5)
-		keycap(bar, "R", 6)
-		caption(bar, "заново", 7)
+		keycap(bar, "E", 6)
+		caption(bar, "взять / бросить     ", 7)
+		keycap(bar, "R", 8)
+		caption(bar, "заново", 9)
 		bar.Parent = gui
 	end
 
@@ -433,7 +482,7 @@ function Ui.new(player, gameState, callbacks)
 	local pickerBody, picker = UiStyle.card(gui, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(440, 76 + #Modes.order * 66),
+		Size = UDim2.fromOffset(440, 76 + #Modes.order * 66 + 80),
 		Visible = false,
 	})
 	local pickerScale = withScale(picker)
@@ -494,6 +543,42 @@ function Ui.new(player, gameState, callbacks)
 	end
 	player:GetAttributeChangedSignal("UnlockedModes"):Connect(refreshLocks)
 	refreshLocks()
+
+	-- Buddy row in the picker (the hub wardrobe does the same thing)
+	local buddyRow = Instance.new("Frame")
+	buddyRow.BackgroundTransparency = 1
+	buddyRow.Position = UDim2.fromOffset(20, 66 + #Modes.order * 66)
+	buddyRow.Size = UDim2.new(1, -40, 0, 64)
+	local buddyLayout = Instance.new("UIListLayout")
+	buddyLayout.FillDirection = Enum.FillDirection.Horizontal
+	buddyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	buddyLayout.Padding = UDim.new(0, 8)
+	buddyLayout.Parent = buddyRow
+	buddyRow.Parent = pickerBody
+	local buddyButtons = {}
+	for i, id in Buddies.classOrder do
+		local buddy = Buddies.classes[id]
+		local button = UiStyle.button(buddyRow, {
+			LayoutOrder = i,
+			Size = UDim2.new(0.25, -8, 1, -8),
+		}, `{buddy.emoji} {buddy.name}`)
+		button.Activated:Connect(function()
+			callbacks.selectBuddy("class", id)
+		end)
+		buddyButtons[id] = button
+	end
+	local function refreshBuddies()
+		local owned = string.split(player:GetAttribute("OwnedClasses") or "", ",")
+		local selected = player:GetAttribute("Class")
+		for id, button in buddyButtons do
+			local has = table.find(owned, id) ~= nil
+			button.BackgroundColor3 = if id == selected then C.gold else C.paper
+			button.TextTransparency = if has then 0 else 0.6
+		end
+	end
+	player:GetAttributeChangedSignal("OwnedClasses"):Connect(refreshBuddies)
+	player:GetAttributeChangedSignal("Class"):Connect(refreshBuddies)
+	refreshBuddies()
 	local function refreshPicker()
 		local choosing = gameState:GetAttribute("ChoosingMode") == true
 		if choosing and not picker.Visible then
@@ -623,8 +708,9 @@ function Ui.new(player, gameState, callbacks)
 		end
 		shownMessage = id
 		bannerBody.BackgroundColor3 = BANNER_COLORS[gameState:GetAttribute("MessageKind")] or C.info
+		local kind = gameState:GetAttribute("MessageKind")
 		bannerText.Text = gameState:GetAttribute("Message") or ""
-		pop(banner, bannerScale, 1.8)
+		pop(banner, bannerScale, if kind == "ko" then 1.1 else 2.2)
 	end)
 
 	gui.Parent = player:WaitForChild("PlayerGui")

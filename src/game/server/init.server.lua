@@ -9,6 +9,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Levels = require(ReplicatedStorage.Shared.Levels)
 local Modes = require(ReplicatedStorage.Shared.Modes)
 local ProgressStore = require(ReplicatedStorage.Shared.ProgressStore)
+local UiStyle = require(ReplicatedStorage.Shared.UiStyle)
 local CharacterFactory = require(script.CharacterFactory)
 local LevelBuilder = require(script.LevelBuilder)
 local LevelGenerator = require(script.LevelGenerator)
@@ -55,6 +56,10 @@ local inputRemote = remote("Input")
 local restartRemote = remote("Restart")
 local toHubRemote = remote("ToHub")
 local chooseModeRemote = remote("ChooseMode")
+local selectBuddyRemote = remote("SelectBuddy")
+local grabRemote = remote("Grab")
+local wriggleRemote = remote("Wriggle")
+local thrownRemote = remote("Thrown")
 remotes.Parent = ReplicatedStorage
 
 local gameState = Instance.new("Folder")
@@ -65,12 +70,19 @@ gameState:SetAttribute("Signal", "")
 gameState.Parent = ReplicatedStorage
 
 local FAIL_TEXT = {
-	death = "Упс! Ещё разок",
-	shot = "Попадание из пушки!",
-	scroll = "Экран вас обогнал!",
-	stop = "Кто-то двигался на красный!",
 	time = "Время вышло!",
 }
+
+-- Per-player gag lines when someone tumbles (used as the hardcore game-over reason too)
+local KO_TEXT = {
+	death = "Упс, {name}!",
+	shot = "Бум! Ядро попало в {name}",
+	scroll = "Экран догнал: {name}",
+	stop = "{name}, на красный нельзя!",
+}
+
+local carrying = {} -- carrier -> carried player
+local carriedBy = {} -- carried -> carrier
 
 local playerDir = {}
 local lastHubRequest = {}
@@ -116,6 +128,7 @@ end
 
 local function spawnPlayer(player, position)
 	player:SetAttribute("InDoor", false)
+	player:SetAttribute("KnockedOut", false)
 	local ok = pcall(function()
 		player:LoadCharacter()
 	end)
@@ -126,6 +139,52 @@ local function spawnPlayer(player, position)
 	character:PivotTo(CFrame.lookAt(position, position + Vector3.new(1, 0, 0)))
 end
 
+local function activeRoot(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if
+		humanoid
+		and root
+		and humanoid.Health > 0
+		and player:GetAttribute("InDoor") ~= true
+		and player:GetAttribute("KnockedOut") ~= true
+	then
+		return root
+	end
+	return nil
+end
+
+local function setWalkSpeed(player, speed)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.WalkSpeed = speed
+	end
+end
+
+local function releaseCarry(player)
+	local carried = carrying[player]
+	if carried then
+		carrying[player] = nil
+		carriedBy[carried] = nil
+		carried:SetAttribute("CarriedBy", nil)
+		player:SetAttribute("Carrying", nil)
+		setWalkSpeed(player, Config.WALK_SPEED)
+	end
+	local carrier = carriedBy[player]
+	if carrier then
+		releaseCarry(carrier)
+	end
+end
+
+local function startCarry(carrier, carried)
+	carrying[carrier] = carried
+	carriedBy[carried] = carrier
+	carrier:SetAttribute("Carrying", carried.UserId)
+	carried:SetAttribute("CarriedBy", carrier.UserId)
+	setWalkSpeed(carrier, Config.CARRY_WALK_SPEED)
+end
+
 local function clearLevel()
 	if level then
 		level.folder:Destroy()
@@ -133,6 +192,10 @@ local function clearLevel()
 	end
 	gameState:SetAttribute("TimeLeft", -1)
 	gameState:SetAttribute("Signal", "")
+	gameState:SetAttribute("Celebrating", false)
+	for _, player in Players:GetPlayers() do
+		releaseCarry(player)
+	end
 end
 
 local function loadLevel(index)
@@ -232,11 +295,102 @@ local function fail(reason, customText)
 	loadLevel(levelIndex)
 end
 
+-- Where a tumbled player comes back: the last checkpoint, or next to the team on scrolling levels
+local function respawnPoint()
+	local point = level.checkpoint or level.spawn
+	if level.scroll and point.X < level.scroll.x + 6 then
+		local rearmost = nil
+		for _, other in Players:GetPlayers() do
+			local root = activeRoot(other)
+			if root and (not rearmost or root.Position.X < rearmost.X) then
+				rearmost = root.Position
+			end
+		end
+		point = if rearmost then rearmost + Vector3.new(0, 4, 0) else Vector3.new(level.scroll.x + 8, point.Y + 6, 0)
+	end
+	return Vector3.new(point.X, point.Y, 0)
+end
+
+-- Falling is a gag, not a punishment: the player tumbles for a moment and pops back at the
+-- last checkpoint while the rest of the level stays as it is. Hardcore still ends the run.
+local function knockOut(player, reason)
+	if phase ~= "playing" or player:GetAttribute("KnockedOut") == true then
+		return
+	end
+	local text = string.gsub(KO_TEXT[reason] or KO_TEXT.death, "{name}", player.DisplayName)
+	if mode.oneLife then
+		task.spawn(fail, reason, text)
+		return
+	end
+
+	level.koCount += 1
+	player:SetAttribute("KnockedOut", true)
+	releaseCarry(player)
+	local head = player.Character and player.Character:FindFirstChild("Head")
+	if head then
+		local _, dizzy = UiStyle.worldTag(head, Vector3.new(0, 2.2, 0), "✕ ✕", UiStyle.colors.danger, UiStyle.colors.white)
+		dizzy.Name = "Dizzy"
+	end
+	setMessage(text, "ko")
+
+	local koLevel = level
+	task.delay(Config.KO_TIME, function()
+		if level ~= koLevel or not player.Parent or player:GetAttribute("KnockedOut") ~= true then
+			return
+		end
+		local position = respawnPoint()
+		player:SetAttribute("KnockedOut", false)
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if character and character.Parent and humanoid and humanoid.Health > 0 and root then
+			local dizzy = character.Head:FindFirstChild("Dizzy")
+			if dizzy then
+				dizzy:Destroy()
+			end
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			character:PivotTo(CFrame.lookAt(position, position + Vector3.new(1, 0, 0)))
+		else
+			spawnPlayer(player, position)
+		end
+	end)
+end
+
+-- Everyone pops out of the door and hops around while confetti flies (clients do the effects)
+local function celebrate()
+	local door = level.door
+	if not door then
+		return
+	end
+	local list = Players:GetPlayers()
+	for i, player in list do
+		local character = player.Character
+		if character and character.Parent then
+			CharacterFactory.show(character)
+			player:SetAttribute("InDoor", false)
+			local offset = (i - (#list + 1) / 2) * Config.SPAWN_SPACING
+			local position = Vector3.new(door.x + offset, door.bottom + 2, 0)
+			local facing = if offset > 0 then -1 else 1
+			character:PivotTo(CFrame.lookAt(position, position + Vector3.new(facing, 0, 0)))
+		end
+	end
+	gameState:SetAttribute("CelebrateAt", door.center)
+	gameState:SetAttribute("Celebrating", true)
+	gameState:SetAttribute("CelebrateId", (gameState:GetAttribute("CelebrateId") or 0) + 1)
+end
+
 local function completeLevel()
 	if phase ~= "playing" then
 		return
 	end
 	phase = "transition"
+	celebrate()
+	local stars = (Config.STARS[mode.id] or 1) + (if level.koCount == 0 then Config.STARS_NO_FALL_BONUS else 0)
+	for _, player in Players:GetPlayers() do
+		ProgressStore.addStars(player, stars)
+	end
+	local starText = `+{stars} ⭐` .. (if level.koCount == 0 then " без падений!" else "")
 	local isLast = not mode.endless and levelIndex >= levelCount()
 	if mode.endless then
 		for _, player in Players:GetPlayers() do
@@ -255,16 +409,16 @@ local function completeLevel()
 		end
 		setMessage(
 			if unlockedNext
-				then `{mode.name} пройден! Открыт режим «{unlockedNext.name}»`
-				else `{mode.name} пройден! Вы легенды!`,
+				then `{mode.name} пройден! Открыт режим «{unlockedNext.name}» {starText}`
+				else `{mode.name} пройден! Вы легенды! {starText}`,
 			"success"
 		)
-		task.wait(Config.COMPLETE_DELAY + 2)
+		task.wait(Config.COMPLETE_DELAY + 3)
 		endRun()
 		return
 	end
-	setMessage(if mode.endless then `Уровень {levelIndex} пройден!` else "Уровень пройден!", "success")
-	task.wait(Config.COMPLETE_DELAY)
+	setMessage(if mode.endless then `Уровень {levelIndex} пройден! {starText}` else `Уровень пройден! {starText}`, "success")
+	task.wait(Config.COMPLETE_DELAY + 1)
 	loadLevel(levelIndex + 1)
 end
 
@@ -280,11 +434,17 @@ end
 
 local function onCharacterAdded(player, character)
 	local slot = player:GetAttribute("Slot") or 1
-	CharacterFactory.decorate(character, Config.PLAYER_COLORS[slot], player.DisplayName)
+	CharacterFactory.decorate(
+		character,
+		Config.PLAYER_COLORS[slot],
+		player.DisplayName,
+		player:GetAttribute("Class"),
+		player:GetAttribute("Skin")
+	)
 	local humanoid = character:WaitForChild("Humanoid")
 	humanoid.Died:Connect(function()
 		if player.Character == character then
-			task.spawn(fail, "death")
+			knockOut(player, "death")
 		end
 	end)
 end
@@ -317,6 +477,7 @@ for _, player in Players:GetPlayers() do
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	releaseCarry(player)
 	ProgressStore.release(player)
 	playerDir[player] = nil
 	lastHubRequest[player] = nil
@@ -353,6 +514,49 @@ chooseModeRemote.OnServerEvent:Connect(function(player, id)
 	end
 end)
 
+selectBuddyRemote.OnServerEvent:Connect(function(player, kind, id)
+	if phase == "choosing" and (kind == "class" or kind == "skin") and type(id) == "string" then
+		ProgressStore.select(player, kind, id)
+	end
+end)
+
+-- Press once to pick up the nearest teammate, press again to throw them where you face
+grabRemote.OnServerEvent:Connect(function(player, facing)
+	if phase ~= "playing" then
+		return
+	end
+	local dir = if facing == -1 then -1 else 1
+	local carried = carrying[player]
+	if carried then
+		releaseCarry(player)
+		thrownRemote:FireClient(carried, Vector3.new(dir * Config.THROW_VELOCITY.X, Config.THROW_VELOCITY.Y, 0))
+		return
+	end
+	local myRoot = activeRoot(player)
+	if carriedBy[player] or not myRoot then
+		return
+	end
+	local best, bestDistance = nil, math.huge
+	for _, other in Players:GetPlayers() do
+		local root = other ~= player and not carrying[other] and not carriedBy[other] and activeRoot(other)
+		if root then
+			local offset = root.Position - myRoot.Position
+			if math.abs(offset.X) < Config.CARRY_REACH and math.abs(offset.Y) < 3.5 and math.abs(offset.X) < bestDistance then
+				best, bestDistance = other, math.abs(offset.X)
+			end
+		end
+	end
+	if best then
+		startCarry(player, best)
+	end
+end)
+
+wriggleRemote.OnServerEvent:Connect(function(player)
+	if carriedBy[player] then
+		releaseCarry(player)
+	end
+end)
+
 toHubRemote.OnServerEvent:Connect(function(player)
 	local now = os.clock()
 	if lastHubRequest[player] and now - lastHubRequest[player] < 5 then
@@ -380,16 +584,30 @@ RunService.Heartbeat:Connect(function(dt)
 				root = root,
 				pos = root.Position,
 				dir = playerDir[player] or 0,
+				weight = if player:GetAttribute("Class") == "bear" then 2 else 1,
 				inDoor = player:GetAttribute("InDoor") == true,
+				knockedOut = player:GetAttribute("KnockedOut") == true,
 			})
 		end
 	end
 
-	local reason = Mechanics.step(level, dt, infos, #all, os.clock())
+	for carrier, carried in carrying do
+		if not activeRoot(carrier) or not activeRoot(carried) then
+			releaseCarry(carrier)
+		end
+	end
+
+	local reason, knocked = Mechanics.step(level, dt, infos, #all, os.clock())
 	gameState:SetAttribute("TimeLeft", level.timeLeft or -1)
 	gameState:SetAttribute("Signal", level.signal or "")
 	if reason then
 		task.spawn(fail, reason)
+		return
+	end
+	for player, why in knocked do
+		knockOut(player, why)
+	end
+	if phase ~= "playing" then
 		return
 	end
 

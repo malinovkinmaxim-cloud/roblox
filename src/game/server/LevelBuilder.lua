@@ -207,6 +207,10 @@ function LevelBuilder.build(data, levelIndex)
 		door = nil,
 		channels = {},
 		crumbles = {},
+		seesaws = {},
+		checkpoints = {},
+		checkpoint = nil,
+		koCount = 0,
 		movers = {},
 		cannons = {},
 		bullets = {},
@@ -375,6 +379,21 @@ function LevelBuilder.build(data, levelIndex)
 		level.bulletFolder = bulletFolder
 	end
 
+	-- Seesaws: each horizontal run of "=" is one plank balanced on its middle
+	eachRun(width, height, function(r, c)
+		return grid[r][c] == "="
+	end, function(r, c0, c1)
+		local len = (c1 - c0 + 1) * T
+		local pivot = Vector3.new((c0 - 1) * T + len / 2, tileBottom(r) + T - 0.5, 0)
+		local plank = makePart("Seesaw", Vector3.new(len, 1, DEPTH - 2), CFrame.new(pivot), PALETTE.seesaw, solids)
+		makeDecor(makePart("SeesawPost", Vector3.new(0.8, 40, 0.8), CFrame.new(pivot - Vector3.new(0, 20.5, -0.6)), PALETTE.cannon, decor))
+		local hinge = makeDecor(
+			makePart("SeesawHinge", Vector3.new(0.6, 1.6, 1.6), CFrame.new(pivot + Vector3.new(0, 0, 2.2)) * CFrame.Angles(0, math.rad(90), 0), PALETTE.cannon, decor)
+		)
+		hinge.Shape = Enum.PartType.Cylinder
+		table.insert(level.seesaws, { part = plank, pivot = pivot, halfLen = len / 2, angle = 0 })
+	end)
+
 	-- Trampolines
 	for r = 1, height do
 		for c = 1, width do
@@ -495,6 +514,53 @@ function LevelBuilder.build(data, levelIndex)
 			end
 		end
 	end
+
+	-- Checkpoints: "F" tiles plus automatic ones on safe open ground every CHECKPOINT_SPACING columns
+	local function standingRow(c)
+		if c < 1 or c > width then
+			return nil
+		end
+		local r = height
+		while r >= 1 and grid[r][c] == "#" do
+			r -= 1
+		end
+		if r == height or r < 3 then
+			return nil
+		end
+		local here = grid[r][c]
+		if (here ~= " " and here ~= "F") or grid[r - 1][c] ~= " " or grid[r - 2][c] ~= " " then
+			return nil
+		end
+		return r
+	end
+	local function addCheckpoint(c, r)
+		local x, bottom = tileX(c), tileBottom(r)
+		makeDecor(makePart("FlagPole", Vector3.new(0.3, 4.2, 0.3), CFrame.new(x, bottom + 2.1, -1.4), PALETTE.cannon, decor))
+		local flag = makeDecor(makePart("Flag", Vector3.new(1.6, 1.1, 0.15), CFrame.new(x + 0.8, bottom + 3.55, -1.4), PALETTE.flag, decor))
+		table.insert(level.checkpoints, { x = x, bottom = bottom, flag = flag, active = false })
+	end
+	for r = 1, height do
+		for c = 1, width do
+			if grid[r][c] == "F" then
+				addCheckpoint(c, r)
+			end
+		end
+	end
+	local spawnCol = math.floor(level.spawn.X / T) + 1
+	local lastCol = if level.door then math.floor(level.door.x / T) + 1 - 6 else width - 6
+	local previous = spawnCol
+	for c = spawnCol + Config.CHECKPOINT_SPACING, lastCol do
+		if c - previous >= Config.CHECKPOINT_SPACING then
+			local r = standingRow(c)
+			if r and standingRow(c - 1) == r and standingRow(c + 1) == r then
+				addCheckpoint(c, r)
+				previous = c
+			end
+		end
+	end
+	table.sort(level.checkpoints, function(a, b)
+		return a.x < b.x
+	end)
 
 	if data.scroll then
 		local wall = makeDecor(

@@ -25,13 +25,13 @@ local function canPlace(level, part, cframe)
 	return true
 end
 
--- Players standing on (or stacked above) a horizontal surface
+-- Weight of players standing on (or stacked above) a horizontal surface; a bear weighs 2
 local function countAbove(active, x, halfWidth, top, reach)
 	local count = 0
 	for _, info in active do
 		local p = info.pos
 		if math.abs(p.X - x) < halfWidth + HALF_W * 0.8 and p.Y > top and p.Y < top + (reach or Config.STACK_REACH) then
-			count += 1
+			count += info.weight
 		end
 	end
 	return count
@@ -332,9 +332,9 @@ local function updateMovers(level)
 	end
 end
 
-local function updateCannons(level, dt, active)
+local function updateCannons(level, dt, active, knocked)
 	if #level.cannons == 0 then
-		return nil
+		return
 	end
 	local interval = level.cannonOptions.interval or 2.5
 	local speed = level.cannonOptions.speed or 14
@@ -364,30 +364,34 @@ local function updateCannons(level, dt, active)
 		local bullet = level.bullets[i]
 		bullet.pos += Vector3.new(bullet.dir * speed * dt, 0, 0)
 		local hits = workspace:GetPartBoundsInBox(CFrame.new(bullet.pos), Vector3.new(0.8, 0.8, 0.8), level.overlapParams)
-		if #hits > 0 or bullet.pos.X < -5 or bullet.pos.X > level.width + 5 then
+		local hitPlayer = nil
+		for _, info in active do
+			local p = info.pos
+			if
+				math.abs(p.X - bullet.pos.X) < HALF_W + 0.6
+				and bullet.pos.Y > p.Y - Config.CHAR_BOTTOM - 0.5
+				and bullet.pos.Y < p.Y + Config.CHAR_TOP + 0.5
+			then
+				hitPlayer = info
+				break
+			end
+		end
+		if hitPlayer then
+			knocked[hitPlayer.player] = "shot"
+		end
+		if hitPlayer or #hits > 0 or bullet.pos.X < -5 or bullet.pos.X > level.width + 5 then
 			bullet.part:Destroy()
 			table.remove(level.bullets, i)
 		else
 			bullet.part.CFrame = CFrame.new(bullet.pos)
-			for _, info in active do
-				local p = info.pos
-				if
-					math.abs(p.X - bullet.pos.X) < HALF_W + 0.6
-					and bullet.pos.Y > p.Y - Config.CHAR_BOTTOM - 0.5
-					and bullet.pos.Y < p.Y + Config.CHAR_TOP + 0.5
-				then
-					return "shot"
-				end
-			end
 		end
 	end
-	return nil
 end
 
-local function updateScroll(level, dt, active)
+local function updateScroll(level, dt, active, knocked)
 	local scroll = level.scroll
 	if not scroll then
-		return nil
+		return
 	end
 	if level.time > scroll.delay then
 		scroll.x = math.min(scroll.stopX, scroll.x + scroll.speed * dt)
@@ -395,17 +399,16 @@ local function updateScroll(level, dt, active)
 	scroll.wall.CFrame = CFrame.new(scroll.x, scroll.wall.Position.Y, 0)
 	for _, info in active do
 		if info.pos.X - HALF_W < scroll.x then
-			return "scroll"
+			knocked[info.player] = "scroll"
 		end
 	end
-	return nil
 end
 
-local function updateStopGo(level, active)
+local function updateStopGo(level, active, knocked)
 	local stopgo = level.stopgo
 	if not stopgo then
 		level.signal = nil
-		return nil
+		return
 	end
 	local t = level.time % (stopgo.go + stopgo.stop)
 	if t < stopgo.go - 1 then
@@ -417,52 +420,103 @@ local function updateStopGo(level, active)
 		if t - stopgo.go > Config.STOP_GRACE then
 			for _, info in active do
 				if math.abs(info.root.AssemblyLinearVelocity.X) > Config.STOP_SPEED then
-					return "stop"
+					knocked[info.player] = "stop"
 				end
 			end
 		end
 	end
-	return nil
+end
+
+-- A plank tilts towards the side with more torque (weight x distance from the pivot).
+-- Balanced teams keep it level; alone on one end, it tips steeply and you slide off.
+local function updateSeesaws(level, dt, active)
+	for _, seesaw in level.seesaws do
+		local cos, sin = math.cos(seesaw.angle), math.sin(seesaw.angle)
+		local torque = 0
+		for _, info in active do
+			local rel = info.pos - seesaw.pivot
+			local along = rel.X * cos + rel.Y * sin
+			local up = -rel.X * sin + rel.Y * cos
+			if math.abs(along) < seesaw.halfLen + 0.5 and up > 0.3 and up < Config.STACK_REACH then
+				torque += along * info.weight
+			end
+		end
+		local target = 0
+		if math.abs(torque) > Config.SEESAW_DEADZONE then
+			target = math.clamp(-torque * Config.SEESAW_TILT, -Config.SEESAW_MAX, Config.SEESAW_MAX)
+		end
+		local step = Config.SEESAW_SPEED * dt
+		seesaw.angle += math.clamp(target - seesaw.angle, -step, step)
+		seesaw.part.CFrame = CFrame.new(seesaw.pivot) * CFrame.Angles(0, 0, seesaw.angle)
+	end
+end
+
+local function updateCheckpoints(level, active)
+	local current = if level.checkpoint then level.checkpoint.X else -math.huge
+	for _, checkpoint in level.checkpoints do
+		if checkpoint.x > current then
+			for _, info in active do
+				local p = info.pos
+				if math.abs(p.X - checkpoint.x) < 2.5 and p.Y > checkpoint.bottom and p.Y < checkpoint.bottom + 4 then
+					checkpoint.active = true
+					checkpoint.flag.Color = PALETTE.flagActive
+					level.checkpoint = Vector3.new(checkpoint.x, checkpoint.bottom + 2, 0)
+					current = checkpoint.x
+					break
+				end
+			end
+		end
+	end
 end
 
 -- Advances all level mechanics by dt.
--- Returns a failure reason ("death", "shot", "scroll", "stop", "time") or nil.
+-- Returns (globalReason, knocked): globalReason is "time" when the whole team failed;
+-- knocked maps each player that fell/got hit this frame to a reason ("death", "shot", "scroll", "stop").
 function Mechanics.step(level, dt, infos, playerCount, now)
 	level.time += dt
+	local knocked = {}
 
 	local active = {}
 	for _, info in infos do
-		if not info.inDoor then
+		if not info.inDoor and not info.knockedOut then
 			table.insert(active, info)
 		end
 	end
 
 	for _, info in active do
 		if info.pos.Y < level.killY or touchesHazard(level, info.pos) then
-			return "death"
+			knocked[info.player] = "death"
 		end
 	end
 
 	if level.timeLimit then
 		level.timeLeft = math.max(0, math.ceil(level.timeLimit - level.time))
 		if level.time >= level.timeLimit then
-			return "time"
+			return "time", knocked
 		end
 	end
 
-	local reason = updateScroll(level, dt, active) or updateStopGo(level, active) or updateCannons(level, dt, active)
-	if reason then
-		return reason
+	updateScroll(level, dt, active, knocked)
+	updateStopGo(level, active, knocked)
+	updateCannons(level, dt, active, knocked)
+
+	local standing = {}
+	for _, info in active do
+		if not knocked[info.player] then
+			table.insert(standing, info)
+		end
 	end
 
-	updateButtons(level, active, playerCount)
-	updateCrumbles(level, dt, active)
+	updateCheckpoints(level, standing)
+	updateButtons(level, standing, playerCount)
+	updateCrumbles(level, dt, standing)
 	updateMovers(level)
-	updateBoxes(level, dt, active, playerCount)
-	updateLifts(level, dt, active, playerCount)
-	updateKey(level, dt, active, now)
-	updateDoor(level, infos, active, playerCount)
-	return nil
+	updateSeesaws(level, dt, standing)
+	updateBoxes(level, dt, standing, playerCount)
+	updateLifts(level, dt, standing, playerCount)
+	updateKey(level, dt, standing, now)
+	updateDoor(level, infos, standing, playerCount)
+	return nil, knocked
 end
 
 return Mechanics

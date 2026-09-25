@@ -10,6 +10,8 @@ Tile legend (1 tile = Config.TILE studs):
   M  moving platform (adjacent M form one platform, rides up and down on its own)
   o  sand block (crumbles shortly after someone stands on it, comes back later)
   <  cannon shooting left     >  cannon shooting right
+  =  seesaw plank (a horizontal run tilts around its middle by the players' weight)
+  F  checkpoint flag (flags are also placed automatically on safe ground)
 
 Level options:
   button  = { need = 2, latch = true }   -- purple buttons; latch = stays on once pressed

@@ -1,4 +1,5 @@
 local Lighting = game:GetService("Lighting")
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -7,6 +8,7 @@ local TeleportService = game:GetService("TeleportService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Modes = require(ReplicatedStorage.Shared.Modes)
 local ProgressStore = require(ReplicatedStorage.Shared.ProgressStore)
+local Buddies = require(ReplicatedStorage.Shared.Buddies)
 local HubWorld = require(script.HubWorld)
 
 local PAD_RADIUS = 7
@@ -32,6 +34,9 @@ startNowRemote.Parent = remotes
 local setModeRemote = Instance.new("RemoteEvent")
 setModeRemote.Name = "SetMode"
 setModeRemote.Parent = remotes
+local shopRemote = Instance.new("RemoteEvent")
+shopRemote.Name = "Shop"
+shopRemote.Parent = remotes
 local noticeRemote = Instance.new("RemoteEvent")
 noticeRemote.Name = "Notice"
 noticeRemote.Parent = remotes
@@ -116,6 +121,59 @@ for _, player in Players:GetPlayers() do
 	task.spawn(ProgressStore.load, player)
 end
 Players.PlayerRemoving:Connect(ProgressStore.release)
+
+-- Wardrobe: buddies and skins are bought with stars; Robux only buys skins and star packs
+shopRemote.OnServerEvent:Connect(function(player, action, kind, id)
+	if type(id) ~= "string" or (kind ~= "class" and kind ~= "skin") then
+		return
+	end
+	if action == "select" then
+		ProgressStore.select(player, kind, id)
+	elseif action == "buy" then
+		local catalog = Buddies.catalog(kind)
+		local item = catalog[id]
+		if item and not ProgressStore.buy(player, kind, id) and not ProgressStore.owns(player, kind, id) then
+			noticeRemote:FireClient(player, `Не хватает звёзд: нужно ⭐ {item.cost}. Проходите уровни!`)
+		end
+	elseif action == "robux" then
+		local productId = if kind == "skin" then Config.SKIN_PRODUCTS[id] else nil
+		if id == "starPack" then
+			productId = Config.STAR_PACK.productId
+		end
+		if productId and productId ~= 0 then
+			MarketplaceService:PromptProductPurchase(player, productId)
+		end
+	end
+end)
+
+local function grantFor(productId)
+	if productId == Config.STAR_PACK.productId and productId ~= 0 then
+		return function(data)
+			data.stars += Config.STAR_PACK.stars
+		end
+	end
+	for skinId, skinProduct in Config.SKIN_PRODUCTS do
+		if skinProduct ~= 0 and skinProduct == productId then
+			return function(data)
+				data.skins[skinId] = true
+				data.skin = skinId
+			end
+		end
+	end
+	return nil
+end
+
+MarketplaceService.ProcessReceipt = function(receipt)
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	local grant = grantFor(receipt.ProductId)
+	if not player or not grant then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	if ProgressStore.grantReceipt(player, receipt.PurchaseId, grant) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	return Enum.ProductPurchaseDecision.NotProcessedYet
+end
 
 TeleportService.TeleportInitFailed:Connect(function(player, _result, message)
 	warn("TeleportInitFailed:", player.Name, message)

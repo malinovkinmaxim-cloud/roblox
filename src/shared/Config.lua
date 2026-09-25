@@ -16,6 +16,35 @@ Config.ROOM_START_NOW_WAIT = 3
 -- In Studio every mode is unlocked so all levels can be tested (DataStores are often off there)
 Config.STUDIO_UNLOCK_ALL = true
 
+-- Stars for finishing a level (+1 bonus if nobody fell)
+Config.STARS = { easy = 1, medium = 2, hard = 3, hardcore = 4, endless = 1 }
+Config.STARS_NO_FALL_BONUS = 1
+
+-- Robux products (0 = not sold). Robux only buys colour skins and star packs, never buddies.
+Config.SKIN_PRODUCTS = { mint = 0, caramel = 0, candy = 0, night = 0, gold = 0 }
+Config.STAR_PACK = { productId = 0, stars = 50 }
+
+-- Falling is a gag: a short tumble, then back to the last checkpoint
+Config.KO_TIME = 1.6
+Config.CHECKPOINT_SPACING = 14 -- columns between automatic checkpoints
+
+-- Carry & throw
+Config.CARRY_REACH = 4.5
+Config.CARRY_WALK_SPEED = 11
+Config.THROW_VELOCITY = Vector2.new(26, 50)
+
+-- Seesaw
+Config.SEESAW_TILT = math.rad(4) -- radians per stud of torque
+Config.SEESAW_MAX = math.rad(60)
+Config.SEESAW_SPEED = math.rad(55)
+Config.SEESAW_DEADZONE = 3
+Config.MAX_SLOPE = 42 -- steeper planks make characters slide off
+
+-- Buddy passives
+Config.FROG_RADIUS = 12
+Config.GECKO_CLING_TIME = 2
+Config.GECKO_WALL_JUMP = Vector2.new(20, 50)
+
 -- Game server waits this long for the whole room to arrive before level 1
 Config.TEAM_ARRIVAL_TIMEOUT = 20
 
@@ -84,6 +113,9 @@ Config.PALETTE = {
 	cannon = Color3.fromRGB(60, 60, 80),
 	bullet = Color3.fromRGB(35, 35, 45),
 	scrollWall = Color3.fromRGB(240, 80, 80),
+	seesaw = Color3.fromRGB(190, 140, 90),
+	flag = Color3.fromRGB(190, 190, 200),
+	flagActive = Color3.fromRGB(90, 200, 110),
 	key = Color3.fromRGB(255, 205, 60),
 	doorFrame = Color3.fromRGB(70, 50, 40),
 	doorLocked = Color3.fromRGB(150, 100, 70),

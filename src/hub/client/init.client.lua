@@ -10,6 +10,8 @@ local Modes = require(Shared:WaitForChild("Modes"))
 local remotes = ReplicatedStorage:WaitForChild("HubRemotes")
 local startNowRemote = remotes:WaitForChild("StartNow")
 local setModeRemote = remotes:WaitForChild("SetMode")
+local shopRemote = remotes:WaitForChild("Shop")
+local Wardrobe = require(script:WaitForChild("Wardrobe"))
 local noticeRemote = remotes:WaitForChild("Notice")
 
 local player = Players.LocalPlayer
@@ -231,5 +233,13 @@ noticeRemote.OnClientEvent:Connect(function(text)
 		end
 	end)
 end)
+
+local wardrobe = Wardrobe.new(gui, player, shopRemote)
+local wardrobeButton = UiStyle.button(gui, {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 16, 1, -24),
+	Size = UDim2.fromOffset(190, 56),
+}, "🎒 Гардероб", C.gold)
+wardrobeButton.Activated:Connect(wardrobe.toggle)
 
 gui.Parent = player:WaitForChild("PlayerGui")
