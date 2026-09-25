@@ -496,6 +496,86 @@ Test("shadow phases through a door that stays closed", function()
 	Expect(last.Shadow.X > 60, "shadow stuck at " .. tostring(last.Shadow.X))
 end)
 
+local function level(id)
+	for _, def in levels do
+		if def.Id == id then
+			return def
+		end
+	end
+	error("no level " .. id)
+end
+
+Test("ally: SEND holds the plate, RECALL brings it back, first help reveals it", function()
+	local scenario = Sim.NewAllyScenario(level(11), "Ally")
+	scenario:Step(1)
+	local plate = scenario:Target("P1")
+	local ok = scenario.Role:UseAbility()
+	Expect(ok, "SEND should be accepted")
+	scenario:Step(3)
+	local feet = scenario.Actor.Position - Vector3.new(0, 3, 0)
+	Expect(scenario.Role.Mode == "Hold", "mode " .. tostring(scenario.Role.Mode))
+	Expect((Vector3.new(feet.X, 0, feet.Z) - Vector3.new(plate.Spec.Pos.X, 0, plate.Spec.Pos.Z)).Magnitude < 0.5, "not on the plate: " .. tostring(feet))
+	Expect(scenario:Revealed() == 1, "ally should reveal itself on first help")
+	scenario:Step(2)
+	Expect(scenario.Actor.State == "Driven" and scenario.Role.Mode == "Hold", "keeps holding")
+	scenario.Role:UseInteract()
+	scenario:Step(3)
+	Expect(scenario.Role.Mode == "Follow", "should follow again after RECALL")
+end)
+
+Test("ally tests a fake platform and falls instead of you", function()
+	local def = level(11)
+	for seed = 1, 6 do
+		local scenario = Sim.NewAllyScenario(def, "Ally", seed)
+		local fakeId
+		for id, element in scenario.World.ById do
+			if element.Type == "Fake" and element.IsFake then
+				fakeId = id
+				break
+			end
+		end
+		scenario:Target(fakeId)
+		scenario.Role:UseAbility()
+		scenario:Step(4)
+		Expect(scenario.Actor.Deaths >= 1, "seed " .. seed .. ": the ally should have fallen through " .. fakeId)
+		Expect(scenario.World.ById[fakeId].Revealed, "the fake should be revealed")
+	end
+end)
+
+Test("troll: can stand on fakes (ghost) and betrays toward the trap button", function()
+	local Config = H.Require("ReplicatedStorage.Shared.Config")
+	local previous = Config.TROLL_BETRAY_CHANCE
+	Config.TROLL_BETRAY_CHANCE = 1
+	local scenario = Sim.NewAllyScenario(level(12), "Troll")
+	scenario:Target("BG") -- we ask for the GOOD button
+	scenario.Role:UseAbility()
+	scenario:Step(0.3)
+	Expect(scenario.Role.Mode ~= "Travel", "the troll hesitates first (tell)")
+	scenario:Step(4)
+	local feet = scenario.Actor.Position - Vector3.new(0, 3, 0)
+	local bad = scenario.World.ById.BX.Spec.Pos
+	Expect((Vector3.new(feet.X, 0, feet.Z) - Vector3.new(bad.X, 0, bad.Z)).Magnitude < 0.5, "should end on the trap button, at " .. tostring(feet))
+	Expect(scenario:Revealed() == 1, "betrayal must reveal the troll")
+	Config.TROLL_BETRAY_CHANCE = previous
+
+	-- ghost on fakes
+	local ghost = Sim.NewAllyScenario(level(12), "Troll", 3)
+	Config.TROLL_BETRAY_CHANCE = 0
+	local fakeId
+	for id, element in ghost.World.ById do
+		if element.Type == "Fake" and element.IsFake then
+			fakeId = id
+			break
+		end
+	end
+	ghost:Target(fakeId)
+	ghost.Role:UseAbility()
+	ghost:Step(4)
+	Expect(ghost.Actor.Deaths == 0, "a troll never breaks fake platforms")
+	Expect(ghost:Revealed() == 0, "honest help must not reveal a troll")
+	Config.TROLL_BETRAY_CHANCE = previous
+end)
+
 ---------------------------------------------------------------------------
 local results = H.Results()
 print(string.format("\n%d passed, %d failed", results.passed, results.failed))

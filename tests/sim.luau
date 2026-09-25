@@ -506,4 +506,106 @@ function Sim.RunShadow(opts)
 	return samples, actor
 end
 
+---------------------------------------------------------------------------
+-- Ally / Troll simulation: the player stands still, commands are issued by the test
+---------------------------------------------------------------------------
+function Sim.NewAllyScenario(def, roleName: string, seed: number?)
+	local Role = H.Require("ServerScriptService.Server.Roles." .. roleName)
+	local TrailRecorder = H.Require("ServerScriptService.Server.Doppelganger.TrailRecorder")
+	local world = buildWorld(def, seed or 1)
+	local actor = newActor(world)
+
+	-- element "parts" (what FindTargetInFront would return)
+	local targets = {}
+	for _, element in world.ById do
+		local spec = element.Spec
+		if spec.Type == "Button" then
+			element.Part = { Position = spec.Pos + Vector3.new(0, spec.Size.Y / 2, 0), Size = spec.Size }
+			element.Bad = spec.Bad == true
+			table.insert(targets, element)
+		elseif spec.Type == "Fake" then
+			element.Part = { Position = spec.Pos, Size = spec.Size }
+		end
+	end
+
+	local playerPos = Vector3.new(40, 3, 0)
+	local recorder = TrailRecorder.new(30)
+	local revealed = 0
+	local chosen = nil
+	local run = {
+		Player = {},
+		Instance = {
+			AllyTargets = targets,
+			Elements = (function()
+				local list = {}
+				for _, element in world.ById do
+					table.insert(list, element)
+				end
+				return list
+			end)(),
+			Checkpoints = { [0] = { SpawnCFrame = CFrame.new(playerPos), DoppelCFrame = CFrame.new(playerPos - Vector3.new(0, 0, 4)) } },
+		},
+		Def = def,
+		CheckpointIndex = 0,
+		AIEnabled = true,
+		RoleRevealed = false,
+	}
+	local services = {
+		InteractionService = {
+			FindTargetInFront = function()
+				return chosen
+			end,
+		},
+		CharacterService = {
+			GetLiving = function()
+				return { Position = playerPos, CFrame = CFrame.new(playerPos) }, nil, 3
+			end,
+		},
+		DataService = { IncrementStat = function() end },
+	}
+	H.SetClock(0)
+	actor.Position = playerPos - Vector3.new(0, 0, 4)
+	local role = Role.new({
+		Run = run,
+		Actor = actor,
+		Recorder = recorder,
+		Services = services,
+		Rng = H.Random.new(seed or 1),
+		Reveal = function()
+			if not run.RoleRevealed then
+				run.RoleRevealed = true
+				revealed += 1
+			end
+		end,
+	})
+	role:Start()
+
+	local scenario = { World = world, Actor = actor, Role = role, Run = run, Clock = 0 }
+	function scenario:Target(id: string)
+		chosen = world.ById[id]
+		return chosen
+	end
+	function scenario:Step(seconds: number)
+		local dt = 1 / 30
+		for _ = 1, math.floor(seconds / dt) do
+			self.Clock += dt
+			stepWorld(world, dt)
+			H.SetClock(self.Clock)
+			recorder:Push(self.Clock, playerPos, 0, true, 0)
+			if actor.State == "Dead" then
+				if self.Clock - actor.DiedAt > 1.4 then
+					actor:Respawn(role:GetRespawnCFrame())
+					role:OnDoppelRespawned()
+				end
+			else
+				role:Update(dt, self.Clock)
+			end
+		end
+	end
+	function scenario:Revealed(): number
+		return revealed
+	end
+	return scenario
+end
+
 return Sim
