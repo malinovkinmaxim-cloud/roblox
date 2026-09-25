@@ -1989,6 +1989,25 @@ function TrailRecorder:Sample(t: number)
 	return sampleResult
 end
 
+-- Newest snapshot at or before time t that satisfies predicate(snapshot) (checks at most `limit`).
+function TrailRecorder:FindBefore(t: number, predicate: (any) -> boolean, limit: number?)
+	local snapshots = self.Snapshots
+	local checked = 0
+	for i = self.Last, self.First, -1 do
+		local snapshot = snapshots[i]
+		if snapshot.T <= t then
+			checked += 1
+			if predicate(snapshot) then
+				return snapshot
+			end
+			if checked >= (limit or 40) then
+				return nil
+			end
+		end
+	end
+	return nil
+end
+
 -- Walk back from the newest snapshot and return the time where the trail is `distance` studs
 -- (path length) behind the newest point. Used by the Follower.
 function TrailRecorder:TimeAtDistanceBehind(distance: number): number?
@@ -3849,7 +3868,8 @@ function Follower:FollowStep(dt: number, now: number)
 end
 
 function Follower:Regroup()
-	local cf = self:GetPositionNearPlayer()
+	local limitT = self.Recorder:TimeAtDistanceBehind(Config.FOLLOW_DISTANCE)
+	local cf = (limitT and self:FindSafeTrailPoint(limitT)) or self:GetPositionNearPlayer()
 	if cf then
 		self.Actor:Glitch()
 		self.Actor:Teleport(cf)
@@ -3871,7 +3891,8 @@ function Follower:OnPlayerRespawn(checkpoint)
 end
 
 function Follower:GetRespawnCFrame(): CFrame
-	return self:GetPositionNearPlayer() or self:GetCheckpoint().DoppelCFrame
+	local limitT = self.Recorder:TimeAtDistanceBehind(Config.FOLLOW_DISTANCE)
+	return (limitT and self:FindSafeTrailPoint(limitT)) or self:GetPositionNearPlayer() or self:GetCheckpoint().DoppelCFrame
 end
 
 function Follower:OnDoppelRespawned()
@@ -4571,6 +4592,24 @@ function RoleBase:GetPlayerRoot(): (BasePart?, number)
 	return root, offset
 end
 
+-- Latest recorded point (at or before time t) where the doppel can stand on solid ground.
+-- Returns (CFrame, snapshotTime) or nil. offset = lane offset (SPLIT).
+function RoleBase:FindSafeTrailPoint(t: number, offset: Vector3?)
+	local recorder = self.Recorder
+	if not recorder then
+		return nil
+	end
+	local shift = offset or Vector3.zero
+	local actor = self.Actor
+	local snapshot = recorder:FindBefore(t, function(s)
+		return s.Grounded and actor:HasGroundAt(s.Position + shift)
+	end, 45)
+	if snapshot then
+		return CFrame.new(snapshot.Position + shift) * CFrame.Angles(0, snapshot.Yaw, 0), snapshot.T
+	end
+	return nil
+end
+
 -- Position a few studs behind the player, for regrouping / respawning next to them.
 function RoleBase:GetPositionNearPlayer(): CFrame?
 	local recorder = self.Recorder
@@ -4804,15 +4843,20 @@ function Shadow:OnPlayerRespawn(checkpoint)
 end
 
 function Shadow:GetRespawnCFrame(): CFrame
-	local sample = self.Recorder:Sample(os.clock() - self.Delay)
-	if sample then
-		return CFrame.new(sample.Position + self.Offset) * CFrame.Angles(0, sample.Yaw, 0)
+	-- re-form on the newest recorded point that has real ground (never in mid-air / over a gap)
+	local cf, t = self:FindSafeTrailPoint(os.clock() - self.Delay, self.Offset)
+	if cf then
+		self.RespawnT = t
+		return cf
 	end
+	self.RespawnT = nil
 	return self:GetCheckpoint().SpawnCFrame + self.Offset
 end
 
 function Shadow:OnDoppelRespawned()
-	self.PlayT = os.clock() - self.Delay
+	-- continue the replay from where it re-formed (it catches up at SHADOW_CATCHUP_MULTIPLIER)
+	self.PlayT = self.RespawnT or (os.clock() - self.Delay)
+	self.RespawnT = nil
 	self.Blocked = 0
 	self:SetFrozen(false)
 end
@@ -10660,6 +10704,12 @@ function HudController:Start()
 
 	RunService.RenderStepped:Connect(function()
 		self:_updateTimer()
+	end)
+
+	-- in case the bootstrap arrived before we subscribed
+	state:WhenReady(function()
+		self:_refreshProfile()
+		self:_refreshRun()
 	end)
 end
 

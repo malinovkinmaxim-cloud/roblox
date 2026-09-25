@@ -76,7 +76,8 @@ function Follower:FollowStep(dt: number, now: number)
 end
 
 function Follower:Regroup()
-	local cf = self:GetPositionNearPlayer()
+	local limitT = self.Recorder:TimeAtDistanceBehind(Config.FOLLOW_DISTANCE)
+	local cf = (limitT and self:FindSafeTrailPoint(limitT)) or self:GetPositionNearPlayer()
 	if cf then
 		self.Actor:Glitch()
 		self.Actor:Teleport(cf)
@@ -98,7 +99,8 @@ function Follower:OnPlayerRespawn(checkpoint)
 end
 
 function Follower:GetRespawnCFrame(): CFrame
-	return self:GetPositionNearPlayer() or self:GetCheckpoint().DoppelCFrame
+	local limitT = self.Recorder:TimeAtDistanceBehind(Config.FOLLOW_DISTANCE)
+	return (limitT and self:FindSafeTrailPoint(limitT)) or self:GetPositionNearPlayer() or self:GetCheckpoint().DoppelCFrame
 end
 
 function Follower:OnDoppelRespawned()

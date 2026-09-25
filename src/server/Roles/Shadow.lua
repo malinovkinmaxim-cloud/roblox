@@ -188,15 +188,20 @@ function Shadow:OnPlayerRespawn(checkpoint)
 end
 
 function Shadow:GetRespawnCFrame(): CFrame
-	local sample = self.Recorder:Sample(os.clock() - self.Delay)
-	if sample then
-		return CFrame.new(sample.Position + self.Offset) * CFrame.Angles(0, sample.Yaw, 0)
+	-- re-form on the newest recorded point that has real ground (never in mid-air / over a gap)
+	local cf, t = self:FindSafeTrailPoint(os.clock() - self.Delay, self.Offset)
+	if cf then
+		self.RespawnT = t
+		return cf
 	end
+	self.RespawnT = nil
 	return self:GetCheckpoint().SpawnCFrame + self.Offset
 end
 
 function Shadow:OnDoppelRespawned()
-	self.PlayT = os.clock() - self.Delay
+	-- continue the replay from where it re-formed (it catches up at SHADOW_CATCHUP_MULTIPLIER)
+	self.PlayT = self.RespawnT or (os.clock() - self.Delay)
+	self.RespawnT = nil
 	self.Blocked = 0
 	self:SetFrozen(false)
 end

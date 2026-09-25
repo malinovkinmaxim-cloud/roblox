@@ -158,6 +158,25 @@ function TrailRecorder:Sample(t: number)
 	return sampleResult
 end
 
+-- Newest snapshot at or before time t that satisfies predicate(snapshot) (checks at most `limit`).
+function TrailRecorder:FindBefore(t: number, predicate: (any) -> boolean, limit: number?)
+	local snapshots = self.Snapshots
+	local checked = 0
+	for i = self.Last, self.First, -1 do
+		local snapshot = snapshots[i]
+		if snapshot.T <= t then
+			checked += 1
+			if predicate(snapshot) then
+				return snapshot
+			end
+			if checked >= (limit or 40) then
+				return nil
+			end
+		end
+	end
+	return nil
+end
+
 -- Walk back from the newest snapshot and return the time where the trail is `distance` studs
 -- (path length) behind the newest point. Used by the Follower.
 function TrailRecorder:TimeAtDistanceBehind(distance: number): number?

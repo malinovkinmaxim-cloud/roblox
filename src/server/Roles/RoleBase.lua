@@ -106,6 +106,24 @@ function RoleBase:GetPlayerRoot(): (BasePart?, number)
 	return root, offset
 end
 
+-- Latest recorded point (at or before time t) where the doppel can stand on solid ground.
+-- Returns (CFrame, snapshotTime) or nil. offset = lane offset (SPLIT).
+function RoleBase:FindSafeTrailPoint(t: number, offset: Vector3?)
+	local recorder = self.Recorder
+	if not recorder then
+		return nil
+	end
+	local shift = offset or Vector3.zero
+	local actor = self.Actor
+	local snapshot = recorder:FindBefore(t, function(s)
+		return s.Grounded and actor:HasGroundAt(s.Position + shift)
+	end, 45)
+	if snapshot then
+		return CFrame.new(snapshot.Position + shift) * CFrame.Angles(0, snapshot.Yaw, 0), snapshot.T
+	end
+	return nil
+end
+
 -- Position a few studs behind the player, for regrouping / respawning next to them.
 function RoleBase:GetPositionNearPlayer(): CFrame?
 	local recorder = self.Recorder

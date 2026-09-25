@@ -302,6 +302,21 @@ Test("old snapshots are trimmed and compacted", function()
 	Near(sample.Position.X, 1990, 1e-3, "sample after compaction")
 end)
 
+Test("find the newest safe (grounded) point", function()
+	local recorder = TrailRecorder.new(30)
+	recorder:Push(0, Vector3.new(0, 3, 0), 0, true, 0)
+	recorder:Push(0.1, Vector3.new(2, 3, 0), 0, true, 0)
+	recorder:Push(0.2, Vector3.new(4, 6, 0), 0, false, 20)
+	recorder:Push(0.3, Vector3.new(6, 5, 0), 0, false, -5)
+	local found = recorder:FindBefore(0.25, function(s)
+		return s.Grounded
+	end)
+	Expect(found and found.T == 0.1, "expected the snapshot at t=0.1")
+	Expect(recorder:FindBefore(0.05, function(s)
+		return s.Position.X > 100
+	end) == nil, "nothing matches")
+end)
+
 Test("yaw interpolates the short way around", function()
 	local recorder = TrailRecorder.new(30)
 	recorder:Push(0, Vector3.zero, math.pi - 0.1, true, 0)

@@ -77,6 +77,12 @@ function HudController:Start()
 	RunService.RenderStepped:Connect(function()
 		self:_updateTimer()
 	end)
+
+	-- in case the bootstrap arrived before we subscribed
+	state:WhenReady(function()
+		self:_refreshProfile()
+		self:_refreshRun()
+	end)
 end
 
 ---------------------------------------------------------------------------
