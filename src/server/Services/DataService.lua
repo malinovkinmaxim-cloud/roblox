@@ -8,7 +8,7 @@
 	  - automatic in-memory fallback in Studio when API access is disabled
 
 	Saved: Coins, XP, Level, CompletedLevels, BestTimes, OwnedCosmetics, EquippedCosmetic,
-	       Settings, Stats, ClaimedQuests
+	       EquippedTrail, EquippedEmote, EquippedTitle, Settings, Stats, ClaimedQuests
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -34,8 +34,11 @@ local TEMPLATE = {
 	Level = 1,
 	CompletedLevels = {}, -- ["L1"] = true
 	BestTimes = {}, -- ["L1"] = 42.31
-	OwnedCosmetics = { Default = true },
-	EquippedCosmetic = "Default",
+	OwnedCosmetics = { Default = true, Trail_None = true, Emote_Wave = true },
+	EquippedCosmetic = "Default", -- doppelgänger skin
+	EquippedTrail = "Trail_None",
+	EquippedEmote = "Emote_Wave",
+	EquippedTitle = "Newcomer",
 	Settings = {
 		Sfx = true,
 		Hints = true,

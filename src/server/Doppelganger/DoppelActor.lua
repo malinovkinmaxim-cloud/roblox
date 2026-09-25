@@ -31,7 +31,10 @@ local ANIMATIONS = {
 	Cheer = "rbxassetid://507770677",
 	Point = "rbxassetid://507770453",
 	Laugh = "rbxassetid://507770818",
+	Dance = "rbxassetid://507771019",
 }
+
+local EMOTES = { Wave = true, Cheer = true, Point = true, Laugh = true, Dance = true }
 
 local SNAP_DISTANCE = 12 -- bigger jumps between two targets are treated as teleports
 local FOOT_BOX = Vector3.new(1.6, 0.4, 1.0)
@@ -531,9 +534,7 @@ function DoppelActor:_getTrack(name: string): AnimationTrack?
 			animation.AnimationId = ANIMATIONS[name]
 			local loaded = self.Animator:LoadAnimation(animation)
 			loaded.Looped = name ~= "Jump"
-			loaded.Priority = if name == "Wave" or name == "Cheer" or name == "Point" or name == "Laugh"
-				then Enum.AnimationPriority.Action
-				else Enum.AnimationPriority.Core
+			loaded.Priority = if EMOTES[name] then Enum.AnimationPriority.Action else Enum.AnimationPriority.Core
 			return loaded
 		end)
 		track = if ok then result else false

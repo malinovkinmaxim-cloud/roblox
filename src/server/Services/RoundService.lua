@@ -278,8 +278,10 @@ function RoundService:StartRun(player: Player, levelId: number, opts: { [string]
 	}
 	inst.Run = run
 	self.RunsByPlayer[player] = run
+	player:SetAttribute("InLevel", levelId) -- read by the client spectator UI
 	if partner then
 		self.RunsByPlayer[partner] = run
+		partner:SetAttribute("InLevel", levelId)
 	end
 	table.insert(self.ActiveRuns, run)
 
@@ -326,6 +328,9 @@ function RoundService:EndRun(run, reason: string, keepPlayers: boolean?)
 	for _, player in { run.Player, run.Partner } do
 		if player and self.RunsByPlayer[player] == run then
 			self.RunsByPlayer[player] = nil
+			if player.Parent then
+				player:SetAttribute("InLevel", nil)
+			end
 			if player.Parent and reason ~= "Finished" then
 				Net.Event("RunEnded"):FireClient(player, { Aborted = true, Reason = reason })
 			end

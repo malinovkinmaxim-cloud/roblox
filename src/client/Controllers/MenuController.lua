@@ -13,6 +13,7 @@ local Format = require(ReplicatedStorage.Shared.Util.Format)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Progression = require(ReplicatedStorage.Shared.Progression)
 local QuestConfig = require(ReplicatedStorage.Shared.QuestConfig)
+local TitleConfig = require(ReplicatedStorage.Shared.TitleConfig)
 
 local UI = script.Parent.Parent.UI
 local Kit = require(UI.Kit)
@@ -71,7 +72,7 @@ function MenuController:_buildSidebar()
 		Name = "Sidebar",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 16, 0.5, 20),
-		Size = UDim2.fromOffset(230, 470),
+		Size = UDim2.fromOffset(230, 520),
 		Parent = self.Gui,
 	})
 	self.Sidebar = sidebar
@@ -124,6 +125,18 @@ function MenuController:_buildSidebar()
 			self:TogglePanel(panelName)
 		end)
 	end
+	Kit.Button({
+		Text = "SPECTATE",
+		Size = UDim2.fromOffset(196, 38),
+		TextSize = 15,
+		Color = C.Panel,
+		StrokeColor = C.TextDim,
+		LayoutOrder = 99,
+		Parent = list,
+	}, function()
+		self:ClosePanel()
+		self.Controllers.SpectateController:Begin()
+	end)
 	-- collapse toggle (useful on small phones)
 	self.MenuToggle = Kit.Button({
 		Text = "MENU",
@@ -213,7 +226,7 @@ end
 function MenuController:_buildPanels()
 	self:_panel("Play", "CHOOSE A LEVEL", C.Yellow)
 	self:_panel("Duo", "DUO MODE", C.Orange)
-	self:_panel("Shop", "DOPPELGÄNGER SKINS", C.Purple)
+	self:_panel("Shop", "SHOP", C.Purple)
 	self:_panel("Collection", "COLLECTION", C.Cyan)
 	self:_panel("Quests", "QUESTS", C.Green)
 	self:_panel("Settings", "SETTINGS", C.Text)
@@ -272,9 +285,9 @@ function MenuController:_fill(name: string)
 	elseif name == "Duo" then
 		self:_fillDuo(panel.Body)
 	elseif name == "Shop" then
-		self:_fillShop(panel.Body, false)
+		self:_fillShop(panel.Body)
 	elseif name == "Collection" then
-		self:_fillShop(panel.Body, true)
+		self:_fillCollection(panel.Body)
 	elseif name == "Quests" then
 		self:_fillQuests(panel.Body)
 	elseif name == "Settings" then
@@ -497,120 +510,223 @@ end
 -- SHOP / COLLECTION
 ---------------------------------------------------------------------------
 
-function MenuController:_fillShop(body: Instance, ownedOnly: boolean)
+local CATEGORY_LABELS = { Skin = "DOPPEL SKINS", Trail = "TRAILS", Emote = "DOPPEL EMOTES" }
+
+local function vertical(body: Instance)
+	local holder = Kit.New("Frame", {
+		Size = UDim2.new(1, -10, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = body,
+	}, { Kit.List(Enum.FillDirection.Vertical, 10) })
+	return holder
+end
+
+local function grid(parent: Instance, order: number, cell: Vector2)
+	local frame = Kit.New("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	Kit.New("UIGridLayout", {
+		CellSize = UDim2.fromOffset(cell.X, cell.Y),
+		CellPadding = UDim2.fromOffset(10, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Parent = frame,
+	})
+	return frame
+end
+
+function MenuController:_itemCard(parent: Instance, profile, id: string, index: number)
+	local item = CosmeticsConfig.Items[id]
+	local owned = profile.OwnedCosmetics[id] == true
+	local field = CosmeticsConfig.EquipField[item.Category]
+	local equipped = field ~= nil and profile[field] == id
+	local card = Kit.New("Frame", {
+		Size = UDim2.fromOffset(165, 190),
+		BackgroundColor3 = C.PanelLight,
+		LayoutOrder = index,
+		Parent = parent,
+	}, { Kit.Corner(14), Kit.Stroke(if equipped then C.Green else item.Color, 2, if equipped then 0 else 0.5) })
+	local swatch = Kit.New("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 12),
+		Size = UDim2.fromOffset(64, 64),
+		BackgroundColor3 = item.Color,
+		Parent = card,
+	}, { Kit.Corner(32) })
+	if item.Colors and #item.Colors > 1 then
+		local keypoints = {}
+		for i, color in item.Colors do
+			table.insert(keypoints, ColorSequenceKeypoint.new((i - 1) / (#item.Colors - 1), color))
+		end
+		Kit.New("UIGradient", { Color = ColorSequence.new(keypoints), Rotation = 45, Parent = swatch })
+		swatch.BackgroundColor3 = Color3.new(1, 1, 1)
+	end
+	Kit.Text({
+		Size = UDim2.fromScale(1, 1),
+		Font = Theme.Fonts.Title,
+		TextSize = 26,
+		TextColor3 = C.Background,
+		Text = string.sub(item.DisplayName, 1, 1),
+		Parent = swatch,
+	})
+	Kit.Text({
+		Position = UDim2.fromOffset(6, 82),
+		Size = UDim2.new(1, -12, 0, 22),
+		TextSize = 18,
+		Text = item.DisplayName,
+		Parent = card,
+	})
+	Kit.Text({
+		Position = UDim2.fromOffset(6, 104),
+		Size = UDim2.new(1, -12, 0, 34),
+		Font = Theme.Fonts.Body,
+		TextSize = 12,
+		TextColor3 = C.TextDim,
+		Text = item.Description,
+		Parent = card,
+	})
+	local label, color, action
+	if equipped then
+		label, color = "EQUIPPED", C.Green
+	elseif owned then
+		label, color, action = "EQUIP", C.Cyan, "Equip"
+	else
+		label = item.Price .. " COINS"
+		color = if (profile.Coins or 0) >= item.Price then C.Yellow else C.Stroke
+		action = "Buy"
+	end
+	Kit.Button({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -10),
+		Size = UDim2.new(1, -20, 0, 36),
+		Text = label,
+		TextSize = 16,
+		Color = color,
+		TextColor = C.Background,
+		Parent = card,
+	}, function()
+		if action then
+			Net.Event("ShopAction"):FireServer(action, id)
+		end
+	end)
+end
+
+function MenuController:_fillShop(body: Instance)
 	local profile = self.Controllers.ClientState.Profile
 	if not profile then
 		return
 	end
-	if ownedOnly then
-		-- a short stats header for the collection
-		local stats = profile.Stats or {}
-		local header = Kit.Text({
-			Size = UDim2.new(1, -10, 0, 50),
+	local category = self.ShopCategory or "Skin"
+	local holder = vertical(body)
+	local tabs = Kit.New("Frame", {
+		Size = UDim2.new(1, 0, 0, 46),
+		BackgroundTransparency = 1,
+		LayoutOrder = 0,
+		Parent = holder,
+	}, { Kit.List(Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Center) })
+	for index, name in CosmeticsConfig.Categories do
+		local selected = name == category
+		Kit.Button({
+			Text = CATEGORY_LABELS[name] or name,
+			Size = UDim2.fromOffset(190, 42),
 			TextSize = 16,
-			TextColor3 = C.TextDim,
-			LayoutOrder = 0,
-			Text = string.format(
-				"LEVELS CLEARED %d   ·   RIVAL WINS %d   ·   FLAWLESS %d   ·   DOPPEL PRESSES %d   ·   DEATHS %d",
-				stats.UniqueLevelsCompleted or 0,
-				stats.RivalWins or 0,
-				stats.NoDeathClears or 0,
-				stats.DoppelPresses or 0,
-				stats.Deaths or 0
-			),
-		})
-		local holder = Kit.New("Frame", {
-			Size = UDim2.new(1, -10, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			Parent = body,
-		}, { Kit.List(Enum.FillDirection.Vertical, 8) })
-		header.Parent = holder
-		local grid = Kit.New("Frame", {
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			LayoutOrder = 1,
-			Parent = holder,
-		})
-		body = grid
+			Color = if selected then C.Purple else C.PanelLight,
+			TextColor = if selected then C.Background else C.Text,
+			LayoutOrder = index,
+			Parent = tabs,
+		}, function()
+			self.ShopCategory = name
+			self:_fill("Shop")
+		end)
 	end
-	Kit.New("UIGridLayout", {
-		CellSize = UDim2.fromOffset(165, 190),
-		CellPadding = UDim2.fromOffset(10, 10),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		Parent = body,
-	})
+	local cards = grid(holder, 1, Vector2.new(165, 190))
 	for index, id in CosmeticsConfig.Order do
 		local item = CosmeticsConfig.Items[id]
-		local owned = profile.OwnedCosmetics[id] == true
-		local equipped = profile.EquippedCosmetic == id
-		if ownedOnly and not owned then
-			continue
+		if item.Category == category then
+			self:_itemCard(cards, profile, id, index)
 		end
-		local card = Kit.New("Frame", {
-			Size = UDim2.fromOffset(165, 190),
-			BackgroundColor3 = C.PanelLight,
+	end
+end
+
+function MenuController:_fillCollection(body: Instance)
+	local profile = self.Controllers.ClientState.Profile
+	if not profile then
+		return
+	end
+	local holder = vertical(body)
+	local stats = profile.Stats or {}
+	Kit.Text({
+		Size = UDim2.new(1, 0, 0, 44),
+		TextSize = 16,
+		TextColor3 = C.TextDim,
+		LayoutOrder = 0,
+		Text = string.format(
+			"LEVELS CLEARED %d   ·   RIVAL WINS %d   ·   FLAWLESS %d   ·   DOPPEL PRESSES %d   ·   DEATHS %d",
+			stats.UniqueLevelsCompleted or 0,
+			stats.RivalWins or 0,
+			stats.NoDeathClears or 0,
+			stats.DoppelPresses or 0,
+			stats.Deaths or 0
+		),
+		Parent = holder,
+	})
+
+	-- titles (earned)
+	Kit.Text({ Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Theme.Fonts.Title, TextColor3 = C.Yellow, Text = "TITLES", LayoutOrder = 1, Parent = holder })
+	local titles = grid(holder, 2, Vector2.new(220, 70))
+	for index, id in TitleConfig.Order do
+		local title = TitleConfig.Titles[id]
+		local unlocked = TitleConfig.IsUnlocked(profile, id)
+		local equipped = (profile.EquippedTitle or TitleConfig.Default) == id
+		local button = Kit.Button({
+			Text = "",
+			Size = UDim2.fromOffset(220, 70),
+			Color = if equipped then C.PanelLight:Lerp(C.Green, 0.25) else C.PanelLight,
+			StrokeColor = if unlocked then title.Color else C.Stroke,
 			LayoutOrder = index,
-			Parent = body,
-		}, { Kit.Corner(14), Kit.Stroke(if equipped then C.Green else item.Color, 2, if equipped then 0 else 0.5) })
-		local swatch = Kit.New("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 0, 12),
-			Size = UDim2.fromOffset(64, 64),
-			BackgroundColor3 = item.Color,
-			Parent = card,
-		}, { Kit.Corner(32) })
+			Parent = titles,
+		}, function()
+			if unlocked and not equipped then
+				Net.Event("ShopAction"):FireServer("EquipTitle", id)
+			end
+		end)
 		Kit.Text({
-			Size = UDim2.fromScale(1, 1),
+			Position = UDim2.fromOffset(8, 8),
+			Size = UDim2.new(1, -16, 0, 24),
 			Font = Theme.Fonts.Title,
-			TextSize = 26,
-			TextColor3 = C.Background,
-			Text = string.sub(item.DisplayName, 1, 1),
-			Parent = swatch,
-		})
-		Kit.Text({
-			Position = UDim2.fromOffset(6, 82),
-			Size = UDim2.new(1, -12, 0, 22),
 			TextSize = 18,
-			Text = item.DisplayName,
-			Parent = card,
+			TextColor3 = if unlocked then title.Color else C.TextDim,
+			Text = (if equipped then "* " else "") .. title.Text,
+			Parent = button,
 		})
 		Kit.Text({
-			Position = UDim2.fromOffset(6, 104),
-			Size = UDim2.new(1, -12, 0, 34),
+			Position = UDim2.fromOffset(8, 36),
+			Size = UDim2.new(1, -16, 0, 26),
 			Font = Theme.Fonts.Body,
 			TextSize = 12,
 			TextColor3 = C.TextDim,
-			Text = item.Description,
-			Parent = card,
+			Text = if unlocked then (if equipped then "EQUIPPED" else "Click to equip") else "LOCKED: " .. title.Description,
+			Parent = button,
 		})
-		local label, color, action
-		if equipped then
-			label, color = "EQUIPPED", C.Green
-		elseif owned then
-			label, color, action = "EQUIP", C.Cyan, "Equip"
-		else
-			label = item.Price .. " COINS"
-			color = if (profile.Coins or 0) >= item.Price then C.Yellow else C.Stroke
-			action = "Buy"
-		end
-		local button = Kit.Button({
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -10),
-			Size = UDim2.new(1, -20, 0, 36),
-			Text = label,
-			TextSize = 16,
-			Color = color,
-			TextColor = C.Background,
-			Parent = card,
-		}, function()
-			if action then
-				Net.Event("ShopAction"):FireServer(action, id)
+	end
+
+	-- owned cosmetics by category
+	local order = 3
+	for _, category in CosmeticsConfig.Categories do
+		Kit.Text({ Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Theme.Fonts.Title, TextColor3 = C.Cyan, Text = CATEGORY_LABELS[category] or category, LayoutOrder = order, Parent = holder })
+		local cards = grid(holder, order + 1, Vector2.new(165, 190))
+		order += 2
+		for index, id in CosmeticsConfig.Order do
+			local item = CosmeticsConfig.Items[id]
+			if item.Category == category and profile.OwnedCosmetics[id] then
+				self:_itemCard(cards, profile, id, index)
 			end
-		end)
-		button.AutoButtonColor = false
+		end
 	end
 end
 

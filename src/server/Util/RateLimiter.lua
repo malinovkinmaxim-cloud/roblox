@@ -37,7 +37,7 @@ function RateLimiter:Allow(player: Player): boolean
 end
 
 Players.PlayerRemoving:Connect(function(player)
-	for limiter in allLimiters do
+	for limiter in pairs(allLimiters) do
 		limiter.Buckets[player] = nil
 	end
 end)

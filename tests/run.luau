@@ -354,6 +354,72 @@ Test("replay with deaths, over par, rival won", function()
 end)
 
 ---------------------------------------------------------------------------
+print("\n[cosmetics & titles]")
+---------------------------------------------------------------------------
+local CosmeticsConfig = H.Require("ReplicatedStorage.Shared.CosmeticsConfig")
+local TitleConfig = H.Require("ReplicatedStorage.Shared.TitleConfig")
+local Skins = H.Require("ServerScriptService.Server.Doppelganger.Skins")
+local DataService = H.Require("ServerScriptService.Server.Services.DataService")
+
+Test("every cosmetic is ordered once and has a known category", function()
+	local seen = {}
+	for _, id in CosmeticsConfig.Order do
+		Expect(not seen[id], "duplicate " .. id)
+		seen[id] = true
+		local item = CosmeticsConfig.Items[id]
+		Expect(item, "missing item " .. id)
+		Expect(table.find(CosmeticsConfig.Categories, item.Category), id .. " has bad category")
+		Expect(type(item.Price) == "number" and item.Price >= 0, id .. " bad price")
+	end
+	for id in CosmeticsConfig.Items do
+		Expect(seen[id], id .. " is not in Order")
+	end
+end)
+
+Test("skins have recipes, trails have colours, emotes have animations", function()
+	for id, item in CosmeticsConfig.Items do
+		if item.Category == "Skin" then
+			Expect(Skins.Recipes[id], "no skin recipe for " .. id)
+		elseif item.Category == "Trail" and id ~= CosmeticsConfig.Defaults.Trail then
+			Expect(type(item.Colors) == "table" and #item.Colors >= 1, id .. " needs Colors")
+		elseif item.Category == "Emote" then
+			Expect(type(item.Animation) == "string", id .. " needs Animation")
+		end
+	end
+end)
+
+Test("default cosmetics are free, owned and equipped in a new profile", function()
+	local template = DataService.Template
+	for category, id in CosmeticsConfig.Defaults do
+		local item = CosmeticsConfig.Items[id]
+		Expect(item and item.Category == category and item.Price == 0, "bad default " .. id)
+		Expect(template.OwnedCosmetics[id], "template must own " .. id)
+		Expect(template[CosmeticsConfig.EquipField[category]] == id, "template must equip " .. id)
+	end
+	Expect(TitleConfig.Titles[template.EquippedTitle], "template title exists")
+end)
+
+Test("old profiles get the new cosmetic fields (reconcile)", function()
+	local old = { Coins = 10, OwnedCosmetics = { Default = true, Robot = true }, EquippedCosmetic = "Robot" }
+	DataService._reconcile(old, DataService.Template)
+	Expect(old.OwnedCosmetics.Robot and old.OwnedCosmetics.Emote_Wave and old.OwnedCosmetics.Trail_None, "owned merged")
+	Expect(old.EquippedCosmetic == "Robot" and old.EquippedTrail == "Trail_None" and old.EquippedEmote == "Emote_Wave", "equips")
+	Expect(old.Coins == 10 and old.Stats.Deaths == 0, "values kept / stats added")
+end)
+
+Test("titles unlock from levels and stats", function()
+	for _, id in TitleConfig.Order do
+		Expect(TitleConfig.Titles[id], "missing title " .. id)
+	end
+	local fresh = { CompletedLevels = {}, Stats = {} }
+	Expect(TitleConfig.IsUnlocked(fresh, "Newcomer"), "default title")
+	Expect(not TitleConfig.IsUnlocked(fresh, "ChapterOne"), "locked")
+	Expect(TitleConfig.IsUnlocked({ CompletedLevels = { L10 = true }, Stats = {} }, "ChapterOne"), "level title")
+	Expect(TitleConfig.IsUnlocked({ CompletedLevels = {}, Stats = { RivalWins = 10 } }, "RivalSlayer"), "stat title")
+	Expect(not TitleConfig.IsUnlocked(fresh, "DoesNotExist"), "unknown title")
+end)
+
+---------------------------------------------------------------------------
 print("\n[obstacles]")
 ---------------------------------------------------------------------------
 local ObstacleService = H.Require("ServerScriptService.Server.Services.ObstacleService")

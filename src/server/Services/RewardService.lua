@@ -11,6 +11,29 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Progression = require(ReplicatedStorage.Shared.Progression)
+local TitleConfig = require(ReplicatedStorage.Shared.TitleConfig)
+
+local function unlockedTitles(data): { [string]: boolean }
+	local set = {}
+	if data then
+		for _, id in TitleConfig.Order do
+			if TitleConfig.IsUnlocked(data, id) then
+				set[id] = true
+			end
+		end
+	end
+	return set
+end
+
+local function newTitles(before, data): { string }
+	local list = {}
+	for _, id in TitleConfig.Order do
+		if not before[id] and TitleConfig.IsUnlocked(data, id) then
+			table.insert(list, TitleConfig.Titles[id].Text)
+		end
+	end
+	return list
+end
 
 local RewardService = {}
 
@@ -92,6 +115,7 @@ function RewardService:GrantFinish(run)
 	local previousBest = data and data.BestTimes[key]
 	local newBest = previousBest == nil or time < previousBest
 	local levelsGained = 0
+	local titlesBefore = unlockedTitles(data)
 
 	if data then
 		services.DataService:Update(player, function(d)
@@ -120,6 +144,7 @@ function RewardService:GrantFinish(run)
 
 	local global = services.LeaderboardService:GetBest(run.LevelId)
 	return {
+		NewTitles = if data then newTitles(titlesBefore, data) else {},
 		LevelId = run.LevelId,
 		Name = run.Def.Name,
 		Time = time,
@@ -163,6 +188,7 @@ function RewardService:GrantPartner(run)
 	end
 
 	local levelsGained = 0
+	local titlesBefore = unlockedTitles(data)
 	if data then
 		services.DataService:Update(partner, function(d)
 			d.Coins += coins
@@ -182,6 +208,7 @@ function RewardService:GrantPartner(run)
 		Coins = coins,
 		XP = xp,
 		LevelsGained = levelsGained,
+		NewTitles = if data then newTitles(titlesBefore, data) else {},
 		IsPartner = true,
 		Mode = run.Mode,
 		Betrayal = betrayal,

@@ -9,7 +9,11 @@
 
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+
+local CosmeticsConfig = require(ReplicatedStorage.Shared.CosmeticsConfig)
+local TitleConfig = require(ReplicatedStorage.Shared.TitleConfig)
 
 local CharacterService = {}
 
@@ -83,6 +87,7 @@ function CharacterService:_onCharacterAdded(player: Player, character: Model)
 	humanoid.Died:Connect(function()
 		self.Services.RoundService:OnCharacterDied(player, character)
 	end)
+	self:ApplyCosmetics(player)
 
 	-- where should this character be?
 	local spawnCFrame = self.Services.RoundService:OnCharacterSpawned(player, character)
@@ -153,6 +158,94 @@ function CharacterService:Teleport(player: Player, cf: CFrame)
 	end
 	self:Respawn(player)
 	return false
+end
+
+---------------------------------------------------------------------------
+-- Cosmetics on the player's own character: trail + title tag
+---------------------------------------------------------------------------
+
+local function removeNamed(parent: Instance?, name: string)
+	if not parent then
+		return
+	end
+	for _, child in parent:GetChildren() do
+		if child.Name == name then
+			child:Destroy()
+		end
+	end
+end
+
+function CharacterService:ApplyCosmetics(player: Player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local head = character and character:FindFirstChild("Head") :: BasePart?
+	local data = self.Services.DataService:GetData(player)
+	if not character or not root or not data then
+		return
+	end
+
+	-- trail
+	removeNamed(root, "CosmeticTrail")
+	removeNamed(root, "CosmeticTrailTop")
+	removeNamed(root, "CosmeticTrailBottom")
+	local trailItem = CosmeticsConfig.Get(data.EquippedTrail or "")
+	if trailItem and trailItem.Category == "Trail" and trailItem.Colors and data.OwnedCosmetics[data.EquippedTrail] then
+		local top = Instance.new("Attachment")
+		top.Name = "CosmeticTrailTop"
+		top.Position = Vector3.new(0, 0.9, 0)
+		top.Parent = root
+		local bottom = Instance.new("Attachment")
+		bottom.Name = "CosmeticTrailBottom"
+		bottom.Position = Vector3.new(0, -0.9, 0)
+		bottom.Parent = root
+		local keypoints = {}
+		local colors = trailItem.Colors
+		for index, color in colors do
+			local t = if #colors == 1 then 0 else (index - 1) / (#colors - 1)
+			table.insert(keypoints, ColorSequenceKeypoint.new(t, color))
+		end
+		if #keypoints == 1 then
+			table.insert(keypoints, ColorSequenceKeypoint.new(1, colors[1]))
+		end
+		local trail = Instance.new("Trail")
+		trail.Name = "CosmeticTrail"
+		trail.Attachment0 = top
+		trail.Attachment1 = bottom
+		trail.Color = ColorSequence.new(keypoints)
+		trail.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 1) })
+		trail.Lifetime = 0.45
+		trail.MinLength = 0.1
+		trail.LightEmission = 0.5
+		trail.FaceCamera = true
+		trail.Parent = root
+	end
+
+	-- title tag above the head
+	removeNamed(character, "TitleTag")
+	local titleId = data.EquippedTitle
+	if not TitleConfig.IsUnlocked(data, titleId) then
+		titleId = TitleConfig.Default
+	end
+	local title = TitleConfig.Titles[titleId]
+	if head and title then
+		local tag = Instance.new("BillboardGui")
+		tag.Name = "TitleTag"
+		tag.Adornee = head
+		tag.Size = UDim2.new(6, 0, 0.8, 0)
+		tag.StudsOffsetWorldSpace = Vector3.new(0, 3.3, 0)
+		tag.MaxDistance = 60
+		tag.LightInfluence = 0
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, 1)
+		label.Font = Enum.Font.GothamBlack
+		label.TextScaled = true
+		label.TextColor3 = title.Color
+		label.TextStrokeTransparency = 0.35
+		label.Text = title.Text
+		label.Parent = tag
+		tag.Parent = character
+	end
 end
 
 -- Returns root, humanoid, rootOffset (studs between feet and root center) of a living character.

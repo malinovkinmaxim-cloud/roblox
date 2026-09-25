@@ -515,6 +515,17 @@ function OverlayController:ShowResults(results)
 		local row = Kit.Text({ Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Theme.Fonts.Title, TextColor3 = C.Green, Text = "LEVEL UP!", LayoutOrder = 99 })
 		row.Parent = self.ResultsLines
 	end
+	for index, titleText in results.NewTitles or {} do
+		local row = Kit.Text({
+			Size = UDim2.new(1, 0, 0, 24),
+			TextSize = 17,
+			Font = Theme.Fonts.Title,
+			TextColor3 = C.Yellow,
+			Text = "NEW TITLE: " .. titleText .. "  (equip it in COLLECTION)",
+			LayoutOrder = 100 + index,
+		})
+		row.Parent = self.ResultsLines
+	end
 
 	local panel = self.ResultsPanel
 	panel.Visible = true

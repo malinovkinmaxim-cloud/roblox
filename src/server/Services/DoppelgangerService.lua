@@ -14,6 +14,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local CosmeticsConfig = require(ReplicatedStorage.Shared.CosmeticsConfig)
 local Net = require(ReplicatedStorage.Shared.Net)
 local RoleConfig = require(ReplicatedStorage.Shared.RoleConfig)
 
@@ -82,11 +83,35 @@ function DoppelgangerService:_record(run, now: number)
 	run.Recorder:Push(now, cf.Position, DoppelActor.YawFromLook(cf.LookVector), grounded, root.AssemblyLinearVelocity.Y)
 end
 
+-- Lobby only: when you stand still for a while, your double plays your equipped emote.
+function DoppelgangerService:_lobbyIdle(run, now: number)
+	local actor = run.Doppel
+	local root = self.Services.CharacterService:GetLiving(run.Player)
+	if not root then
+		return
+	end
+	local moving = root.AssemblyLinearVelocity.Magnitude > 1.5
+	if moving or not actor:IsControllable() then
+		run.IdleSince = now
+		if actor.Emote then
+			actor:SetEmote(nil)
+		end
+		return
+	end
+	run.IdleSince = run.IdleSince or now
+	if not actor.Emote and now - run.IdleSince > 5 then
+		actor:SetEmote(run.EmoteName or "Wave")
+	end
+end
+
 function DoppelgangerService:_stepRun(run, dt: number, now: number)
 	self:_record(run, now)
 	local actor = run.Doppel
 	if not actor or actor.Destroyed then
 		return
+	end
+	if run.IsLobby then
+		self:_lobbyIdle(run, now)
 	end
 	local role = run.Role
 	if role and not role.Stopped and run.State ~= "Finished" then
@@ -176,6 +201,16 @@ function DoppelgangerService:OnRunEnded(run)
 	end
 end
 
+-- Animation name of the player's equipped doppelgänger emote (cosmetic)
+function DoppelgangerService:GetEmoteAnimation(player: Player): string
+	local data = self.Services.DataService:GetData(player)
+	local item = data and CosmeticsConfig.Get(data.EquippedEmote or "")
+	if item and item.Category == "Emote" and item.Animation and data.OwnedCosmetics[data.EquippedEmote] then
+		return item.Animation
+	end
+	return "Wave"
+end
+
 function DoppelgangerService:OnRunFinished(run)
 	if run.Role then
 		run.Role:Stop()
@@ -183,7 +218,8 @@ function DoppelgangerService:OnRunFinished(run)
 	local actor = run.Doppel
 	if actor and actor:IsAlive() then
 		actor:SetFrozen(false)
-		actor:SetEmote(if run.RivalFinished then "Cheer" else "Wave")
+		-- a rival that won taunts you; otherwise your double celebrates with your equipped emote
+		actor:SetEmote(if run.RivalFinished then "Laugh" else self:GetEmoteAnimation(run.Player))
 	end
 	Net.Event("DoppelStatus"):FireClient(run.Player, nil, nil)
 end
@@ -357,6 +393,7 @@ function DoppelgangerService:EnsureLobbyDoppel(player: Player)
 		end
 		lobbyRun.Doppel = actor
 		lobbyRun.Loading = false
+		lobbyRun.EmoteName = self:GetEmoteAnimation(player)
 		actor:SetRoleDisplay("YOU?", RoleConfig.HiddenColor)
 		local Follower = self.Services.RoleService.Modules.Follower
 		local role = Follower.new({

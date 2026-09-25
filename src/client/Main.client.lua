@@ -16,6 +16,7 @@ local ORDER = {
 	"OverlayController",
 	"MenuController",
 	"EffectsController",
+	"SpectateController",
 	"DebugController",
 }
 

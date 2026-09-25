@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Util.Format)
 
 local LobbyService = {}
 
@@ -24,6 +25,96 @@ function LobbyService:Init(services)
 	self.Services = services
 	if not Workspace:FindFirstChild("Lobby") then
 		self:Build()
+	end
+end
+
+function LobbyService:Start()
+	self:_buildRecordBoard()
+	self:UpdateBoard({})
+end
+
+---------------------------------------------------------------------------
+-- World records board (updated by LeaderboardService)
+---------------------------------------------------------------------------
+
+function LobbyService:_buildRecordBoard()
+	local lobby = Workspace:FindFirstChild("Lobby")
+	if not lobby or lobby:FindFirstChild("RecordBoard") then
+		return
+	end
+	local base = Config.LOBBY_POSITION
+	local board = Instance.new("Part")
+	board.Name = "RecordBoard"
+	board.Anchored = true
+	board.Size = Vector3.new(24, 16, 1)
+	-- faces -X, towards the spawn
+	board.CFrame = CFrame.new(base + Vector3.new(54, 9, 6)) * CFrame.Angles(0, math.rad(90), 0)
+	board.Color = Color3.fromRGB(22, 25, 38)
+	board.Material = Enum.Material.SmoothPlastic
+	board.Parent = lobby
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Board"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
+	gui.Parent = board
+
+	local title = Instance.new("TextLabel")
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.fromScale(0, 0.02)
+	title.Size = UDim2.fromScale(1, 0.1)
+	title.Font = Enum.Font.GothamBlack
+	title.TextScaled = true
+	title.TextColor3 = Color3.fromRGB(255, 205, 60)
+	title.Text = "WORLD RECORDS"
+	title.Parent = gui
+
+	local list = Instance.new("Frame")
+	list.Name = "Rows"
+	list.BackgroundTransparency = 1
+	list.Position = UDim2.fromScale(0.04, 0.14)
+	list.Size = UDim2.fromScale(0.92, 0.84)
+	list.Parent = gui
+	local layout = Instance.new("UIListLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 2)
+	layout.Parent = list
+	self.BoardRows = list
+end
+
+function LobbyService:UpdateBoard(bests: { [number]: any })
+	local rows = self.BoardRows
+	if not rows then
+		return
+	end
+	for _, child in rows:GetChildren() do
+		if child:IsA("TextLabel") then
+			child:Destroy()
+		end
+	end
+	local order = self.Services.LevelService.Order
+	local height = 1 / math.max(#order, 1)
+	for index, levelId in order do
+		local def = self.Services.LevelService:GetLevel(levelId)
+		local best = bests[levelId]
+		local row = Instance.new("TextLabel")
+		row.BackgroundTransparency = 1
+		row.Size = UDim2.new(1, 0, height, -2)
+		row.Font = Enum.Font.GothamBold
+		row.TextScaled = true
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextColor3 = if best then Color3.fromRGB(240, 243, 250) else Color3.fromRGB(120, 128, 150)
+		row.LayoutOrder = index
+		row.Text = string.format(
+			"%s  %-18s  %s  %s",
+			Format.LevelNumber(levelId),
+			def and def.Name or "?",
+			if best then Format.Time(best.Time, true) else "--:--.--",
+			if best then best.Name else ""
+		)
+		row.Parent = rows
 	end
 end
 

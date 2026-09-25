@@ -178,74 +178,224 @@ return Config
           <string name="Name">CosmeticsConfig</string>
           <string name="Source"><![CDATA[--[[
 	CosmeticsConfig
-	Doppelgänger skins. Purely visual - no skin changes gameplay.
-	Visual recipes are applied on the server by Doppelganger/Skins.lua.
+	Everything purely visual that can be bought with coins. Nothing here changes gameplay.
+	Categories:
+	  Skin  - the doppelgänger's look          (recipes: server Doppelganger/Skins.lua)
+	  Trail - a trail behind YOUR character     (applied by CharacterService)
+	  Emote - what your doppelgänger does when you finish a level (and when you idle in the lobby)
+	Titles are earned, not bought: see TitleConfig.
 ]]
 
 local CosmeticsConfig = {}
 
-CosmeticsConfig.Order = { "Default", "Noob", "SadCat", "Dog", "Robot", "Glitch", "Shadow", "Alien", "Golden" }
+CosmeticsConfig.Categories = { "Skin", "Trail", "Emote" }
+
+CosmeticsConfig.Defaults = {
+	Skin = "Default",
+	Trail = "Trail_None",
+	Emote = "Emote_Wave",
+}
+
+CosmeticsConfig.Order = {
+	-- skins
+	"Default",
+	"Noob",
+	"SadCat",
+	"Dog",
+	"Robot",
+	"Glitch",
+	"Shadow",
+	"Alien",
+	"Golden",
+	-- trails
+	"Trail_None",
+	"Trail_Cyan",
+	"Trail_Fire",
+	"Trail_Shadow",
+	"Trail_Rainbow",
+	"Trail_Gold",
+	-- emotes
+	"Emote_Wave",
+	"Emote_Cheer",
+	"Emote_Point",
+	"Emote_Laugh",
+	"Emote_Dance",
+}
 
 CosmeticsConfig.Items = {
+	---------------------------------------------------------------- skins
 	Default = {
+		Category = "Skin",
 		DisplayName = "Mirror",
 		Description = "Exactly you.",
 		Price = 0,
 		Color = Color3.fromRGB(200, 220, 255),
 	},
 	Noob = {
+		Category = "Skin",
 		DisplayName = "Noob",
 		Description = "Classic yellow, blue and green.",
 		Price = 100,
 		Color = Color3.fromRGB(245, 205, 48),
 	},
 	SadCat = {
+		Category = "Skin",
 		DisplayName = "Sad Cat",
 		Description = "Grey fur. Pointy ears. Very sad.",
 		Price = 300,
 		Color = Color3.fromRGB(160, 165, 175),
 	},
 	Dog = {
+		Category = "Skin",
 		DisplayName = "Dog",
 		Description = "Floppy ears, good boy energy.",
 		Price = 300,
 		Color = Color3.fromRGB(170, 115, 70),
 	},
 	Robot = {
+		Category = "Skin",
 		DisplayName = "Robot",
 		Description = "Brushed metal and a tiny antenna.",
 		Price = 500,
 		Color = Color3.fromRGB(150, 160, 175),
 	},
 	Glitch = {
+		Category = "Skin",
 		DisplayName = "Glitch",
 		Description = "Something is wrong with your reflection.",
 		Price = 750,
 		Color = Color3.fromRGB(255, 60, 200),
 	},
 	Shadow = {
+		Category = "Skin",
 		DisplayName = "Shadow",
 		Description = "Pure darkness.",
 		Price = 750,
 		Color = Color3.fromRGB(35, 35, 45),
 	},
 	Alien = {
+		Category = "Skin",
 		DisplayName = "Alien",
 		Description = "Green skin, glowing eyes.",
 		Price = 1000,
 		Color = Color3.fromRGB(110, 230, 90),
 	},
 	Golden = {
+		Category = "Skin",
 		DisplayName = "Golden",
 		Description = "For true doppel masters.",
 		Price = 1500,
 		Color = Color3.fromRGB(255, 200, 60),
+	},
+
+	---------------------------------------------------------------- trails
+	Trail_None = {
+		Category = "Trail",
+		DisplayName = "No Trail",
+		Description = "Clean and simple.",
+		Price = 0,
+		Color = Color3.fromRGB(90, 95, 110),
+	},
+	Trail_Cyan = {
+		Category = "Trail",
+		DisplayName = "Doppel Cyan",
+		Description = "The colour of your double.",
+		Price = 200,
+		Color = Color3.fromRGB(60, 225, 255),
+		Colors = { Color3.fromRGB(60, 225, 255), Color3.fromRGB(120, 170, 255) },
+	},
+	Trail_Fire = {
+		Category = "Trail",
+		DisplayName = "Fire",
+		Description = "Leave the rival in the smoke.",
+		Price = 350,
+		Color = Color3.fromRGB(255, 120, 40),
+		Colors = { Color3.fromRGB(255, 220, 80), Color3.fromRGB(255, 60, 30) },
+	},
+	Trail_Shadow = {
+		Category = "Trail",
+		DisplayName = "Shadow Smoke",
+		Description = "A shadow of your shadow.",
+		Price = 400,
+		Color = Color3.fromRGB(110, 70, 170),
+		Colors = { Color3.fromRGB(150, 100, 230), Color3.fromRGB(25, 20, 35) },
+	},
+	Trail_Rainbow = {
+		Category = "Trail",
+		DisplayName = "Rainbow",
+		Description = "Every colour at once.",
+		Price = 600,
+		Color = Color3.fromRGB(255, 90, 180),
+		Colors = {
+			Color3.fromRGB(255, 70, 70),
+			Color3.fromRGB(255, 210, 60),
+			Color3.fromRGB(80, 230, 120),
+			Color3.fromRGB(60, 180, 255),
+			Color3.fromRGB(190, 90, 255),
+		},
+	},
+	Trail_Gold = {
+		Category = "Trail",
+		DisplayName = "Gold Dust",
+		Description = "Shiny. Very shiny.",
+		Price = 800,
+		Color = Color3.fromRGB(255, 200, 60),
+		Colors = { Color3.fromRGB(255, 240, 150), Color3.fromRGB(230, 160, 20) },
+	},
+
+	---------------------------------------------------------------- emotes (doppelgänger)
+	Emote_Wave = {
+		Category = "Emote",
+		DisplayName = "Wave",
+		Description = "Your double waves goodbye.",
+		Price = 0,
+		Color = Color3.fromRGB(120, 215, 255),
+		Animation = "Wave",
+	},
+	Emote_Cheer = {
+		Category = "Emote",
+		DisplayName = "Cheer",
+		Description = "Arms up! We did it!",
+		Price = 150,
+		Color = Color3.fromRGB(80, 230, 140),
+		Animation = "Cheer",
+	},
+	Emote_Point = {
+		Category = "Emote",
+		DisplayName = "Point",
+		Description = "It points at you. Suspicious.",
+		Price = 150,
+		Color = Color3.fromRGB(255, 210, 70),
+		Animation = "Point",
+	},
+	Emote_Laugh = {
+		Category = "Emote",
+		DisplayName = "Laugh",
+		Description = "Ha. Ha. Ha.",
+		Price = 250,
+		Color = Color3.fromRGB(255, 80, 200),
+		Animation = "Laugh",
+	},
+	Emote_Dance = {
+		Category = "Emote",
+		DisplayName = "Dance",
+		Description = "Victory dance, perfectly in sync.",
+		Price = 400,
+		Color = Color3.fromRGB(170, 120, 255),
+		Animation = "Dance",
 	},
 }
 
 function CosmeticsConfig.Get(id: string)
 	return CosmeticsConfig.Items[id]
 end
+
+-- Profile field that stores the equipped item of a category
+CosmeticsConfig.EquipField = {
+	Skin = "EquippedCosmetic",
+	Trail = "EquippedTrail",
+	Emote = "EquippedEmote",
+}
 
 return CosmeticsConfig
 ]]></string>
@@ -568,11 +718,68 @@ return RoleConfig
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="10">
+      <Item class="ModuleScript" referent="10">
+        <Properties>
+          <string name="Name">TitleConfig</string>
+          <string name="Source"><![CDATA[--[[
+	TitleConfig
+	Titles are EARNED (never bought) and shown above the player's head.
+	Requirement: Level = N  (complete level N)  or  Stat = "...", Goal = N  (profile.Stats)
+]]
+
+local TitleConfig = {}
+
+TitleConfig.Default = "Newcomer"
+
+TitleConfig.Order = {
+	"Newcomer",
+	"EchoFriend",
+	"Racer",
+	"ShadowWalker",
+	"Tester",
+	"ChapterOne",
+	"Flawless",
+	"RivalSlayer",
+	"TrustIssues",
+	"DoppelMaster",
+}
+
+TitleConfig.Titles = {
+	Newcomer = { Text = "NEWCOMER", Color = Color3.fromRGB(200, 205, 220), Description = "Everyone starts somewhere." },
+	EchoFriend = { Text = "ECHO FRIEND", Color = Color3.fromRGB(120, 215, 255), Level = 3, Description = "Complete level 3." },
+	Racer = { Text = "RACER", Color = Color3.fromRGB(255, 150, 80), Stat = "RivalWins", Goal = 1, Description = "Beat your Rival once." },
+	ShadowWalker = { Text = "SHADOW WALKER", Color = Color3.fromRGB(170, 120, 255), Level = 8, Description = "Complete level 8." },
+	Tester = { Text = "PLATFORM TESTER", Color = Color3.fromRGB(255, 210, 70), Level = 9, Description = "Complete level 9." },
+	ChapterOne = { Text = "CHAPTER ONE", Color = Color3.fromRGB(80, 230, 140), Level = 10, Description = "Pass the Final Test." },
+	Flawless = { Text = "FLAWLESS", Color = Color3.fromRGB(60, 225, 255), Stat = "NoDeathClears", Goal = 10, Description = "Finish 10 levels without dying." },
+	RivalSlayer = { Text = "RIVAL SLAYER", Color = Color3.fromRGB(255, 80, 80), Stat = "RivalWins", Goal = 10, Description = "Beat your Rival 10 times." },
+	TrustIssues = { Text = "TRUST ISSUES", Color = Color3.fromRGB(255, 80, 200), Level = 12, Description = "Complete level 12." },
+	DoppelMaster = { Text = "DOPPEL MASTER", Color = Color3.fromRGB(255, 200, 60), Stat = "UniqueLevelsCompleted", Goal = 12, Description = "Complete every level." },
+}
+
+function TitleConfig.IsUnlocked(profile, titleId: string): boolean
+	local title = TitleConfig.Titles[titleId]
+	if not title or not profile then
+		return false
+	end
+	if title.Level then
+		return profile.CompletedLevels ~= nil and profile.CompletedLevels["L" .. tostring(title.Level)] == true
+	end
+	if title.Stat then
+		return ((profile.Stats or {})[title.Stat] or 0) >= (title.Goal or 1)
+	end
+	return true
+end
+
+return TitleConfig
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Folder" referent="11">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="11">
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">Format</string>
             <string name="Source"><![CDATA[--[[
@@ -618,7 +825,7 @@ return Format
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="12">
+        <Item class="ModuleScript" referent="13">
           <Properties>
             <string name="Name">Signal</string>
             <string name="Source"><![CDATA[--[[
@@ -683,19 +890,19 @@ return Signal
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="13">
+  <Item class="ServerScriptService" referent="14">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="14">
+    <Item class="Folder" referent="15">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="Folder" referent="15">
+      <Item class="Folder" referent="16">
         <Properties>
           <string name="Name">Doppelganger</string>
         </Properties>
-        <Item class="ModuleScript" referent="16">
+        <Item class="ModuleScript" referent="17">
           <Properties>
             <string name="Name">Appearance</string>
             <string name="Source"><![CDATA[--[[
@@ -944,7 +1151,7 @@ return Appearance
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="17">
+        <Item class="ModuleScript" referent="18">
           <Properties>
             <string name="Name">DoppelActor</string>
             <string name="Source"><![CDATA[--[[
@@ -980,7 +1187,10 @@ local ANIMATIONS = {
 	Cheer = "rbxassetid://507770677",
 	Point = "rbxassetid://507770453",
 	Laugh = "rbxassetid://507770818",
+	Dance = "rbxassetid://507771019",
 }
+
+local EMOTES = { Wave = true, Cheer = true, Point = true, Laugh = true, Dance = true }
 
 local SNAP_DISTANCE = 12 -- bigger jumps between two targets are treated as teleports
 local FOOT_BOX = Vector3.new(1.6, 0.4, 1.0)
@@ -1480,9 +1690,7 @@ function DoppelActor:_getTrack(name: string): AnimationTrack?
 			animation.AnimationId = ANIMATIONS[name]
 			local loaded = self.Animator:LoadAnimation(animation)
 			loaded.Looped = name ~= "Jump"
-			loaded.Priority = if name == "Wave" or name == "Cheer" or name == "Point" or name == "Laugh"
-				then Enum.AnimationPriority.Action
-				else Enum.AnimationPriority.Core
+			loaded.Priority = if EMOTES[name] then Enum.AnimationPriority.Action else Enum.AnimationPriority.Core
 			return loaded
 		end)
 		track = if ok then result else false
@@ -1563,7 +1771,7 @@ return DoppelActor
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="18">
+        <Item class="ModuleScript" referent="19">
           <Properties>
             <string name="Name">Skins</string>
             <string name="Source"><![CDATA[--[[
@@ -1826,7 +2034,7 @@ return Skins
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="19">
+        <Item class="ModuleScript" referent="20">
           <Properties>
             <string name="Name">TrailRecorder</string>
             <string name="Source"><![CDATA[--[[
@@ -2037,11 +2245,11 @@ return TrailRecorder
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="20">
+      <Item class="Folder" referent="21">
         <Properties>
           <string name="Name">Level</string>
         </Properties>
-        <Item class="ModuleScript" referent="21">
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">Elements</string>
             <string name="Source"><![CDATA[--[[
@@ -2567,7 +2775,7 @@ return Elements
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">LevelBuilder</string>
             <string name="Source"><![CDATA[--[[
@@ -2855,7 +3063,7 @@ return LevelBuilder
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">LevelKit</string>
             <string name="Source"><![CDATA[--[[
@@ -3245,7 +3453,7 @@ return K
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">LevelValidator</string>
             <string name="Source"><![CDATA[--[[
@@ -3509,7 +3717,7 @@ return LevelValidator
           </Properties>
         </Item>
       </Item>
-      <Item class="Script" referent="25">
+      <Item class="Script" referent="26">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -3582,11 +3790,11 @@ print("[DoppelgangerObby] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="26">
+      <Item class="Folder" referent="27">
         <Properties>
           <string name="Name">Roles</string>
         </Properties>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">Ally</string>
             <string name="Source"><![CDATA[--[[
@@ -3787,7 +3995,7 @@ return Ally
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">Follower</string>
             <string name="Source"><![CDATA[--[[
@@ -3903,7 +4111,7 @@ return Follower
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="30">
           <Properties>
             <string name="Name">Rival</string>
             <string name="Source"><![CDATA[--[[
@@ -4481,7 +4689,7 @@ return Rival
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">RoleBase</string>
             <string name="Source"><![CDATA[--[[
@@ -4650,7 +4858,7 @@ return RoleBase
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="32">
           <Properties>
             <string name="Name">Shadow</string>
             <string name="Source"><![CDATA[--[[
@@ -4865,7 +5073,7 @@ return Shadow
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">Troll</string>
             <string name="Source"><![CDATA[--[[
@@ -5093,11 +5301,11 @@ return Troll
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="33">
+      <Item class="Folder" referent="34">
         <Properties>
           <string name="Name">Services</string>
         </Properties>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">CharacterService</string>
             <string name="Source"><![CDATA[--[[
@@ -5111,7 +5319,11 @@ return Troll
 
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+
+local CosmeticsConfig = require(ReplicatedStorage.Shared.CosmeticsConfig)
+local TitleConfig = require(ReplicatedStorage.Shared.TitleConfig)
 
 local CharacterService = {}
 
@@ -5185,6 +5397,7 @@ function CharacterService:_onCharacterAdded(player: Player, character: Model)
 	humanoid.Died:Connect(function()
 		self.Services.RoundService:OnCharacterDied(player, character)
 	end)
+	self:ApplyCosmetics(player)
 
 	-- where should this character be?
 	local spawnCFrame = self.Services.RoundService:OnCharacterSpawned(player, character)
@@ -5257,6 +5470,94 @@ function CharacterService:Teleport(player: Player, cf: CFrame)
 	return false
 end
 
+---------------------------------------------------------------------------
+-- Cosmetics on the player's own character: trail + title tag
+---------------------------------------------------------------------------
+
+local function removeNamed(parent: Instance?, name: string)
+	if not parent then
+		return
+	end
+	for _, child in parent:GetChildren() do
+		if child.Name == name then
+			child:Destroy()
+		end
+	end
+end
+
+function CharacterService:ApplyCosmetics(player: Player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local head = character and character:FindFirstChild("Head") :: BasePart?
+	local data = self.Services.DataService:GetData(player)
+	if not character or not root or not data then
+		return
+	end
+
+	-- trail
+	removeNamed(root, "CosmeticTrail")
+	removeNamed(root, "CosmeticTrailTop")
+	removeNamed(root, "CosmeticTrailBottom")
+	local trailItem = CosmeticsConfig.Get(data.EquippedTrail or "")
+	if trailItem and trailItem.Category == "Trail" and trailItem.Colors and data.OwnedCosmetics[data.EquippedTrail] then
+		local top = Instance.new("Attachment")
+		top.Name = "CosmeticTrailTop"
+		top.Position = Vector3.new(0, 0.9, 0)
+		top.Parent = root
+		local bottom = Instance.new("Attachment")
+		bottom.Name = "CosmeticTrailBottom"
+		bottom.Position = Vector3.new(0, -0.9, 0)
+		bottom.Parent = root
+		local keypoints = {}
+		local colors = trailItem.Colors
+		for index, color in colors do
+			local t = if #colors == 1 then 0 else (index - 1) / (#colors - 1)
+			table.insert(keypoints, ColorSequenceKeypoint.new(t, color))
+		end
+		if #keypoints == 1 then
+			table.insert(keypoints, ColorSequenceKeypoint.new(1, colors[1]))
+		end
+		local trail = Instance.new("Trail")
+		trail.Name = "CosmeticTrail"
+		trail.Attachment0 = top
+		trail.Attachment1 = bottom
+		trail.Color = ColorSequence.new(keypoints)
+		trail.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 1) })
+		trail.Lifetime = 0.45
+		trail.MinLength = 0.1
+		trail.LightEmission = 0.5
+		trail.FaceCamera = true
+		trail.Parent = root
+	end
+
+	-- title tag above the head
+	removeNamed(character, "TitleTag")
+	local titleId = data.EquippedTitle
+	if not TitleConfig.IsUnlocked(data, titleId) then
+		titleId = TitleConfig.Default
+	end
+	local title = TitleConfig.Titles[titleId]
+	if head and title then
+		local tag = Instance.new("BillboardGui")
+		tag.Name = "TitleTag"
+		tag.Adornee = head
+		tag.Size = UDim2.new(6, 0, 0.8, 0)
+		tag.StudsOffsetWorldSpace = Vector3.new(0, 3.3, 0)
+		tag.MaxDistance = 60
+		tag.LightInfluence = 0
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, 1)
+		label.Font = Enum.Font.GothamBlack
+		label.TextScaled = true
+		label.TextColor3 = title.Color
+		label.TextStrokeTransparency = 0.35
+		label.Text = title.Text
+		label.Parent = tag
+		tag.Parent = character
+	end
+end
+
 -- Returns root, humanoid, rootOffset (studs between feet and root center) of a living character.
 function CharacterService:GetLiving(player: Player): (BasePart?, Humanoid?, number)
 	local character = player.Character
@@ -5281,7 +5582,7 @@ return CharacterService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">CheckpointService</string>
             <string name="Source"><![CDATA[--[[
@@ -5405,7 +5706,7 @@ return CheckpointService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">DataService</string>
             <string name="Source"><![CDATA[--[[
@@ -5418,7 +5719,7 @@ return CheckpointService
 	  - automatic in-memory fallback in Studio when API access is disabled
 
 	Saved: Coins, XP, Level, CompletedLevels, BestTimes, OwnedCosmetics, EquippedCosmetic,
-	       Settings, Stats, ClaimedQuests
+	       EquippedTrail, EquippedEmote, EquippedTitle, Settings, Stats, ClaimedQuests
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -5444,8 +5745,11 @@ local TEMPLATE = {
 	Level = 1,
 	CompletedLevels = {}, -- ["L1"] = true
 	BestTimes = {}, -- ["L1"] = 42.31
-	OwnedCosmetics = { Default = true },
-	EquippedCosmetic = "Default",
+	OwnedCosmetics = { Default = true, Trail_None = true, Emote_Wave = true },
+	EquippedCosmetic = "Default", -- doppelgänger skin
+	EquippedTrail = "Trail_None",
+	EquippedEmote = "Emote_Wave",
+	EquippedTitle = "Newcomer",
 	Settings = {
 		Sfx = true,
 		Hints = true,
@@ -5804,7 +6108,7 @@ return DataService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">DebugService</string>
             <string name="Source"><![CDATA[--[[
@@ -5972,7 +6276,7 @@ return DebugService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">DoppelgangerService</string>
             <string name="Source"><![CDATA[--[[
@@ -5991,6 +6295,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local CosmeticsConfig = require(ReplicatedStorage.Shared.CosmeticsConfig)
 local Net = require(ReplicatedStorage.Shared.Net)
 local RoleConfig = require(ReplicatedStorage.Shared.RoleConfig)
 
@@ -6059,11 +6364,35 @@ function DoppelgangerService:_record(run, now: number)
 	run.Recorder:Push(now, cf.Position, DoppelActor.YawFromLook(cf.LookVector), grounded, root.AssemblyLinearVelocity.Y)
 end
 
+-- Lobby only: when you stand still for a while, your double plays your equipped emote.
+function DoppelgangerService:_lobbyIdle(run, now: number)
+	local actor = run.Doppel
+	local root = self.Services.CharacterService:GetLiving(run.Player)
+	if not root then
+		return
+	end
+	local moving = root.AssemblyLinearVelocity.Magnitude > 1.5
+	if moving or not actor:IsControllable() then
+		run.IdleSince = now
+		if actor.Emote then
+			actor:SetEmote(nil)
+		end
+		return
+	end
+	run.IdleSince = run.IdleSince or now
+	if not actor.Emote and now - run.IdleSince > 5 then
+		actor:SetEmote(run.EmoteName or "Wave")
+	end
+end
+
 function DoppelgangerService:_stepRun(run, dt: number, now: number)
 	self:_record(run, now)
 	local actor = run.Doppel
 	if not actor or actor.Destroyed then
 		return
+	end
+	if run.IsLobby then
+		self:_lobbyIdle(run, now)
 	end
 	local role = run.Role
 	if role and not role.Stopped and run.State ~= "Finished" then
@@ -6153,6 +6482,16 @@ function DoppelgangerService:OnRunEnded(run)
 	end
 end
 
+-- Animation name of the player's equipped doppelgänger emote (cosmetic)
+function DoppelgangerService:GetEmoteAnimation(player: Player): string
+	local data = self.Services.DataService:GetData(player)
+	local item = data and CosmeticsConfig.Get(data.EquippedEmote or "")
+	if item and item.Category == "Emote" and item.Animation and data.OwnedCosmetics[data.EquippedEmote] then
+		return item.Animation
+	end
+	return "Wave"
+end
+
 function DoppelgangerService:OnRunFinished(run)
 	if run.Role then
 		run.Role:Stop()
@@ -6160,7 +6499,8 @@ function DoppelgangerService:OnRunFinished(run)
 	local actor = run.Doppel
 	if actor and actor:IsAlive() then
 		actor:SetFrozen(false)
-		actor:SetEmote(if run.RivalFinished then "Cheer" else "Wave")
+		-- a rival that won taunts you; otherwise your double celebrates with your equipped emote
+		actor:SetEmote(if run.RivalFinished then "Laugh" else self:GetEmoteAnimation(run.Player))
 	end
 	Net.Event("DoppelStatus"):FireClient(run.Player, nil, nil)
 end
@@ -6334,6 +6674,7 @@ function DoppelgangerService:EnsureLobbyDoppel(player: Player)
 		end
 		lobbyRun.Doppel = actor
 		lobbyRun.Loading = false
+		lobbyRun.EmoteName = self:GetEmoteAnimation(player)
 		actor:SetRoleDisplay("YOU?", RoleConfig.HiddenColor)
 		local Follower = self.Services.RoleService.Modules.Follower
 		local role = Follower.new({
@@ -6390,7 +6731,7 @@ return DoppelgangerService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">DuoService</string>
             <string name="Source"><![CDATA[--[[
@@ -6715,7 +7056,7 @@ return DuoService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">InteractionService</string>
             <string name="Source"><![CDATA[--[[
@@ -7144,7 +7485,7 @@ return InteractionService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">LeaderboardService</string>
             <string name="Source"><![CDATA[--[[
@@ -7219,6 +7560,7 @@ function LeaderboardService:Start()
 					break
 				end
 			end
+			self.Services.LobbyService:UpdateBoard(self.Bests)
 			task.wait(Config.LEADERBOARD_REFRESH)
 		end
 	end)
@@ -7258,6 +7600,7 @@ function LeaderboardService:Submit(player: Player, levelId: number, time: number
 	local current = self.Bests[levelId]
 	if not current or time < current.Time then
 		self.Bests[levelId] = { Time = time, UserId = player.UserId, Name = player.DisplayName }
+		self.Services.LobbyService:UpdateBoard(self.Bests)
 	end
 	task.spawn(function()
 		local store = getStore(levelId)
@@ -7292,7 +7635,7 @@ return LeaderboardService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">LevelService</string>
             <string name="Source"><![CDATA[--[[
@@ -7440,7 +7783,7 @@ return LevelService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">LobbyService</string>
             <string name="Source"><![CDATA[--[[
@@ -7454,6 +7797,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Util.Format)
 
 local LobbyService = {}
 
@@ -7469,6 +7813,96 @@ function LobbyService:Init(services)
 	self.Services = services
 	if not Workspace:FindFirstChild("Lobby") then
 		self:Build()
+	end
+end
+
+function LobbyService:Start()
+	self:_buildRecordBoard()
+	self:UpdateBoard({})
+end
+
+---------------------------------------------------------------------------
+-- World records board (updated by LeaderboardService)
+---------------------------------------------------------------------------
+
+function LobbyService:_buildRecordBoard()
+	local lobby = Workspace:FindFirstChild("Lobby")
+	if not lobby or lobby:FindFirstChild("RecordBoard") then
+		return
+	end
+	local base = Config.LOBBY_POSITION
+	local board = Instance.new("Part")
+	board.Name = "RecordBoard"
+	board.Anchored = true
+	board.Size = Vector3.new(24, 16, 1)
+	-- faces -X, towards the spawn
+	board.CFrame = CFrame.new(base + Vector3.new(54, 9, 6)) * CFrame.Angles(0, math.rad(90), 0)
+	board.Color = Color3.fromRGB(22, 25, 38)
+	board.Material = Enum.Material.SmoothPlastic
+	board.Parent = lobby
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Board"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
+	gui.Parent = board
+
+	local title = Instance.new("TextLabel")
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.fromScale(0, 0.02)
+	title.Size = UDim2.fromScale(1, 0.1)
+	title.Font = Enum.Font.GothamBlack
+	title.TextScaled = true
+	title.TextColor3 = Color3.fromRGB(255, 205, 60)
+	title.Text = "WORLD RECORDS"
+	title.Parent = gui
+
+	local list = Instance.new("Frame")
+	list.Name = "Rows"
+	list.BackgroundTransparency = 1
+	list.Position = UDim2.fromScale(0.04, 0.14)
+	list.Size = UDim2.fromScale(0.92, 0.84)
+	list.Parent = gui
+	local layout = Instance.new("UIListLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 2)
+	layout.Parent = list
+	self.BoardRows = list
+end
+
+function LobbyService:UpdateBoard(bests: { [number]: any })
+	local rows = self.BoardRows
+	if not rows then
+		return
+	end
+	for _, child in rows:GetChildren() do
+		if child:IsA("TextLabel") then
+			child:Destroy()
+		end
+	end
+	local order = self.Services.LevelService.Order
+	local height = 1 / math.max(#order, 1)
+	for index, levelId in order do
+		local def = self.Services.LevelService:GetLevel(levelId)
+		local best = bests[levelId]
+		local row = Instance.new("TextLabel")
+		row.BackgroundTransparency = 1
+		row.Size = UDim2.new(1, 0, height, -2)
+		row.Font = Enum.Font.GothamBold
+		row.TextScaled = true
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextColor3 = if best then Color3.fromRGB(240, 243, 250) else Color3.fromRGB(120, 128, 150)
+		row.LayoutOrder = index
+		row.Text = string.format(
+			"%s  %-18s  %s  %s",
+			Format.LevelNumber(levelId),
+			def and def.Name or "?",
+			if best then Format.Time(best.Time, true) else "--:--.--",
+			if best then best.Name else ""
+		)
+		row.Parent = rows
 	end
 end
 
@@ -7606,7 +8040,7 @@ return LobbyService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">ObstacleService</string>
             <string name="Source"><![CDATA[--[[
@@ -7978,7 +8412,7 @@ return ObstacleService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">QuestService</string>
             <string name="Source"><![CDATA[--[[
@@ -8048,7 +8482,7 @@ return QuestService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">RewardService</string>
             <string name="Source"><![CDATA[--[[
@@ -8064,6 +8498,29 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Progression = require(ReplicatedStorage.Shared.Progression)
+local TitleConfig = require(ReplicatedStorage.Shared.TitleConfig)
+
+local function unlockedTitles(data): { [string]: boolean }
+	local set = {}
+	if data then
+		for _, id in TitleConfig.Order do
+			if TitleConfig.IsUnlocked(data, id) then
+				set[id] = true
+			end
+		end
+	end
+	return set
+end
+
+local function newTitles(before, data): { string }
+	local list = {}
+	for _, id in TitleConfig.Order do
+		if not before[id] and TitleConfig.IsUnlocked(data, id) then
+			table.insert(list, TitleConfig.Titles[id].Text)
+		end
+	end
+	return list
+end
 
 local RewardService = {}
 
@@ -8145,6 +8602,7 @@ function RewardService:GrantFinish(run)
 	local previousBest = data and data.BestTimes[key]
 	local newBest = previousBest == nil or time < previousBest
 	local levelsGained = 0
+	local titlesBefore = unlockedTitles(data)
 
 	if data then
 		services.DataService:Update(player, function(d)
@@ -8173,6 +8631,7 @@ function RewardService:GrantFinish(run)
 
 	local global = services.LeaderboardService:GetBest(run.LevelId)
 	return {
+		NewTitles = if data then newTitles(titlesBefore, data) else {},
 		LevelId = run.LevelId,
 		Name = run.Def.Name,
 		Time = time,
@@ -8216,6 +8675,7 @@ function RewardService:GrantPartner(run)
 	end
 
 	local levelsGained = 0
+	local titlesBefore = unlockedTitles(data)
 	if data then
 		services.DataService:Update(partner, function(d)
 			d.Coins += coins
@@ -8235,6 +8695,7 @@ function RewardService:GrantPartner(run)
 		Coins = coins,
 		XP = xp,
 		LevelsGained = levelsGained,
+		NewTitles = if data then newTitles(titlesBefore, data) else {},
 		IsPartner = true,
 		Mode = run.Mode,
 		Betrayal = betrayal,
@@ -8245,7 +8706,7 @@ return RewardService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">RoleService</string>
             <string name="Source"><![CDATA[--[[
@@ -8467,7 +8928,7 @@ return RoleService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">RoundService</string>
             <string name="Source"><![CDATA[--[[
@@ -8750,8 +9211,10 @@ function RoundService:StartRun(player: Player, levelId: number, opts: { [string]
 	}
 	inst.Run = run
 	self.RunsByPlayer[player] = run
+	player:SetAttribute("InLevel", levelId) -- read by the client spectator UI
 	if partner then
 		self.RunsByPlayer[partner] = run
+		partner:SetAttribute("InLevel", levelId)
 	end
 	table.insert(self.ActiveRuns, run)
 
@@ -8798,6 +9261,9 @@ function RoundService:EndRun(run, reason: string, keepPlayers: boolean?)
 	for _, player in { run.Player, run.Partner } do
 		if player and self.RunsByPlayer[player] == run then
 			self.RunsByPlayer[player] = nil
+			if player.Parent then
+				player:SetAttribute("InLevel", nil)
+			end
 			if player.Parent and reason ~= "Finished" then
 				Net.Event("RunEnded"):FireClient(player, { Aborted = true, Reason = reason })
 			end
@@ -8951,7 +9417,7 @@ return RoundService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">SessionService</string>
             <string name="Source"><![CDATA[--[[
@@ -9022,19 +9488,21 @@ return SessionService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">ShopService</string>
             <string name="Source"><![CDATA[--[[
 	ShopService
-	Buy / equip doppelgänger skins. Every request is validated on the server:
-	item exists, price, enough coins, ownership.
+	Buy / equip cosmetics (skins, trails, emotes) and equip earned titles.
+	Every request is validated on the server: item exists, category, price, coins, ownership,
+	title requirements.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local CosmeticsConfig = require(ReplicatedStorage.Shared.CosmeticsConfig)
 local Net = require(ReplicatedStorage.Shared.Net)
+local TitleConfig = require(ReplicatedStorage.Shared.TitleConfig)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 
 local ShopService = {}
@@ -9057,6 +9525,8 @@ function ShopService:Start()
 			ok, message = self:Buy(player, itemId)
 		elseif action == "Equip" then
 			ok, message = self:Equip(player, itemId)
+		elseif action == "EquipTitle" then
+			ok, message = self:EquipTitle(player, itemId)
 		else
 			return
 		end
@@ -9081,12 +9551,16 @@ function ShopService:Buy(player: Player, itemId: string): (boolean, string?)
 	if data.Coins < item.Price then
 		return false, "Not enough coins."
 	end
+	local field = CosmeticsConfig.EquipField[item.Category]
 	self.Services.DataService:Update(player, function(d)
 		d.Coins -= item.Price
 		d.OwnedCosmetics[itemId] = true
-		d.EquippedCosmetic = itemId
+		if field then
+			d[field] = itemId
+		end
 	end)
-	return true, "Unlocked " .. item.DisplayName .. "! Equipped for your next doppelgänger."
+	self:_onEquipped(player, item.Category)
+	return true, "Unlocked " .. item.DisplayName .. "!"
 end
 
 function ShopService:Equip(player: Player, itemId: string): (boolean, string?)
@@ -9101,16 +9575,47 @@ function ShopService:Equip(player: Player, itemId: string): (boolean, string?)
 	if not data.OwnedCosmetics[itemId] then
 		return false, "You don't own that yet."
 	end
-	self.Services.DataService:Update(player, function(d)
-		d.EquippedCosmetic = itemId
-	end)
-	-- refresh the lobby doppelgänger so the new look is visible right away
-	local DoppelgangerService = self.Services.DoppelgangerService
-	if not self.Services.RoundService:GetRun(player) then
-		DoppelgangerService:RemoveLobbyDoppel(player)
-		DoppelgangerService:EnsureLobbyDoppel(player)
+	local field = CosmeticsConfig.EquipField[item.Category]
+	if not field then
+		return false, nil
 	end
+	self.Services.DataService:Update(player, function(d)
+		d[field] = itemId
+	end)
+	self:_onEquipped(player, item.Category)
 	return true, item.DisplayName .. " equipped."
+end
+
+function ShopService:EquipTitle(player: Player, titleId: string): (boolean, string?)
+	local title = TitleConfig.Titles[titleId]
+	if not title then
+		return false, nil
+	end
+	local data = self.Services.DataService:GetData(player)
+	if not data then
+		return false, nil
+	end
+	if not TitleConfig.IsUnlocked(data, titleId) then
+		return false, "Not unlocked yet: " .. title.Description
+	end
+	self.Services.DataService:Update(player, function(d)
+		d.EquippedTitle = titleId
+	end)
+	self.Services.CharacterService:ApplyCosmetics(player)
+	return true, "Title: " .. title.Text
+end
+
+-- make the change visible right away
+function ShopService:_onEquipped(player: Player, category: string)
+	if category == "Trail" then
+		self.Services.CharacterService:ApplyCosmetics(player)
+	elseif category == "Skin" or category == "Emote" then
+		local DoppelgangerService = self.Services.DoppelgangerService
+		if not self.Services.RoundService:GetRun(player) then
+			DoppelgangerService:RemoveLobbyDoppel(player)
+			DoppelgangerService:EnsureLobbyDoppel(player)
+		end
+	end
 end
 
 return ShopService
@@ -9118,11 +9623,11 @@ return ShopService
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="51">
+      <Item class="Folder" referent="52">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">RateLimiter</string>
             <string name="Source"><![CDATA[--[[
@@ -9164,7 +9669,7 @@ function RateLimiter:Allow(player: Player): boolean
 end
 
 Players.PlayerRemoving:Connect(function(player)
-	for limiter in allLimiters do
+	for limiter in pairs(allLimiters) do
 		limiter.Buckets[player] = nil
 	end
 end)
@@ -9176,15 +9681,15 @@ return RateLimiter
       </Item>
     </Item>
   </Item>
-  <Item class="ServerStorage" referent="53">
+  <Item class="ServerStorage" referent="54">
     <Properties>
       <string name="Name">ServerStorage</string>
     </Properties>
-    <Item class="Folder" referent="54">
+    <Item class="Folder" referent="55">
       <Properties>
         <string name="Name">Levels</string>
       </Properties>
-      <Item class="ModuleScript" referent="55">
+      <Item class="ModuleScript" referent="56">
         <Properties>
           <string name="Name">Level01</string>
           <string name="Source"><![CDATA[--[[
@@ -9240,7 +9745,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="56">
+      <Item class="ModuleScript" referent="57">
         <Properties>
           <string name="Name">Level02</string>
           <string name="Source"><![CDATA[--[[
@@ -9323,7 +9828,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="57">
+      <Item class="ModuleScript" referent="58">
         <Properties>
           <string name="Name">Level03</string>
           <string name="Source"><![CDATA[--[[
@@ -9381,7 +9886,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="58">
+      <Item class="ModuleScript" referent="59">
         <Properties>
           <string name="Name">Level04</string>
           <string name="Source"><![CDATA[--[[
@@ -9456,7 +9961,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="59">
+      <Item class="ModuleScript" referent="60">
         <Properties>
           <string name="Name">Level05</string>
           <string name="Source"><![CDATA[--[[
@@ -9520,7 +10025,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="60">
+      <Item class="ModuleScript" referent="61">
         <Properties>
           <string name="Name">Level06</string>
           <string name="Source"><![CDATA[--[[
@@ -9575,7 +10080,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="61">
+      <Item class="ModuleScript" referent="62">
         <Properties>
           <string name="Name">Level07</string>
           <string name="Source"><![CDATA[--[[
@@ -9632,7 +10137,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="62">
+      <Item class="ModuleScript" referent="63">
         <Properties>
           <string name="Name">Level08</string>
           <string name="Source"><![CDATA[--[[
@@ -9717,7 +10222,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="63">
+      <Item class="ModuleScript" referent="64">
         <Properties>
           <string name="Name">Level09</string>
           <string name="Source"><![CDATA[--[[
@@ -9808,7 +10313,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="64">
+      <Item class="ModuleScript" referent="65">
         <Properties>
           <string name="Name">Level10</string>
           <string name="Source"><![CDATA[--[[
@@ -9936,7 +10441,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="65">
+      <Item class="ModuleScript" referent="66">
         <Properties>
           <string name="Name">Level11</string>
           <string name="Source"><![CDATA[--[[
@@ -10010,7 +10515,7 @@ return K.Level({
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="66">
+      <Item class="ModuleScript" referent="67">
         <Properties>
           <string name="Name">Level12</string>
           <string name="Source"><![CDATA[--[[
@@ -10094,31 +10599,31 @@ return K.Level({
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="67">
+  <Item class="SoundService" referent="68">
     <Properties>
       <string name="Name">SoundService</string>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="68">
+  <Item class="StarterPlayer" referent="69">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CharacterJumpHeight">7.2</float>
       <bool name="CharacterUseJumpPower">false</bool>
       <float name="CharacterWalkSpeed">16</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="69">
+    <Item class="StarterPlayerScripts" referent="70">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="70">
+      <Item class="Folder" referent="71">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="Folder" referent="71">
+        <Item class="Folder" referent="72">
           <Properties>
             <string name="Name">Controllers</string>
           </Properties>
-          <Item class="ModuleScript" referent="72">
+          <Item class="ModuleScript" referent="73">
             <Properties>
               <string name="Name">ClientState</string>
               <string name="Source"><![CDATA[--[[
@@ -10290,7 +10795,7 @@ return ClientState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="73">
+          <Item class="ModuleScript" referent="74">
             <Properties>
               <string name="Name">DebugController</string>
               <string name="Source"><![CDATA[--[[
@@ -10491,7 +10996,7 @@ return DebugController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="74">
+          <Item class="ModuleScript" referent="75">
             <Properties>
               <string name="Name">EffectsController</string>
               <string name="Source"><![CDATA[--[[
@@ -10623,7 +11128,7 @@ return EffectsController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="75">
+          <Item class="ModuleScript" referent="76">
             <Properties>
               <string name="Name">HudController</string>
               <string name="Source"><![CDATA[--[[
@@ -11177,7 +11682,7 @@ return HudController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="76">
+          <Item class="ModuleScript" referent="77">
             <Properties>
               <string name="Name">InputController</string>
               <string name="Source"><![CDATA[--[[
@@ -11291,7 +11796,7 @@ return InputController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="77">
+          <Item class="ModuleScript" referent="78">
             <Properties>
               <string name="Name">MenuController</string>
               <string name="Source"><![CDATA[--[[
@@ -11309,6 +11814,7 @@ local Format = require(ReplicatedStorage.Shared.Util.Format)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Progression = require(ReplicatedStorage.Shared.Progression)
 local QuestConfig = require(ReplicatedStorage.Shared.QuestConfig)
+local TitleConfig = require(ReplicatedStorage.Shared.TitleConfig)
 
 local UI = script.Parent.Parent.UI
 local Kit = require(UI.Kit)
@@ -11367,7 +11873,7 @@ function MenuController:_buildSidebar()
 		Name = "Sidebar",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 16, 0.5, 20),
-		Size = UDim2.fromOffset(230, 470),
+		Size = UDim2.fromOffset(230, 520),
 		Parent = self.Gui,
 	})
 	self.Sidebar = sidebar
@@ -11420,6 +11926,18 @@ function MenuController:_buildSidebar()
 			self:TogglePanel(panelName)
 		end)
 	end
+	Kit.Button({
+		Text = "SPECTATE",
+		Size = UDim2.fromOffset(196, 38),
+		TextSize = 15,
+		Color = C.Panel,
+		StrokeColor = C.TextDim,
+		LayoutOrder = 99,
+		Parent = list,
+	}, function()
+		self:ClosePanel()
+		self.Controllers.SpectateController:Begin()
+	end)
 	-- collapse toggle (useful on small phones)
 	self.MenuToggle = Kit.Button({
 		Text = "MENU",
@@ -11509,7 +12027,7 @@ end
 function MenuController:_buildPanels()
 	self:_panel("Play", "CHOOSE A LEVEL", C.Yellow)
 	self:_panel("Duo", "DUO MODE", C.Orange)
-	self:_panel("Shop", "DOPPELGÄNGER SKINS", C.Purple)
+	self:_panel("Shop", "SHOP", C.Purple)
 	self:_panel("Collection", "COLLECTION", C.Cyan)
 	self:_panel("Quests", "QUESTS", C.Green)
 	self:_panel("Settings", "SETTINGS", C.Text)
@@ -11568,9 +12086,9 @@ function MenuController:_fill(name: string)
 	elseif name == "Duo" then
 		self:_fillDuo(panel.Body)
 	elseif name == "Shop" then
-		self:_fillShop(panel.Body, false)
+		self:_fillShop(panel.Body)
 	elseif name == "Collection" then
-		self:_fillShop(panel.Body, true)
+		self:_fillCollection(panel.Body)
 	elseif name == "Quests" then
 		self:_fillQuests(panel.Body)
 	elseif name == "Settings" then
@@ -11793,120 +12311,223 @@ end
 -- SHOP / COLLECTION
 ---------------------------------------------------------------------------
 
-function MenuController:_fillShop(body: Instance, ownedOnly: boolean)
+local CATEGORY_LABELS = { Skin = "DOPPEL SKINS", Trail = "TRAILS", Emote = "DOPPEL EMOTES" }
+
+local function vertical(body: Instance)
+	local holder = Kit.New("Frame", {
+		Size = UDim2.new(1, -10, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = body,
+	}, { Kit.List(Enum.FillDirection.Vertical, 10) })
+	return holder
+end
+
+local function grid(parent: Instance, order: number, cell: Vector2)
+	local frame = Kit.New("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	Kit.New("UIGridLayout", {
+		CellSize = UDim2.fromOffset(cell.X, cell.Y),
+		CellPadding = UDim2.fromOffset(10, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Parent = frame,
+	})
+	return frame
+end
+
+function MenuController:_itemCard(parent: Instance, profile, id: string, index: number)
+	local item = CosmeticsConfig.Items[id]
+	local owned = profile.OwnedCosmetics[id] == true
+	local field = CosmeticsConfig.EquipField[item.Category]
+	local equipped = field ~= nil and profile[field] == id
+	local card = Kit.New("Frame", {
+		Size = UDim2.fromOffset(165, 190),
+		BackgroundColor3 = C.PanelLight,
+		LayoutOrder = index,
+		Parent = parent,
+	}, { Kit.Corner(14), Kit.Stroke(if equipped then C.Green else item.Color, 2, if equipped then 0 else 0.5) })
+	local swatch = Kit.New("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 12),
+		Size = UDim2.fromOffset(64, 64),
+		BackgroundColor3 = item.Color,
+		Parent = card,
+	}, { Kit.Corner(32) })
+	if item.Colors and #item.Colors > 1 then
+		local keypoints = {}
+		for i, color in item.Colors do
+			table.insert(keypoints, ColorSequenceKeypoint.new((i - 1) / (#item.Colors - 1), color))
+		end
+		Kit.New("UIGradient", { Color = ColorSequence.new(keypoints), Rotation = 45, Parent = swatch })
+		swatch.BackgroundColor3 = Color3.new(1, 1, 1)
+	end
+	Kit.Text({
+		Size = UDim2.fromScale(1, 1),
+		Font = Theme.Fonts.Title,
+		TextSize = 26,
+		TextColor3 = C.Background,
+		Text = string.sub(item.DisplayName, 1, 1),
+		Parent = swatch,
+	})
+	Kit.Text({
+		Position = UDim2.fromOffset(6, 82),
+		Size = UDim2.new(1, -12, 0, 22),
+		TextSize = 18,
+		Text = item.DisplayName,
+		Parent = card,
+	})
+	Kit.Text({
+		Position = UDim2.fromOffset(6, 104),
+		Size = UDim2.new(1, -12, 0, 34),
+		Font = Theme.Fonts.Body,
+		TextSize = 12,
+		TextColor3 = C.TextDim,
+		Text = item.Description,
+		Parent = card,
+	})
+	local label, color, action
+	if equipped then
+		label, color = "EQUIPPED", C.Green
+	elseif owned then
+		label, color, action = "EQUIP", C.Cyan, "Equip"
+	else
+		label = item.Price .. " COINS"
+		color = if (profile.Coins or 0) >= item.Price then C.Yellow else C.Stroke
+		action = "Buy"
+	end
+	Kit.Button({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -10),
+		Size = UDim2.new(1, -20, 0, 36),
+		Text = label,
+		TextSize = 16,
+		Color = color,
+		TextColor = C.Background,
+		Parent = card,
+	}, function()
+		if action then
+			Net.Event("ShopAction"):FireServer(action, id)
+		end
+	end)
+end
+
+function MenuController:_fillShop(body: Instance)
 	local profile = self.Controllers.ClientState.Profile
 	if not profile then
 		return
 	end
-	if ownedOnly then
-		-- a short stats header for the collection
-		local stats = profile.Stats or {}
-		local header = Kit.Text({
-			Size = UDim2.new(1, -10, 0, 50),
+	local category = self.ShopCategory or "Skin"
+	local holder = vertical(body)
+	local tabs = Kit.New("Frame", {
+		Size = UDim2.new(1, 0, 0, 46),
+		BackgroundTransparency = 1,
+		LayoutOrder = 0,
+		Parent = holder,
+	}, { Kit.List(Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Center) })
+	for index, name in CosmeticsConfig.Categories do
+		local selected = name == category
+		Kit.Button({
+			Text = CATEGORY_LABELS[name] or name,
+			Size = UDim2.fromOffset(190, 42),
 			TextSize = 16,
-			TextColor3 = C.TextDim,
-			LayoutOrder = 0,
-			Text = string.format(
-				"LEVELS CLEARED %d   ·   RIVAL WINS %d   ·   FLAWLESS %d   ·   DOPPEL PRESSES %d   ·   DEATHS %d",
-				stats.UniqueLevelsCompleted or 0,
-				stats.RivalWins or 0,
-				stats.NoDeathClears or 0,
-				stats.DoppelPresses or 0,
-				stats.Deaths or 0
-			),
-		})
-		local holder = Kit.New("Frame", {
-			Size = UDim2.new(1, -10, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			Parent = body,
-		}, { Kit.List(Enum.FillDirection.Vertical, 8) })
-		header.Parent = holder
-		local grid = Kit.New("Frame", {
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			LayoutOrder = 1,
-			Parent = holder,
-		})
-		body = grid
+			Color = if selected then C.Purple else C.PanelLight,
+			TextColor = if selected then C.Background else C.Text,
+			LayoutOrder = index,
+			Parent = tabs,
+		}, function()
+			self.ShopCategory = name
+			self:_fill("Shop")
+		end)
 	end
-	Kit.New("UIGridLayout", {
-		CellSize = UDim2.fromOffset(165, 190),
-		CellPadding = UDim2.fromOffset(10, 10),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		Parent = body,
-	})
+	local cards = grid(holder, 1, Vector2.new(165, 190))
 	for index, id in CosmeticsConfig.Order do
 		local item = CosmeticsConfig.Items[id]
-		local owned = profile.OwnedCosmetics[id] == true
-		local equipped = profile.EquippedCosmetic == id
-		if ownedOnly and not owned then
-			continue
+		if item.Category == category then
+			self:_itemCard(cards, profile, id, index)
 		end
-		local card = Kit.New("Frame", {
-			Size = UDim2.fromOffset(165, 190),
-			BackgroundColor3 = C.PanelLight,
+	end
+end
+
+function MenuController:_fillCollection(body: Instance)
+	local profile = self.Controllers.ClientState.Profile
+	if not profile then
+		return
+	end
+	local holder = vertical(body)
+	local stats = profile.Stats or {}
+	Kit.Text({
+		Size = UDim2.new(1, 0, 0, 44),
+		TextSize = 16,
+		TextColor3 = C.TextDim,
+		LayoutOrder = 0,
+		Text = string.format(
+			"LEVELS CLEARED %d   ·   RIVAL WINS %d   ·   FLAWLESS %d   ·   DOPPEL PRESSES %d   ·   DEATHS %d",
+			stats.UniqueLevelsCompleted or 0,
+			stats.RivalWins or 0,
+			stats.NoDeathClears or 0,
+			stats.DoppelPresses or 0,
+			stats.Deaths or 0
+		),
+		Parent = holder,
+	})
+
+	-- titles (earned)
+	Kit.Text({ Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Theme.Fonts.Title, TextColor3 = C.Yellow, Text = "TITLES", LayoutOrder = 1, Parent = holder })
+	local titles = grid(holder, 2, Vector2.new(220, 70))
+	for index, id in TitleConfig.Order do
+		local title = TitleConfig.Titles[id]
+		local unlocked = TitleConfig.IsUnlocked(profile, id)
+		local equipped = (profile.EquippedTitle or TitleConfig.Default) == id
+		local button = Kit.Button({
+			Text = "",
+			Size = UDim2.fromOffset(220, 70),
+			Color = if equipped then C.PanelLight:Lerp(C.Green, 0.25) else C.PanelLight,
+			StrokeColor = if unlocked then title.Color else C.Stroke,
 			LayoutOrder = index,
-			Parent = body,
-		}, { Kit.Corner(14), Kit.Stroke(if equipped then C.Green else item.Color, 2, if equipped then 0 else 0.5) })
-		local swatch = Kit.New("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 0, 12),
-			Size = UDim2.fromOffset(64, 64),
-			BackgroundColor3 = item.Color,
-			Parent = card,
-		}, { Kit.Corner(32) })
+			Parent = titles,
+		}, function()
+			if unlocked and not equipped then
+				Net.Event("ShopAction"):FireServer("EquipTitle", id)
+			end
+		end)
 		Kit.Text({
-			Size = UDim2.fromScale(1, 1),
+			Position = UDim2.fromOffset(8, 8),
+			Size = UDim2.new(1, -16, 0, 24),
 			Font = Theme.Fonts.Title,
-			TextSize = 26,
-			TextColor3 = C.Background,
-			Text = string.sub(item.DisplayName, 1, 1),
-			Parent = swatch,
-		})
-		Kit.Text({
-			Position = UDim2.fromOffset(6, 82),
-			Size = UDim2.new(1, -12, 0, 22),
 			TextSize = 18,
-			Text = item.DisplayName,
-			Parent = card,
+			TextColor3 = if unlocked then title.Color else C.TextDim,
+			Text = (if equipped then "* " else "") .. title.Text,
+			Parent = button,
 		})
 		Kit.Text({
-			Position = UDim2.fromOffset(6, 104),
-			Size = UDim2.new(1, -12, 0, 34),
+			Position = UDim2.fromOffset(8, 36),
+			Size = UDim2.new(1, -16, 0, 26),
 			Font = Theme.Fonts.Body,
 			TextSize = 12,
 			TextColor3 = C.TextDim,
-			Text = item.Description,
-			Parent = card,
+			Text = if unlocked then (if equipped then "EQUIPPED" else "Click to equip") else "LOCKED: " .. title.Description,
+			Parent = button,
 		})
-		local label, color, action
-		if equipped then
-			label, color = "EQUIPPED", C.Green
-		elseif owned then
-			label, color, action = "EQUIP", C.Cyan, "Equip"
-		else
-			label = item.Price .. " COINS"
-			color = if (profile.Coins or 0) >= item.Price then C.Yellow else C.Stroke
-			action = "Buy"
-		end
-		local button = Kit.Button({
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -10),
-			Size = UDim2.new(1, -20, 0, 36),
-			Text = label,
-			TextSize = 16,
-			Color = color,
-			TextColor = C.Background,
-			Parent = card,
-		}, function()
-			if action then
-				Net.Event("ShopAction"):FireServer(action, id)
+	end
+
+	-- owned cosmetics by category
+	local order = 3
+	for _, category in CosmeticsConfig.Categories do
+		Kit.Text({ Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Theme.Fonts.Title, TextColor3 = C.Cyan, Text = CATEGORY_LABELS[category] or category, LayoutOrder = order, Parent = holder })
+		local cards = grid(holder, order + 1, Vector2.new(165, 190))
+		order += 2
+		for index, id in CosmeticsConfig.Order do
+			local item = CosmeticsConfig.Items[id]
+			if item.Category == category and profile.OwnedCosmetics[id] then
+				self:_itemCard(cards, profile, id, index)
 			end
-		end)
-		button.AutoButtonColor = false
+		end
 	end
 end
 
@@ -12038,7 +12659,7 @@ return MenuController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="78">
+          <Item class="ModuleScript" referent="79">
             <Properties>
               <string name="Name">OverlayController</string>
               <string name="Source"><![CDATA[--[[
@@ -12558,6 +13179,17 @@ function OverlayController:ShowResults(results)
 		local row = Kit.Text({ Size = UDim2.new(1, 0, 0, 26), TextSize = 20, Font = Theme.Fonts.Title, TextColor3 = C.Green, Text = "LEVEL UP!", LayoutOrder = 99 })
 		row.Parent = self.ResultsLines
 	end
+	for index, titleText in results.NewTitles or {} do
+		local row = Kit.Text({
+			Size = UDim2.new(1, 0, 0, 24),
+			TextSize = 17,
+			Font = Theme.Fonts.Title,
+			TextColor3 = C.Yellow,
+			Text = "NEW TITLE: " .. titleText .. "  (equip it in COLLECTION)",
+			LayoutOrder = 100 + index,
+		})
+		row.Parent = self.ResultsLines
+	end
 
 	local panel = self.ResultsPanel
 	panel.Visible = true
@@ -12665,7 +13297,7 @@ return OverlayController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="79">
+          <Item class="ModuleScript" referent="80">
             <Properties>
               <string name="Name">SoundController</string>
               <string name="Source"><![CDATA[--[[
@@ -12729,8 +13361,211 @@ return SoundController
 ]]></string>
             </Properties>
           </Item>
+          <Item class="ModuleScript" referent="81">
+            <Properties>
+              <string name="Name">SpectateController</string>
+              <string name="Source"><![CDATA[--[[
+	SpectateController - SpectatorUI
+	From the lobby you can watch players that are currently inside a level
+	(the server marks them with the "InLevel" attribute). Camera only - nothing is sent to the server.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Format = require(ReplicatedStorage.Shared.Util.Format)
+
+local UI = script.Parent.Parent.UI
+local Kit = require(UI.Kit)
+local Theme = require(UI.Theme)
+
+local SpectateController = {}
+
+local C = Theme.Colors
+local player = Players.LocalPlayer
+
+function SpectateController:Init(controllers)
+	self.Controllers = controllers
+	self.Target = nil
+end
+
+function SpectateController:Start()
+	local gui = Kit.Screen("SpectatorUI", 25)
+	gui.Enabled = false
+	self.Gui = gui
+	local bar = Kit.Panel({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -24),
+		Size = UDim2.fromOffset(560, 70),
+		Parent = gui,
+	})
+	Kit.Button({ Text = "<", Size = UDim2.fromOffset(56, 50), Position = UDim2.fromOffset(10, 10), TextSize = 24, Parent = bar }, function()
+		self:Cycle(-1)
+	end)
+	Kit.Button({ Text = ">", Size = UDim2.fromOffset(56, 50), Position = UDim2.new(1, -196, 0, 10), TextSize = 24, Parent = bar }, function()
+		self:Cycle(1)
+	end)
+	Kit.Button({
+		Text = "EXIT",
+		Size = UDim2.fromOffset(120, 50),
+		Position = UDim2.new(1, -130, 0, 10),
+		Color = Color3.fromRGB(120, 40, 50),
+		Parent = bar,
+	}, function()
+		self:Stop()
+	end)
+	Kit.Text({
+		Position = UDim2.fromOffset(76, 8),
+		Size = UDim2.new(1, -282, 0, 18),
+		TextSize = 13,
+		TextColor3 = C.TextDim,
+		Text = "SPECTATING",
+		Parent = bar,
+	})
+	self.NameText = Kit.Text({
+		Position = UDim2.fromOffset(76, 26),
+		Size = UDim2.new(1, -282, 0, 36),
+		Font = Theme.Fonts.Title,
+		TextSize = 22,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextWrapped = false,
+		Text = "",
+		Parent = bar,
+	})
+
+	-- stop when our own run starts, or when the target leaves the level
+	self.Controllers.ClientState.Changed:Connect(function(key)
+		if key == "Run" and self.Controllers.ClientState.Run then
+			self:Stop()
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(leaving)
+		if leaving == self.Target then
+			self:Cycle(1)
+		end
+	end)
+end
+
+function SpectateController:GetTargets(): { Player }
+	local list = {}
+	for _, other in Players:GetPlayers() do
+		if other ~= player and other:GetAttribute("InLevel") ~= nil then
+			table.insert(list, other)
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.UserId < b.UserId
+	end)
+	return list
+end
+
+function SpectateController:IsActive(): boolean
+	return self.Target ~= nil
+end
+
+function SpectateController:Begin(): boolean
+	local targets = self:GetTargets()
+	if #targets == 0 then
+		self.Controllers.HudController:Toast("Nobody is playing a level right now.", "Info")
+		return false
+	end
+	self:_watch(targets[1])
+	return true
+end
+
+function SpectateController:Cycle(direction: number)
+	local targets = self:GetTargets()
+	if #targets == 0 then
+		self:Stop()
+		return
+	end
+	local index = table.find(targets, self.Target :: Player) or 0
+	index = ((index - 1 + direction) % #targets) + 1
+	self:_watch(targets[index])
+end
+
+function SpectateController:_watch(target: Player)
+	self.Target = target
+	if self.LevelConnection then
+		self.LevelConnection:Disconnect()
+	end
+	self.LevelConnection = target:GetAttributeChangedSignal("InLevel"):Connect(function()
+		if target:GetAttribute("InLevel") == nil then
+			task.defer(function()
+				self:Cycle(1)
+			end)
+		else
+			self:_refreshName()
+		end
+	end)
+	self:_refreshName()
+	self.Gui.Enabled = true
+	self.Controllers.MenuController:ClosePanel()
+	self:_follow()
+	if self.CharacterConnection then
+		self.CharacterConnection:Disconnect()
+	end
+	self.CharacterConnection = target.CharacterAdded:Connect(function()
+		task.wait(0.1)
+		if self.Target == target then
+			self:_follow()
+		end
+	end)
+end
+
+function SpectateController:_refreshName()
+	local target = self.Target
+	if not target then
+		return
+	end
+	local levelId = target:GetAttribute("InLevel")
+	local entry = levelId and self.Controllers.ClientState.CatalogById[levelId]
+	self.NameText.Text = string.format(
+		"%s  ·  LEVEL %s %s",
+		target.DisplayName,
+		if levelId then Format.LevelNumber(levelId) else "--",
+		if entry then entry.Name else ""
+	)
+end
+
+function SpectateController:_follow()
+	local camera = Workspace.CurrentCamera
+	local target = self.Target
+	local character = target and target.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if camera and humanoid then
+		camera.CameraSubject = humanoid
+	end
+end
+
+function SpectateController:Stop()
+	self.Target = nil
+	if self.LevelConnection then
+		self.LevelConnection:Disconnect()
+		self.LevelConnection = nil
+	end
+	if self.CharacterConnection then
+		self.CharacterConnection:Disconnect()
+		self.CharacterConnection = nil
+	end
+	if self.Gui then
+		self.Gui.Enabled = false
+	end
+	local camera = Workspace.CurrentCamera
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if camera and humanoid then
+		camera.CameraSubject = humanoid
+	end
+end
+
+return SpectateController
+]]></string>
+            </Properties>
+          </Item>
         </Item>
-        <Item class="LocalScript" referent="80">
+        <Item class="LocalScript" referent="82">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -12751,6 +13586,7 @@ local ORDER = {
 	"OverlayController",
 	"MenuController",
 	"EffectsController",
+	"SpectateController",
 	"DebugController",
 }
 
@@ -12792,11 +13628,11 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="81">
+        <Item class="Folder" referent="83">
           <Properties>
             <string name="Name">UI</string>
           </Properties>
-          <Item class="ModuleScript" referent="82">
+          <Item class="ModuleScript" referent="84">
             <Properties>
               <string name="Name">Kit</string>
               <string name="Source"><![CDATA[--[[
@@ -13019,7 +13855,7 @@ return Kit
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="83">
+          <Item class="ModuleScript" referent="85">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -13068,13 +13904,13 @@ return Theme
       </Item>
     </Item>
   </Item>
-  <Item class="TextChatService" referent="84">
+  <Item class="TextChatService" referent="86">
     <Properties>
       <string name="Name">TextChatService</string>
       <token name="ChatVersion">1</token>
     </Properties>
   </Item>
-  <Item class="Workspace" referent="85">
+  <Item class="Workspace" referent="87">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-500</float>

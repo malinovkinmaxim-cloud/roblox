@@ -70,6 +70,7 @@ function LeaderboardService:Start()
 					break
 				end
 			end
+			self.Services.LobbyService:UpdateBoard(self.Bests)
 			task.wait(Config.LEADERBOARD_REFRESH)
 		end
 	end)
@@ -109,6 +110,7 @@ function LeaderboardService:Submit(player: Player, levelId: number, time: number
 	local current = self.Bests[levelId]
 	if not current or time < current.Time then
 		self.Bests[levelId] = { Time = time, UserId = player.UserId, Name = player.DisplayName }
+		self.Services.LobbyService:UpdateBoard(self.Bests)
 	end
 	task.spawn(function()
 		local store = getStore(levelId)
