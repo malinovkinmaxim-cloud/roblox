@@ -375,15 +375,70 @@ function HatchController:PlayHatch(payload)
 			table.insert(pets, r.Id)
 		end
 	end
-	if #pets > 0 then
+	if #pets == 0 then
+		return
+	end
+	if payload.Auto then
+		-- one-button mode: never block the screen (you keep tapping), a card slides in instead
+		for _, id in pets do
+			self:QuickReveal(id)
+		end
+	else
 		self:Enqueue(pets, egg, payload.Fast == true)
 	end
+end
+
+-- Non-blocking "NEW PET!" card on the right side of the screen
+function HatchController:QuickReveal(petId: string)
+	local def = PetConfig.Pets[petId]
+	local rarity = PetConfig.Rarities[def.Rarity]
+	self.Cards = self.Cards or {}
+	local card = Kit.Panel({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 200 + #self.Cards * 128),
+		Size = UDim2.fromOffset(290, 118),
+		BackgroundColor3 = Theme.Colors.PanelDark,
+		Parent = self.EggRoot,
+	})
+	local stroke = card:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = if def.Rarity == "Secret" then Color3.fromRGB(255, 90, 230) else rarity.Color
+	end
+	table.insert(self.Cards, card)
+	petViewport(card, petId, UDim2.fromOffset(106, 106), UDim2.fromOffset(58, 59))
+	Kit.Label({ Position = UDim2.fromOffset(112, 8), Size = UDim2.new(1, -120, 0, 24), Text = "🐾 NEW PET!", TextColor3 = Theme.Colors.Yellow, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+	Kit.Label({ Position = UDim2.fromOffset(112, 34), Size = UDim2.new(1, -120, 0, 28), Text = def.Name, Font = Theme.Fonts.Title, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+	Kit.Label({
+		Position = UDim2.fromOffset(112, 64),
+		Size = UDim2.new(1, -120, 0, 22),
+		Text = string.upper(def.Rarity) .. "  " .. Format.Mult(def.Mult),
+		TextColor3 = if def.Rarity == "Secret" then Color3.fromRGB(255, 90, 230) else rarity.Color,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = card,
+	})
+	Kit.Pop(card, 0.2)
+	self.Controllers.SoundController:Play(rarity.Sound)
+	if rarity.Order >= PetConfig.Rarities.Legendary.Order then
+		self.Controllers.EffectsController:Celebrate(2)
+		self.Controllers.CameraController:Shake(if def.Rarity == "Secret" then 1.5 else 0.8, 0.6)
+	end
+	task.delay(if rarity.Order >= PetConfig.Rarities.Legendary.Order then 4 else 2.6, function()
+		local index = table.find(self.Cards, card)
+		if index then
+			table.remove(self.Cards, index)
+		end
+		card:Destroy()
+	end)
 end
 
 -- a pet from a reward (daily, playtime gift, chest): reveal without an egg
 function HatchController:ShowReward(petId: string)
 	if PetConfig.Pets[petId] then
-		self:Enqueue({ petId }, nil, false)
+		if self.Controllers.ClientData:Setting("OneButton") then
+			self:QuickReveal(petId)
+		else
+			self:Enqueue({ petId }, nil, false)
+		end
 	end
 end
 

@@ -181,7 +181,7 @@ function Growth.BuyUpgrade(session, kind: any): (boolean, string?)
 		data.Tutorial = 2
 	end
 	Session.MarkDirty(session, "Stats", "Rates")
-	Session.Effect(session, "Upgrade", { Kind = kind })
+	Session.Effect(session, "Upgrade", { Kind = kind, Level = data[field] })
 	return true
 end
 
@@ -202,7 +202,7 @@ function Growth.BuyGemUpgrade(session, id: any): (boolean, string?)
 	data.Gem[id] = level + 1
 	session.PetMultCache = nil
 	Session.MarkDirty(session, "Stats", "Rates", "Pets")
-	Session.Effect(session, "Upgrade", { Kind = id })
+	Session.Effect(session, "Upgrade", { Kind = id, Level = level + 1 })
 	return true
 end
 

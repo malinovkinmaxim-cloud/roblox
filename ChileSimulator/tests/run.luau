@@ -36,6 +36,7 @@ local Pets = H.Require("ServerScriptService.Server.Logic.Pets")
 local Boosts = H.Require("ServerScriptService.Server.Logic.Boosts")
 local Rewards = H.Require("ServerScriptService.Server.Logic.Rewards")
 local Mults = H.Require("ServerScriptService.Server.Logic.Mults")
+local AutoPlay = H.Require("ServerScriptService.Server.Logic.AutoPlay")
 
 local NOW = 1_780_000_000 -- a fixed unix time
 
@@ -520,7 +521,8 @@ Test("equip limit and equip best", function()
 	Eq(#Pets.EquippedList(s), 3)
 	Pets.EquipBest(s)
 	local mult = Pets.Multiplier(s)
-	Near(mult, 1 + (5 - 1) + (2 - 1) + (1.5 - 1), 1e-9)
+	local P = PetConfig.Pets
+	Near(mult, 1 + (P.GoldenChick.Mult - 1) + (P.Piggy.Mult - 1) + (P.Bunny.Mult - 1), 1e-9)
 	local uid = Pets.EquippedList(s)[1]
 	Eq((Pets.Equip(s, uid, false)), true)
 	Eq(#Pets.EquippedList(s), 2)
@@ -650,7 +652,8 @@ end)
 Test("event multipliers apply to taps", function()
 	local s = newSession()
 	local _, gain = Growth.Tap(s, 1, world(EventConfig.Events.MegaGrowth), 0)
-	Eq(gain, 10)
+	Eq(gain, EventConfig.Events.MegaGrowth.Height)
+	Expect(gain > 1)
 	local s2 = newSession()
 	Growth.Tap(s2, 1, world(EventConfig.Events.DoubleTap), 0)
 	Eq(s2.Data.Taps, 2)
@@ -665,6 +668,102 @@ Test("zone multiplier only counts through the verified zone index", function()
 end)
 
 ---------------------------------------------------------------------------
+H.Section("one-button mode (autopilot)")
+---------------------------------------------------------------------------
+Test("one-button mode is on by default and can be turned off", function()
+	local s = newSession()
+	Expect(AutoPlay.Enabled(s))
+	s.Data.Settings.OneButton = false
+	s.Data.Coins = 1e9
+	Eq(AutoPlay.Tick(s, world(), H.Random.new(1), 0), nil)
+	Eq(s.Data.TapLevel, 1, "nothing bought when off")
+end)
+
+Test("autopilot buys the best upgrades with the coins you have", function()
+	local s = newSession()
+	s.Data.Coins = Formulas.TapCost(1) + 5
+	AutoPlay.BuyUpgrades(s)
+	Eq(s.Data.TapLevel, 2, "first coins go to TAP POWER")
+	s.Data.Coins = 1e7
+	local bought = AutoPlay.BuyUpgrades(s)
+	Expect(bought >= 3 and s.Data.AutoLevel >= 1, "bought " .. bought)
+	Expect(s.Data.Coins >= 0)
+end)
+
+Test("autopilot never spends what you don't have", function()
+	local s = newSession()
+	s.Data.Coins = 3
+	Eq(AutoPlay.BuyUpgrades(s), 0)
+	Eq(AutoPlay.BuyGemUpgrades(s), 0)
+	Eq(s.Data.Coins, 3)
+end)
+
+Test("autopilot spends gems on permanent upgrades", function()
+	local s = newSession()
+	s.Data.Gems = 100
+	Expect(AutoPlay.BuyGemUpgrades(s) >= 1)
+	Expect(s.Data.Gems < 100 and s.Data.Gems >= 0)
+end)
+
+Test("autopilot claims daily, gifts and finished quests", function()
+	local s = newSession(0)
+	local rng = H.Random.new(3)
+	AutoPlay.ClaimRewards(s, world(), rng, 1)
+	Eq(s.Data.Daily.Streak, 1, "daily claimed")
+	Eq(s.PlaytimeClaimed[1], nil, "no gift before 5 minutes")
+	AutoPlay.ClaimRewards(s, world(), rng, 5 * 60 + 1)
+	Eq(s.PlaytimeClaimed[1], true, "5 minute gift")
+	s.Data.Quests.Progress.Taps = 1000
+	AutoPlay.ClaimRewards(s, world(), rng, 5 * 60 + 2)
+	Eq(s.Data.Quests.Claimed.Taps, true, "quest claimed")
+	local streak = s.Data.Daily.Streak
+	AutoPlay.ClaimRewards(s, world(), rng, 400)
+	Eq(s.Data.Daily.Streak, streak, "never claims twice")
+end)
+
+Test("autopilot activates boosts, one of each kind at a time", function()
+	local s = newSession()
+	Boosts.Add(s, "Height2x", 2)
+	Boosts.Add(s, "Coins2x", 1)
+	Eq(AutoPlay.UseBoosts(s), 2)
+	Eq(s.Data.Boosts.Inventory.Height2x, 1, "second 2x Height waits")
+	Eq(AutoPlay.UseBoosts(s), 0, "already active")
+end)
+
+Test("autopilot: a quarter of the income is saved for eggs, the rest buys upgrades", function()
+	local s = newSession()
+	local rng = H.Random.new(9)
+	s.Data.Coins = 1e9
+	Eq(AutoPlay.Hatch(s, rng, 0), nil, "nothing saved for eggs yet")
+	s.EggBudget = 50 -- the Basic egg costs 100
+	Eq(AutoPlay.Hatch(s, rng, 10), nil, "not enough saved")
+	s.EggBudget = 250
+	local results = AutoPlay.Hatch(s, rng, 20)
+	Expect(results and #results == 1, "hatched")
+	Near(s.EggBudget, 150, 1e-9)
+	Eq(AutoPlay.Hatch(s, rng, 21), nil, "rate limited")
+	-- upgrades never spend the egg savings
+	s.Data.Coins, s.EggBudget = 1000, 990
+	Eq(AutoPlay.BestUpgrade(s), nil)
+	-- income is split 25 / 75
+	s.EggBudget = 0
+	s.CoinsSeen = s.Data.Coins
+	s.Data.Coins += 1000
+	AutoPlay.Tick(s, world(), rng, 22)
+	Near(s.EggBudget, 1000 * AutoPlay.EGG_SHARE, 1e-9)
+	Expect(s.Data.TapLevel > 1, "the rest bought upgrades")
+	-- full storage: weakest unequipped common is deleted to make room
+	s.EggBudget = 1e6
+	s.Data.Coins = 1e6
+	for _ = 1, Pets.Capacity(s) - Pets.Count(s) do
+		Pets.Give(s, "Doggy")
+	end
+	Eq(Pets.Count(s), Pets.Capacity(s))
+	Expect(AutoPlay.Hatch(s, rng, 100), "hatch when full")
+	Eq(Pets.Count(s), Pets.Capacity(s), "storage stays at capacity")
+end)
+
+---------------------------------------------------------------------------
 H.Section("balance")
 ---------------------------------------------------------------------------
 _G.BALANCE_QUIET = true
@@ -675,6 +774,27 @@ Test("first minutes: upgrade < 15 s, 10 m < 90 s, first rebirth 2-5 min", functi
 	Expect(r.Reach[10] and r.Reach[10] <= 90, "10 m at " .. tostring(r.Reach[10]))
 	Expect(r.FirstRebirth and r.FirstRebirth >= 120 and r.FirstRebirth <= 300, "rebirth at " .. tostring(r.FirstRebirth))
 	Expect(r.Reach[1e3] and r.Reach[1e3] <= 15 * 60, "1K m at " .. tostring(r.Reach[1e3]))
+end)
+
+-- the one-button player: real server logic with pets, boosts, rewards, events and the autopilot
+local FullSim = require("./balance_full")
+Test("full economy: faster than bare tapping, but never snowballs", function()
+	local base = Sim.Run(6, 300, false)
+	for seed = 1, 3 do
+		local r = FullSim.Run(300, 6, seed, false)
+		local reach = r.Reach
+		local label = " (seed " .. seed .. ")"
+		Expect(reach[1e3] and reach[1e3] <= 8 * 60, "1K m at " .. tostring(reach[1e3]) .. label)
+		Expect(reach[1e6] and reach[1e6] >= 6 * 60 and reach[1e6] <= 40 * 60, "1M m at " .. tostring(reach[1e6]) .. label)
+		Expect(reach[1e6] < base.Reach[1e6], "extras help" .. label)
+		Expect(reach[1e9] and reach[1e9] >= 25 * 60 and reach[1e9] <= 120 * 60, "1B m (Galaxy) at " .. tostring(reach[1e9]) .. label)
+		Expect(not reach[1e12] or reach[1e12] >= 60 * 60, "1T m at " .. tostring(reach[1e12]) .. label)
+		Expect(not reach[1e15], "1Qa m within 5 hours" .. label)
+		local rebirths = r.Session.Data.Rebirths
+		Expect(rebirths >= 10 and rebirths <= 30, rebirths .. " rebirths in 5 hours" .. label)
+		local gap = FullSim.MinGap(r, 30 * 60)
+		Expect(gap >= 120, "rebirths only " .. gap .. " s apart after 30 min" .. label)
+	end
 end)
 
 if not H.Finish() then

@@ -30,6 +30,7 @@ local Boosts = require(Logic.Boosts)
 local Pets = require(Logic.Pets)
 local Rewards = require(Logic.Rewards)
 local Mults = require(Logic.Mults)
+local AutoPlay = require(Logic.AutoPlay)
 local Guard = require(script.Parent.Parent.Util.Guard)
 
 local TICK = 1
@@ -305,6 +306,32 @@ function PlayerService:Tick(dt: number)
 		Boosts.Tick(session, dt)
 		Growth.Tick(session, dt, world, clock)
 		session.Data.Stats.PlayTime += dt
+		if AutoPlay.Enabled(session) then
+			self:AutoPlay(player, session, world, clock)
+		end
+	end
+end
+
+-- ONE-BUTTON MODE: upgrades, gems, rewards, boosts and eggs happen by themselves, and a
+-- newly unlocked world (or the best world on join) is where you get moved to.
+function PlayerService:AutoPlay(player: Player, session, world, clock: number)
+	local results = AutoPlay.Tick(session, world, self.Rng, clock)
+	if results then
+		self.Services.PetService:AnnounceHatch(player, session, results)
+	end
+	local best = ZoneConfig.HighestUnlocked(session.Data.BestHeight)
+	if best > (session.AutoZone or 0) then
+		if best > session.ZoneIndex then
+			if self.Services.WorldService:Teleport(player, best) then
+				session.AutoZone = best
+				session.ZoneIndex = best
+				session.AttrDirty = true
+				Session.MarkDirty(session, "Rates")
+				Session.Effect(session, "Teleported", { Zone = best })
+			end
+		else
+			session.AutoZone = best
+		end
 	end
 end
 

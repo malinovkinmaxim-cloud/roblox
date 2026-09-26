@@ -100,16 +100,21 @@ function TutorialController:Step()
 		self:Hide()
 		return
 	end
+	local oneButton = hud:IsOneButton()
 	if step <= 1 then
 		if stats.Taps < 10 then
 			self:PointAt(hud.TapButton, "TAP TO GROW! 👆")
+		elseif oneButton then
+			self:PointAt(hud.TapButton, "Just keep tapping - upgrades are automatic!")
 		elseif hud.CanUpgrade then
 			self:PointAt(hud.TapUpgrade, "Buy TAP POWER to grow faster!")
 		else
 			self:PointAt(hud.TapButton, "Keep tapping to earn 🪙 coins!")
 		end
 	elseif step == 2 then
-		if hud.RebirthReady then
+		if oneButton and hud:IsRebirthArmed() then
+			self:PointAt(hud.TapButton, "♻️ The button turned purple: TAP TO REBIRTH!")
+		elseif not oneButton and hud.RebirthReady then
 			self:PointAt(hud.RebirthButton, "♻️ REBIRTH NOW for x2 GROWTH!")
 		else
 			self:PointAt(hud.RebirthBar.Frame, "Reach 100 m to REBIRTH!")
@@ -118,7 +123,7 @@ function TutorialController:Step()
 		if not self.FinalShownAt then
 			self.FinalShownAt = os.clock()
 		end
-		self:PointAt(hud.TapButton, "x2 GROWTH! Now become MUCH taller 🚀")
+		self:PointAt(hud.TapButton, if oneButton then "x2 GROWTH! Keep tapping - the rest is automatic 🚀" else "x2 GROWTH! Now become MUCH taller 🚀")
 		if os.clock() - self.FinalShownAt > 7 then
 			data:Fire("Tutorial", 4)
 			self.Done = true

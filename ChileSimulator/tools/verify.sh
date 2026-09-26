@@ -17,6 +17,7 @@ else
 fi
 echo "== unit tests";     lune run tests/run.luau
 echo "== end-to-end";     lune run tests/e2e.luau
+echo "== one button";     lune run tests/e2e_onebutton.luau
 echo "== studio offline"; lune run tests/e2e_offline.luau
 echo "== soak (5 min)";   lune run tests/soak.luau 5
 echo "== build";          rojo build default.project.json -o ChileSimulator.rbxlx

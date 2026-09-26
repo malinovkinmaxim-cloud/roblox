@@ -65,8 +65,8 @@ Start as a flat little guy, end as a pole taller than the clouds.
 
 **Для событий / обновлений**
 ```
-🚀 MEGA GROWTH events every few minutes: x10 growth for everyone!
-🐜 TINY MODE: everyone is tiny... but growth x100!
+🚀 MEGA GROWTH events every few minutes: x5 growth for everyone!
+🐜 TINY MODE: everyone is tiny... but growth x25!
 🗿 GIANT MODE: everyone is HUGE!
 📏 Tap to grow • 🔥 Rebirth • 🐾 Pets • 🏆 Leaderboards
 ```

@@ -34,6 +34,11 @@ export type Session = {
 	Percentile: number?,
 	Leaving: boolean?,
 	Released: boolean?,
+	NextAutoHatch: number?,
+	AutoZone: number?, -- one-button mode: highest zone we already moved the player to
+	EggBudget: number?, -- one-button mode: coins set aside for eggs
+	CoinsSeen: number?, -- one-button mode: coins at the end of the last autopilot tick
+	IncomeRate: number?, -- one-button mode: smoothed coins per second
 }
 
 function Session.new(userId: number, name: string, data: any, clock: number): Session

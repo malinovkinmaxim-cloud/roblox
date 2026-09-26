@@ -289,14 +289,17 @@ Config.Tap = {
 -- Coins
 ---------------------------------------------------------------------------
 Config.Coins = {
-	-- coins per tap = PerTapBase * (height gained by the tap in cm) ^ GainExponent
-	--                 * coin multipliers * heightBonus
+	-- coins per tap = PerTapBase * (tap power * rebirth * zone * gem bonus * extra ^ ExtraShare)
+	--                   ^ GainExponent * coin multipliers * heightBonus
 	PerTapBase = 1,
 	GainExponent = 0.8,
 	-- taller = richer: heightBonus = 1 + HeightBonusPerDecade * log10(1 + height in metres)
 	HeightBonusPerDecade = 0.3,
 	-- auto growth pays this fraction of what the same growth would pay when tapped
 	AutoCoinFactor = 0.3,
+	-- pets / boosts / events / passes multiply growth fully, but count for coins only as
+	-- multiplier ^ ExtraShare (x10 growth -> x2 in the coin formula), so they can't snowball
+	ExtraShare = 0.3,
 }
 
 ---------------------------------------------------------------------------
@@ -309,9 +312,9 @@ Config.Upgrades = {
 		MaxLevel = 150,
 		BaseCost = 40,
 		-- level n+1 costs (RatioStart - RatioDecay * n) times more than level n, never below RatioMin
-		RatioStart = 6,
+		RatioStart = 6.3,
 		RatioDecay = 0.3,
-		RatioMin = 2.3,
+		RatioMin = 2.5,
 	},
 	AutoGrow = {
 		Name = "AUTO GROW",
@@ -320,7 +323,7 @@ Config.Upgrades = {
 		BaseCost = 150,
 		RatioStart = 6.4,
 		RatioDecay = 0.3,
-		RatioMin = 2.5,
+		RatioMin = 2.7,
 	},
 }
 
@@ -330,9 +333,9 @@ Config.Upgrades = {
 Config.Rebirth = {
 	BaseCost = 10000, -- first rebirth: cm = 100 m
 	-- rebirth i+1 costs RatioStart - RatioDecay * i times more than rebirth i (never below RatioMin)
-	RatioStart = 8,
-	RatioDecay = 0.5,
-	RatioMin = 1.8,
+	RatioStart = 10,
+	RatioDecay = 0.45,
+	RatioMin = 2.4,
 	-- multiplier = round(1 + r + Quadratic * r^2): R1 x2, R2 x3, R3 x5, R10 x21, R100 x1101
 	Quadratic = 0.1,
 	-- gems for rebirth number r (1-based): Base + PerRebirth * r
@@ -672,18 +675,18 @@ EventConfig.Events = {
 	MegaGrowth = {
 		Name = "MEGA GROWTH",
 		Icon = "🚀",
-		Text = "Everyone gets x10 GROWTH!",
+		Text = "Everyone gets x5 GROWTH!",
 		Duration = 60,
-		Height = 10,
+		Height = 5,
 		Weight = 30,
 		Color = Color3.fromRGB(80, 230, 120),
 	},
 	GoldenMinute = {
 		Name = "GOLDEN MINUTE",
 		Icon = "🪙",
-		Text = "x5 COINS for everyone!",
+		Text = "x3 COINS for everyone!",
 		Duration = 60,
-		Coins = 5,
+		Coins = 3,
 		Weight = 25,
 		Color = Color3.fromRGB(255, 205, 50),
 	},
@@ -700,9 +703,9 @@ EventConfig.Events = {
 	TinyMode = {
 		Name = "TINY MODE",
 		Icon = "🐜",
-		Text = "Everyone is tiny... but GROWTH x100!",
+		Text = "Everyone is tiny... but GROWTH x25!",
 		Duration = 20,
-		Height = 100,
+		Height = 25,
 		Visual = "Tiny",
 		Weight = 10,
 		Color = Color3.fromRGB(120, 200, 255),
@@ -875,6 +878,8 @@ export type MultState = {
 export type Multipliers = {
 	TapHeight: number, -- multiplier on tap growth
 	AutoHeight: number, -- multiplier on auto growth
+	TapCoinGrowth: number, -- the part of TapHeight that also counts for coins (see TapCoins)
+	AutoCoinGrowth: number,
 	Coins: number, -- multiplier on coins
 	Rebirth: number,
 	Zone: number,
@@ -895,8 +900,10 @@ function Formulas.Multipliers(state: MultState): Multipliers
 	local pet = Num.Sanitize(state.PetMult or 1, 1)
 	local vip = if passes.VIP then ShopConfig.VIPMultiplier else 1
 
-	local common = Num.Product({
-		zone,
+	-- "extra" growth: pets, boosts, events, passes. It multiplies growth fully but counts for
+	-- coins only as extra ^ Coins.ExtraShare - otherwise every extra would also buy upgrades
+	-- faster and snowball (a x15 pet team would end up as x10,000,000 an hour later).
+	local extra = Num.Product({
 		pet,
 		state.BoostHeight or 1,
 		state.EventHeight or 1,
@@ -904,8 +911,9 @@ function Formulas.Multipliers(state: MultState): Multipliers
 		vip,
 		if state.VIPArea then ShopConfig.VIPAreaBonus else 1,
 	})
-	local tapHeight = Num.Product({ common, rebirth, gemBonus(state, "TapBonus") })
-	local autoHeight = Num.Product({ common, rebirth, gemBonus(state, "AutoBonus") })
+	local tapCore = Num.Product({ zone, rebirth, gemBonus(state, "TapBonus") })
+	local autoCore = Num.Product({ zone, rebirth, gemBonus(state, "AutoBonus") })
+	local extraForCoins = Num.Sanitize(extra ^ Config.Coins.ExtraShare, 1)
 
 	-- coin-only multipliers; growth multipliers reach coins through the tap gain (see TapCoins)
 	local coins = Num.Product({
@@ -917,8 +925,10 @@ function Formulas.Multipliers(state: MultState): Multipliers
 	})
 
 	return {
-		TapHeight = tapHeight,
-		AutoHeight = autoHeight,
+		TapHeight = Num.Mul(tapCore, extra),
+		AutoHeight = Num.Mul(autoCore, extra),
+		TapCoinGrowth = Num.Mul(tapCore, extraForCoins),
+		AutoCoinGrowth = Num.Mul(autoCore, extraForCoins),
 		Coins = coins,
 		Rebirth = rebirth,
 		Zone = zone,
@@ -950,7 +960,7 @@ function Formulas.CoinsFromGain(gain: number, mults: Multipliers, heightCm: numb
 end
 
 function Formulas.TapCoins(tapLevel: number, mults: Multipliers, heightCm: number): number
-	return Formulas.CoinsFromGain(Formulas.TapGain(tapLevel, mults), mults, heightCm)
+	return Formulas.CoinsFromGain(Num.Mul(Formulas.TapPower(tapLevel), mults.TapCoinGrowth), mults, heightCm)
 end
 
 -- Auto growth (cm) per second
@@ -960,7 +970,7 @@ end
 
 -- Auto coins per second (a fraction of what the same growth would pay when tapped)
 function Formulas.AutoCoins(autoLevel: number, mults: Multipliers, heightCm: number): number
-	local gain = Formulas.AutoGain(autoLevel, mults)
+	local gain = Num.Mul(Formulas.AutoRate(autoLevel), mults.AutoCoinGrowth)
 	if gain <= 0 then
 		return 0
 	end
@@ -1140,40 +1150,40 @@ PetConfig.MaxHatchCount = 3 -- hatch 1 or 3 at once
 -- Ears: "Pointy" | "Floppy" | "Long" | "Round" | "None";  Extra: "Horn" | "Wings" | "Halo" | "Antenna" | "Ring" | "Beak" | nil
 PetConfig.Pets = {
 	-- Basic Egg --------------------------------------------------------------
-	Doggy = { Name = "Doggy", Rarity = "Common", Mult = 1.1, Look = { Body = Color3.fromRGB(210, 160, 110), Accent = Color3.fromRGB(120, 80, 50), Ears = "Floppy" } },
-	Kitty = { Name = "Kitty", Rarity = "Common", Mult = 1.15, Look = { Body = Color3.fromRGB(255, 170, 90), Accent = Color3.fromRGB(255, 240, 220), Ears = "Pointy" } },
-	Bunny = { Name = "Bunny", Rarity = "Rare", Mult = 1.5, Look = { Body = Color3.fromRGB(245, 245, 250), Accent = Color3.fromRGB(255, 160, 190), Ears = "Long" } },
-	Piggy = { Name = "Piggy", Rarity = "Epic", Mult = 2, Look = { Body = Color3.fromRGB(255, 160, 185), Accent = Color3.fromRGB(230, 110, 150), Ears = "Pointy", Snout = true } },
-	GoldenChick = { Name = "Golden Chick", Rarity = "Legendary", Mult = 5, Look = { Body = Color3.fromRGB(255, 215, 60), Accent = Color3.fromRGB(255, 140, 20), Ears = "None", Extra = "Beak", Neon = true } },
-	RainbowFox = { Name = "Rainbow Fox", Rarity = "Mythic", Mult = 10, Look = { Body = Color3.fromRGB(255, 90, 160), Accent = Color3.fromRGB(90, 220, 255), Ears = "Pointy", Rainbow = true, Neon = true } },
-	TallNoob = { Name = "Tall Noob", Rarity = "Secret", Mult = 25, Look = { Body = Color3.fromRGB(245, 205, 50), Accent = Color3.fromRGB(40, 110, 220), Ears = "None", Tall = true, Sparkle = true } },
+	Doggy = { Name = "Doggy", Rarity = "Common", Mult = 1.05, Look = { Body = Color3.fromRGB(210, 160, 110), Accent = Color3.fromRGB(120, 80, 50), Ears = "Floppy" } },
+	Kitty = { Name = "Kitty", Rarity = "Common", Mult = 1.08, Look = { Body = Color3.fromRGB(255, 170, 90), Accent = Color3.fromRGB(255, 240, 220), Ears = "Pointy" } },
+	Bunny = { Name = "Bunny", Rarity = "Rare", Mult = 1.2, Look = { Body = Color3.fromRGB(245, 245, 250), Accent = Color3.fromRGB(255, 160, 190), Ears = "Long" } },
+	Piggy = { Name = "Piggy", Rarity = "Epic", Mult = 1.35, Look = { Body = Color3.fromRGB(255, 160, 185), Accent = Color3.fromRGB(230, 110, 150), Ears = "Pointy", Snout = true } },
+	GoldenChick = { Name = "Golden Chick", Rarity = "Legendary", Mult = 2, Look = { Body = Color3.fromRGB(255, 215, 60), Accent = Color3.fromRGB(255, 140, 20), Ears = "None", Extra = "Beak", Neon = true } },
+	RainbowFox = { Name = "Rainbow Fox", Rarity = "Mythic", Mult = 3.5, Look = { Body = Color3.fromRGB(255, 90, 160), Accent = Color3.fromRGB(90, 220, 255), Ears = "Pointy", Rainbow = true, Neon = true } },
+	TallNoob = { Name = "Tall Noob", Rarity = "Secret", Mult = 10, Look = { Body = Color3.fromRGB(245, 205, 50), Accent = Color3.fromRGB(40, 110, 220), Ears = "None", Tall = true, Sparkle = true } },
 
 	-- Big Egg ----------------------------------------------------------------
-	Bear = { Name = "Bear", Rarity = "Common", Mult = 1.5, Look = { Body = Color3.fromRGB(140, 95, 60), Accent = Color3.fromRGB(90, 60, 40), Ears = "Round" } },
-	Panda = { Name = "Panda", Rarity = "Common", Mult = 1.6, Look = { Body = Color3.fromRGB(245, 245, 245), Accent = Color3.fromRGB(30, 30, 35), Ears = "Round" } },
-	Penguin = { Name = "Penguin", Rarity = "Rare", Mult = 2.5, Look = { Body = Color3.fromRGB(40, 45, 60), Accent = Color3.fromRGB(255, 170, 40), Ears = "None", Extra = "Beak" } },
-	Fox = { Name = "Fox", Rarity = "Epic", Mult = 4, Look = { Body = Color3.fromRGB(255, 120, 40), Accent = Color3.fromRGB(255, 245, 235), Ears = "Pointy" } },
-	Unicorn = { Name = "Unicorn", Rarity = "Legendary", Mult = 10, Look = { Body = Color3.fromRGB(255, 240, 255), Accent = Color3.fromRGB(255, 120, 220), Ears = "Pointy", Extra = "Horn", Neon = true } },
-	CrystalDragon = { Name = "Crystal Dragon", Rarity = "Mythic", Mult = 22, Look = { Body = Color3.fromRGB(120, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Ears = "Pointy", Extra = "Wings", Neon = true, Sparkle = true } },
-	StretchyCat = { Name = "Stretchy Cat", Rarity = "Secret", Mult = 60, Look = { Body = Color3.fromRGB(60, 60, 70), Accent = Color3.fromRGB(120, 255, 120), Ears = "Pointy", Tall = true, Sparkle = true } },
+	Bear = { Name = "Bear", Rarity = "Common", Mult = 1.2, Look = { Body = Color3.fromRGB(140, 95, 60), Accent = Color3.fromRGB(90, 60, 40), Ears = "Round" } },
+	Panda = { Name = "Panda", Rarity = "Common", Mult = 1.25, Look = { Body = Color3.fromRGB(245, 245, 245), Accent = Color3.fromRGB(30, 30, 35), Ears = "Round" } },
+	Penguin = { Name = "Penguin", Rarity = "Rare", Mult = 1.6, Look = { Body = Color3.fromRGB(40, 45, 60), Accent = Color3.fromRGB(255, 170, 40), Ears = "None", Extra = "Beak" } },
+	Fox = { Name = "Fox", Rarity = "Epic", Mult = 2.2, Look = { Body = Color3.fromRGB(255, 120, 40), Accent = Color3.fromRGB(255, 245, 235), Ears = "Pointy" } },
+	Unicorn = { Name = "Unicorn", Rarity = "Legendary", Mult = 4.5, Look = { Body = Color3.fromRGB(255, 240, 255), Accent = Color3.fromRGB(255, 120, 220), Ears = "Pointy", Extra = "Horn", Neon = true } },
+	CrystalDragon = { Name = "Crystal Dragon", Rarity = "Mythic", Mult = 9, Look = { Body = Color3.fromRGB(120, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Ears = "Pointy", Extra = "Wings", Neon = true, Sparkle = true } },
+	StretchyCat = { Name = "Stretchy Cat", Rarity = "Secret", Mult = 25, Look = { Body = Color3.fromRGB(60, 60, 70), Accent = Color3.fromRGB(120, 255, 120), Ears = "Pointy", Tall = true, Sparkle = true } },
 
 	-- Giant Egg --------------------------------------------------------------
-	CloudPup = { Name = "Cloud Pup", Rarity = "Common", Mult = 3, Look = { Body = Color3.fromRGB(240, 248, 255), Accent = Color3.fromRGB(170, 210, 255), Ears = "Floppy" } },
-	SkyWhale = { Name = "Sky Whale", Rarity = "Common", Mult = 3.3, Look = { Body = Color3.fromRGB(90, 150, 230), Accent = Color3.fromRGB(230, 240, 255), Ears = "None" } },
-	StormBird = { Name = "Storm Bird", Rarity = "Rare", Mult = 5, Look = { Body = Color3.fromRGB(80, 90, 130), Accent = Color3.fromRGB(255, 240, 90), Ears = "None", Extra = "Wings" } },
-	ThunderWolf = { Name = "Thunder Wolf", Rarity = "Epic", Mult = 9, Look = { Body = Color3.fromRGB(70, 80, 120), Accent = Color3.fromRGB(120, 230, 255), Ears = "Pointy", Neon = true } },
-	Angel = { Name = "Angel", Rarity = "Legendary", Mult = 22, Look = { Body = Color3.fromRGB(255, 250, 235), Accent = Color3.fromRGB(255, 220, 90), Ears = "None", Extra = "Halo", Neon = true } },
-	Phoenix = { Name = "Phoenix", Rarity = "Mythic", Mult = 50, Look = { Body = Color3.fromRGB(255, 90, 30), Accent = Color3.fromRGB(255, 220, 60), Ears = "None", Extra = "Wings", Neon = true, Sparkle = true } },
-	Titan = { Name = "Titan", Rarity = "Secret", Mult = 140, Look = { Body = Color3.fromRGB(30, 30, 35), Accent = Color3.fromRGB(255, 60, 60), Ears = "None", Tall = true, Sparkle = true } },
+	CloudPup = { Name = "Cloud Pup", Rarity = "Common", Mult = 1.6, Look = { Body = Color3.fromRGB(240, 248, 255), Accent = Color3.fromRGB(170, 210, 255), Ears = "Floppy" } },
+	SkyWhale = { Name = "Sky Whale", Rarity = "Common", Mult = 1.7, Look = { Body = Color3.fromRGB(90, 150, 230), Accent = Color3.fromRGB(230, 240, 255), Ears = "None" } },
+	StormBird = { Name = "Storm Bird", Rarity = "Rare", Mult = 2.2, Look = { Body = Color3.fromRGB(80, 90, 130), Accent = Color3.fromRGB(255, 240, 90), Ears = "None", Extra = "Wings" } },
+	ThunderWolf = { Name = "Thunder Wolf", Rarity = "Epic", Mult = 3.5, Look = { Body = Color3.fromRGB(70, 80, 120), Accent = Color3.fromRGB(120, 230, 255), Ears = "Pointy", Neon = true } },
+	Angel = { Name = "Angel", Rarity = "Legendary", Mult = 7.5, Look = { Body = Color3.fromRGB(255, 250, 235), Accent = Color3.fromRGB(255, 220, 90), Ears = "None", Extra = "Halo", Neon = true } },
+	Phoenix = { Name = "Phoenix", Rarity = "Mythic", Mult = 16, Look = { Body = Color3.fromRGB(255, 90, 30), Accent = Color3.fromRGB(255, 220, 60), Ears = "None", Extra = "Wings", Neon = true, Sparkle = true } },
+	Titan = { Name = "Titan", Rarity = "Secret", Mult = 45, Look = { Body = Color3.fromRGB(30, 30, 35), Accent = Color3.fromRGB(255, 60, 60), Ears = "None", Tall = true, Sparkle = true } },
 
 	-- Galaxy Egg -------------------------------------------------------------
-	MoonBunny = { Name = "Moon Bunny", Rarity = "Common", Mult = 8, Look = { Body = Color3.fromRGB(210, 215, 235), Accent = Color3.fromRGB(150, 160, 200), Ears = "Long" } },
-	Alien = { Name = "Alien", Rarity = "Common", Mult = 9, Look = { Body = Color3.fromRGB(120, 240, 110), Accent = Color3.fromRGB(20, 30, 20), Ears = "None", Extra = "Antenna" } },
-	RocketDog = { Name = "Rocket Dog", Rarity = "Rare", Mult = 14, Look = { Body = Color3.fromRGB(230, 230, 240), Accent = Color3.fromRGB(255, 80, 60), Ears = "Floppy", Extra = "Antenna" } },
-	Comet = { Name = "Comet", Rarity = "Epic", Mult = 25, Look = { Body = Color3.fromRGB(120, 200, 255), Accent = Color3.fromRGB(255, 255, 255), Ears = "None", Neon = true, Sparkle = true } },
-	StarGuardian = { Name = "Star Guardian", Rarity = "Legendary", Mult = 60, Look = { Body = Color3.fromRGB(255, 225, 80), Accent = Color3.fromRGB(120, 80, 255), Ears = "Pointy", Extra = "Halo", Neon = true, Sparkle = true } },
-	BlackHole = { Name = "Black Hole", Rarity = "Mythic", Mult = 150, Look = { Body = Color3.fromRGB(15, 10, 25), Accent = Color3.fromRGB(200, 90, 255), Ears = "None", Extra = "Ring", Neon = true, Sparkle = true } },
-	TheTallest = { Name = "The Tallest", Rarity = "Secret", Mult = 500, Look = { Body = Color3.fromRGB(255, 255, 255), Accent = Color3.fromRGB(255, 60, 220), Ears = "Pointy", Tall = true, Rainbow = true, Sparkle = true, Neon = true } },
+	MoonBunny = { Name = "Moon Bunny", Rarity = "Common", Mult = 2.8, Look = { Body = Color3.fromRGB(210, 215, 235), Accent = Color3.fromRGB(150, 160, 200), Ears = "Long" } },
+	Alien = { Name = "Alien", Rarity = "Common", Mult = 3, Look = { Body = Color3.fromRGB(120, 240, 110), Accent = Color3.fromRGB(20, 30, 20), Ears = "None", Extra = "Antenna" } },
+	RocketDog = { Name = "Rocket Dog", Rarity = "Rare", Mult = 4.2, Look = { Body = Color3.fromRGB(230, 230, 240), Accent = Color3.fromRGB(255, 80, 60), Ears = "Floppy", Extra = "Antenna" } },
+	Comet = { Name = "Comet", Rarity = "Epic", Mult = 7, Look = { Body = Color3.fromRGB(120, 200, 255), Accent = Color3.fromRGB(255, 255, 255), Ears = "None", Neon = true, Sparkle = true } },
+	StarGuardian = { Name = "Star Guardian", Rarity = "Legendary", Mult = 16, Look = { Body = Color3.fromRGB(255, 225, 80), Accent = Color3.fromRGB(120, 80, 255), Ears = "Pointy", Extra = "Halo", Neon = true, Sparkle = true } },
+	BlackHole = { Name = "Black Hole", Rarity = "Mythic", Mult = 38, Look = { Body = Color3.fromRGB(15, 10, 25), Accent = Color3.fromRGB(200, 90, 255), Ears = "None", Extra = "Ring", Neon = true, Sparkle = true } },
+	TheTallest = { Name = "The Tallest", Rarity = "Secret", Mult = 125, Look = { Body = Color3.fromRGB(255, 255, 255), Accent = Color3.fromRGB(255, 60, 220), Ears = "Pointy", Tall = true, Rainbow = true, Sparkle = true, Neon = true } },
 }
 
 PetConfig.Eggs = {
@@ -1197,7 +1207,7 @@ PetConfig.Eggs = {
 	{
 		Id = "Big",
 		Name = "Big Egg",
-		Cost = 1e4,
+		Cost = 1e5,
 		Zone = 2,
 		Color = Color3.fromRGB(150, 220, 120),
 		Spots = Color3.fromRGB(255, 240, 120),
@@ -1214,7 +1224,7 @@ PetConfig.Eggs = {
 	{
 		Id = "Giant",
 		Name = "Giant Egg",
-		Cost = 1e6,
+		Cost = 1e8,
 		Zone = 4,
 		Color = Color3.fromRGB(190, 225, 255),
 		Spots = Color3.fromRGB(255, 255, 255),
@@ -1231,7 +1241,7 @@ PetConfig.Eggs = {
 	{
 		Id = "Galaxy",
 		Name = "Galaxy Egg",
-		Cost = 1e9,
+		Cost = 1e13,
 		Zone = 7,
 		Color = Color3.fromRGB(90, 40, 160),
 		Spots = Color3.fromRGB(255, 120, 240),
@@ -1350,10 +1360,10 @@ RewardConfig.Achievements = {
 	{ Id = "H100", Name = "Getting Tall", Text = "Reach 100 m", Stat = "BestHeight", Goal = 100 * M, Gems = 15 },
 	{ Id = "H1K", Name = "Giant", Text = "Reach 1,000 m", Stat = "BestHeight", Goal = 1e3 * M, Gems = 25 },
 	{ Id = "H10K", Name = "Head In The Clouds", Text = "Reach 10K m", Stat = "BestHeight", Goal = 1e4 * M, Gems = 35 },
-	{ Id = "H1M", Name = "Sky High", Text = "Reach 1M m", Stat = "BestHeight", Goal = 1e6 * M, Gems = 50, Boost = "Height4x" },
+	{ Id = "H1M", Name = "Sky High", Text = "Reach 1M m", Stat = "BestHeight", Goal = 1e6 * M, Gems = 50, Boost = "Coins2x" },
 	{ Id = "HCL", Name = "As Long As Chile", Text = "Reach 4,300 km (the length of Chile)", Stat = "BestHeight", Goal = 4.3e6 * M, Gems = 60 },
 	{ Id = "H10M", Name = "Bigger Than The City", Text = "Reach 10M m", Stat = "BestHeight", Goal = 1e7 * M, Gems = 75 },
-	{ Id = "H1B", Name = "Touch The Moon", Text = "Reach 1B m", Stat = "BestHeight", Goal = 1e9 * M, Gems = 120, Boost = "SuperGrowth" },
+	{ Id = "H1B", Name = "Touch The Moon", Text = "Reach 1B m", Stat = "BestHeight", Goal = 1e9 * M, Gems = 120, Boost = "Height2x" },
 	{ Id = "H1T", Name = "WHAT", Text = "Reach 1T m", Stat = "BestHeight", Goal = 1e12 * M, Gems = 250 },
 	{ Id = "H1Qa", Name = "Stop. Please.", Text = "Reach 1Qa m", Stat = "BestHeight", Goal = 1e15 * M, Gems = 400 },
 	{ Id = "H1Sx", Name = "UNREAL", Text = "Reach 1Sx m", Stat = "BestHeight", Goal = 1e21 * M, Gems = 750 },
@@ -1858,7 +1868,7 @@ ZoneConfig.Zones = {
 		Id = 4,
 		Name = "Cloud World",
 		Unlock = 1000,
-		Multiplier = 3,
+		Multiplier = 2.5,
 		Ground = Color3.fromRGB(235, 242, 255),
 		Accent = Color3.fromRGB(140, 200, 255),
 		Lighting = { ClockTime = 12, Tint = Color3.fromRGB(245, 250, 255), Density = 0.4, Haze = 2.5, Color = Color3.fromRGB(240, 248, 255), Brightness = 2.8, Saturation = 0 },
@@ -1868,7 +1878,7 @@ ZoneConfig.Zones = {
 		Id = 5,
 		Name = "Sky World",
 		Unlock = 1e4,
-		Multiplier = 4,
+		Multiplier = 3,
 		Ground = Color3.fromRGB(120, 175, 255),
 		Accent = Color3.fromRGB(255, 255, 255),
 		Lighting = { ClockTime = 10, Tint = Color3.fromRGB(220, 235, 255), Density = 0.25, Haze = 0.6, Color = Color3.fromRGB(150, 200, 255), Brightness = 2.6, Saturation = 0.2 },
@@ -1878,7 +1888,7 @@ ZoneConfig.Zones = {
 		Id = 6,
 		Name = "Space",
 		Unlock = 1e6,
-		Multiplier = 6,
+		Multiplier = 4,
 		Ground = Color3.fromRGB(70, 70, 90),
 		Accent = Color3.fromRGB(120, 255, 240),
 		Lighting = { ClockTime = 0, Tint = Color3.fromRGB(210, 220, 255), Density = 0.05, Haze = 0, Color = Color3.fromRGB(40, 40, 70), Brightness = 1.4, Saturation = 0.15 },
@@ -1888,7 +1898,7 @@ ZoneConfig.Zones = {
 		Id = 7,
 		Name = "Galaxy",
 		Unlock = 1e9,
-		Multiplier = 10,
+		Multiplier = 5,
 		Ground = Color3.fromRGB(60, 25, 110),
 		Accent = Color3.fromRGB(255, 80, 230),
 		Lighting = { ClockTime = 0, Tint = Color3.fromRGB(235, 200, 255), Density = 0.18, Haze = 1.5, Color = Color3.fromRGB(150, 70, 220), Brightness = 1.6, Saturation = 0.35 },
@@ -1938,6 +1948,262 @@ return ZoneConfig
           <string name="Name">Logic</string>
         </Properties>
         <Item class="ModuleScript" referent="21">
+          <Properties>
+            <string name="Name">AutoPlay</string>
+            <string name="Source"><![CDATA[--[[
+	AutoPlay (logic) - ONE-BUTTON MODE.
+
+	With Settings.OneButton on (the default) the whole game is played with a single button:
+	the player only TAPS, and the server does the rest, every second:
+	  * buys the best-value upgrade (TAP POWER / AUTO GROW) as soon as it is affordable
+	  * spends gems on permanent upgrades
+	  * claims the daily reward, playtime gifts and finished quests
+	  * activates boosts from the inventory
+	  * sets a quarter of the coin income aside for eggs and hatches the best egg it can save
+	    up for in ~3 minutes (makes room by deleting the weakest unequipped pet); the best
+	    pets are auto-equipped
+	Rebirth is NOT automatic: the TAP button itself turns into "REBIRTH!" (client) and the
+	next press rebirths - still one button, but the player chooses the big moment.
+
+	Pure logic (no Roblox API), unit-tested in tests/run.luau. Everything goes through the
+	same validated functions the manual UI uses, so one-button mode can never do anything a
+	player could not do by hand.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Formulas = require(Shared.Formulas)
+local ShopConfig = require(Shared.ShopConfig)
+local BoostConfig = require(Shared.BoostConfig)
+local RewardConfig = require(Shared.RewardConfig)
+local PetConfig = require(Shared.PetConfig)
+
+local Session = require(script.Parent.Session)
+local Growth = require(script.Parent.Growth)
+local Pets = require(script.Parent.Pets)
+local Boosts = require(script.Parent.Boosts)
+local Rewards = require(script.Parent.Rewards)
+
+local AutoPlay = {}
+
+AutoPlay.ASSUMED_TAPS_PER_SECOND = 5 -- to compare tap vs auto upgrades
+AutoPlay.MAX_BUYS_PER_TICK = 6
+AutoPlay.HATCH_INTERVAL = 6 -- seconds between auto hatches
+-- share of every coin earned that is set aside for eggs; upgrades get the rest, so pets can
+-- never starve the upgrades (and the other way round)
+AutoPlay.EGG_SHARE = 0.25
+AutoPlay.EGG_SAVE_SECONDS = 180 -- only save up for eggs that take at most this long
+AutoPlay.GEM_ORDER = { "TapBonus", "CoinBonus", "AutoBonus", "Luck" }
+
+function AutoPlay.Enabled(session): boolean
+	return session.Data.Settings.OneButton == true
+end
+
+---------------------------------------------------------------------------
+-- upgrades
+---------------------------------------------------------------------------
+-- Coins the autopilot may spend on upgrades (everything except the egg savings)
+function AutoPlay.Spendable(session): number
+	return math.max(0, session.Data.Coins - (session.EggBudget or 0))
+end
+
+-- The upgrade with the most extra growth per coin, or nil if nothing is affordable.
+function AutoPlay.BestUpgrade(session): string?
+	local data = session.Data
+	local tps = AutoPlay.ASSUMED_TAPS_PER_SECOND
+	local coins = AutoPlay.Spendable(session)
+	local best, bestValue = nil, 0
+	local tapCost = Formulas.TapCost(data.TapLevel)
+	if tapCost and coins >= tapCost then
+		local value = (Formulas.TapPower(data.TapLevel + 1) - Formulas.TapPower(data.TapLevel)) * tps / tapCost
+		if value > bestValue then
+			best, bestValue = "TapPower", value
+		end
+	end
+	local autoCost = Formulas.AutoCost(data.AutoLevel)
+	if autoCost and coins >= autoCost then
+		local value = (Formulas.AutoRate(data.AutoLevel + 1) - Formulas.AutoRate(data.AutoLevel)) / autoCost
+		if value > bestValue then
+			best, bestValue = "AutoGrow", value
+		end
+	end
+	return best
+end
+
+function AutoPlay.BuyUpgrades(session): number
+	local bought = 0
+	for _ = 1, AutoPlay.MAX_BUYS_PER_TICK do
+		local kind = AutoPlay.BestUpgrade(session)
+		if not kind or not Growth.BuyUpgrade(session, kind) then
+			break
+		end
+		bought += 1
+	end
+	return bought
+end
+
+function AutoPlay.BuyGemUpgrades(session): number
+	local data = session.Data
+	local bought = 0
+	for _ = 1, 3 do
+		local choice, choiceCost = nil, math.huge
+		local order = table.clone(AutoPlay.GEM_ORDER)
+		if Pets.Count(session) >= Pets.Capacity(session) - 2 then
+			table.insert(order, "Storage")
+		end
+		for _, id in order do
+			local cost = ShopConfig.GemUpgradeCost(id, data.Gem[id])
+			if cost and cost <= data.Gems and cost < choiceCost then
+				choice, choiceCost = id, cost
+			end
+		end
+		if not choice or not Growth.BuyGemUpgrade(session, choice) then
+			break
+		end
+		bought += 1
+	end
+	return bought
+end
+
+---------------------------------------------------------------------------
+-- rewards + boosts
+---------------------------------------------------------------------------
+local function announce(session, title: string, labels: { string }?)
+	if labels and #labels > 0 then
+		Session.Notify(session, "Reward", title .. "  " .. table.concat(labels, "  •  "), { Sound = "Reward" })
+	end
+end
+
+function AutoPlay.ClaimRewards(session, world, rng, clock: number): number
+	local claimed = 0
+	if Rewards.DailyStatus(session, world.Now).CanClaim then
+		local labels = Rewards.ClaimDaily(session, world, rng)
+		if labels then
+			claimed += 1
+			announce(session, "📅 DAILY REWARD!", labels)
+		end
+	end
+	local elapsed = Rewards.PlaytimeSeconds(session, clock)
+	for i, gift in RewardConfig.Playtime do
+		if not session.PlaytimeClaimed[i] and elapsed >= gift.Minutes * 60 then
+			local labels = Rewards.ClaimPlaytime(session, i, clock, world, rng)
+			if labels then
+				claimed += 1
+				announce(session, "🎁 FREE GIFT!", labels)
+			end
+		end
+	end
+	Rewards.EnsureQuestDay(session, world.Now)
+	local quests = session.Data.Quests
+	for _, quest in RewardConfig.Quests do
+		if not quests.Claimed[quest.Id] and (quests.Progress[quest.Stat] or 0) >= quest.Goal then
+			local labels = Rewards.ClaimQuest(session, quest.Id, world, rng)
+			if labels then
+				claimed += 1
+				announce(session, "📜 QUEST DONE!", labels)
+			end
+		end
+	end
+	return claimed
+end
+
+-- Activates boosts from the inventory (one of each kind at a time, the rest waits)
+function AutoPlay.UseBoosts(session): number
+	local used = 0
+	local data = session.Data
+	for _, id in BoostConfig.Order do
+		if (data.Boosts.Inventory[id] or 0) > 0 and not data.Boosts.Active[id] then
+			if Boosts.Activate(session, id) then
+				used += 1
+			end
+		end
+	end
+	return used
+end
+
+---------------------------------------------------------------------------
+-- pets
+---------------------------------------------------------------------------
+-- Deletes the weakest unequipped Common/Rare pet to make room. Returns true if one was deleted.
+function AutoPlay.MakeRoom(session): boolean
+	local weakestUid, weakest = nil, math.huge
+	for uid, pet in session.Data.Pets do
+		local def = PetConfig.Pets[pet.Id]
+		if not pet.E and def and PetConfig.Rarities[def.Rarity].Order <= PetConfig.Rarities.Rare.Order and def.Mult < weakest then
+			weakestUid, weakest = uid, def.Mult
+		end
+	end
+	if weakestUid then
+		return (Pets.Delete(session, weakestUid))
+	end
+	return false
+end
+
+-- The best unlocked egg the egg savings can pay for within EGG_SAVE_SECONDS (at least the
+-- cheapest one), so the autopilot neither spams cheap eggs forever nor saves for ages.
+function AutoPlay.TargetEgg(session)
+	local perSecond = (session.IncomeRate or 0) * AutoPlay.EGG_SHARE
+	local reach = (session.EggBudget or 0) + perSecond * AutoPlay.EGG_SAVE_SECONDS
+	local target = PetConfig.Eggs[1]
+	for _, egg in PetConfig.Eggs do
+		if Pets.EggUnlocked(session, egg) and egg.Cost <= reach then
+			target = egg
+		end
+	end
+	return target
+end
+
+-- Returns hatch results (for announcements) or nil
+function AutoPlay.Hatch(session, rng, clock: number)
+	if clock < (session.NextAutoHatch or 0) then
+		return nil
+	end
+	session.NextAutoHatch = clock + AutoPlay.HATCH_INTERVAL
+	local egg = AutoPlay.TargetEgg(session)
+	if (session.EggBudget or 0) < egg.Cost or session.Data.Coins < egg.Cost then
+		return nil
+	end
+	if Pets.Count(session) >= Pets.Capacity(session) and not AutoPlay.MakeRoom(session) then
+		return nil
+	end
+	local results = Pets.Hatch(session, egg.Id, 1, rng)
+	if results then
+		session.EggBudget = math.max(0, (session.EggBudget or 0) - egg.Cost)
+		Session.Effect(session, "Hatch", { Egg = egg.Id, Results = results, Fast = true, Auto = true })
+		Rewards.CheckAchievements(session)
+	end
+	return results, egg
+end
+
+---------------------------------------------------------------------------
+-- one server tick
+---------------------------------------------------------------------------
+function AutoPlay.Tick(session, world, rng, clock: number)
+	if not AutoPlay.Enabled(session) then
+		session.CoinsSeen = nil
+		return nil
+	end
+	-- put EGG_SHARE of the coins earned since the last tick into the egg savings
+	local data = session.Data
+	local earned = if session.CoinsSeen then math.max(0, data.Coins - session.CoinsSeen) else 0
+	session.EggBudget = (session.EggBudget or 0) + earned * AutoPlay.EGG_SHARE
+	-- smoothed coins per second (this runs once per second)
+	session.IncomeRate = (session.IncomeRate or earned) * 0.95 + earned * 0.05
+	session.EggBudget = math.min(session.EggBudget or 0, data.Coins)
+	AutoPlay.BuyUpgrades(session)
+	AutoPlay.BuyGemUpgrades(session)
+	AutoPlay.ClaimRewards(session, world, rng, clock)
+	AutoPlay.UseBoosts(session)
+	local results, egg = AutoPlay.Hatch(session, rng, clock)
+	session.CoinsSeen = data.Coins
+	return results, egg
+end
+
+return AutoPlay
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">Boosts</string>
             <string name="Source"><![CDATA[--[[
@@ -2028,7 +2294,7 @@ return Boosts
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">Defaults</string>
             <string name="Source"><![CDATA[--[[
@@ -2082,6 +2348,7 @@ function Defaults.New()
 			OthersFx = true,
 			LowGraphics = false,
 			AutoTap = true,
+			OneButton = true, -- one-button mode: tap only, the server plays the rest (Logic/AutoPlay)
 		},
 		Tutorial = 0,
 		HistogramBucket = -1, -- bucket this player is counted in (global "taller than X%")
@@ -2237,7 +2504,7 @@ return Defaults
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">Growth</string>
             <string name="Source"><![CDATA[--[[
@@ -2423,7 +2690,7 @@ function Growth.BuyUpgrade(session, kind: any): (boolean, string?)
 		data.Tutorial = 2
 	end
 	Session.MarkDirty(session, "Stats", "Rates")
-	Session.Effect(session, "Upgrade", { Kind = kind })
+	Session.Effect(session, "Upgrade", { Kind = kind, Level = data[field] })
 	return true
 end
 
@@ -2444,7 +2711,7 @@ function Growth.BuyGemUpgrade(session, id: any): (boolean, string?)
 	data.Gem[id] = level + 1
 	session.PetMultCache = nil
 	Session.MarkDirty(session, "Stats", "Rates", "Pets")
-	Session.Effect(session, "Upgrade", { Kind = id })
+	Session.Effect(session, "Upgrade", { Kind = id, Level = level + 1 })
 	return true
 end
 
@@ -2494,7 +2761,7 @@ return Growth
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">Mults</string>
             <string name="Source"><![CDATA[--[[
@@ -2557,7 +2824,7 @@ return Mults
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">Pets</string>
             <string name="Source"><![CDATA[--[[
@@ -2822,7 +3089,7 @@ return Pets
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">Rewards</string>
             <string name="Source"><![CDATA[--[[
@@ -3066,7 +3333,7 @@ return Rewards
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">Session</string>
             <string name="Source"><![CDATA[--[[
@@ -3105,6 +3372,11 @@ export type Session = {
 	Percentile: number?,
 	Leaving: boolean?,
 	Released: boolean?,
+	NextAutoHatch: number?,
+	AutoZone: number?, -- one-button mode: highest zone we already moved the player to
+	EggBudget: number?, -- one-button mode: coins set aside for eggs
+	CoinsSeen: number?, -- one-button mode: coins at the end of the last autopilot tick
+	IncomeRate: number?, -- one-button mode: smoothed coins per second
 }
 
 function Session.new(userId: number, name: string, data: any, clock: number): Session
@@ -3165,7 +3437,7 @@ return Session
           </Properties>
         </Item>
       </Item>
-      <Item class="Script" referent="28">
+      <Item class="Script" referent="29">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -3223,11 +3495,11 @@ print("[CHILE SIMULATOR] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="29">
+      <Item class="Folder" referent="30">
         <Properties>
           <string name="Name">Services</string>
         </Properties>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">AdminService</string>
             <string name="Source"><![CDATA[--[[
@@ -3331,7 +3603,7 @@ return AdminService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="32">
           <Properties>
             <string name="Name">CharacterService</string>
             <string name="Source"><![CDATA[--[[
@@ -3445,7 +3717,7 @@ return CharacterService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">CosmeticService</string>
             <string name="Source"><![CDATA[--[[
@@ -3542,7 +3814,7 @@ return CosmeticService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">DataService</string>
             <string name="Source"><![CDATA[--[[
@@ -3800,7 +4072,7 @@ return DataService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">EventService</string>
             <string name="Source"><![CDATA[--[[
@@ -3922,7 +4194,7 @@ return EventService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">GrowthService</string>
             <string name="Source"><![CDATA[--[[
@@ -3989,7 +4261,7 @@ return GrowthService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">LeaderboardService</string>
             <string name="Source"><![CDATA[--[[
@@ -4302,7 +4574,7 @@ return LeaderboardService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">MonetizationService</string>
             <string name="Source"><![CDATA[--[[
@@ -4479,7 +4751,7 @@ return MonetizationService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">PetService</string>
             <string name="Source"><![CDATA[--[[
@@ -4507,8 +4779,24 @@ function PetService:Init(services)
 	self.Rng = Random.new()
 end
 
-function PetService:Start()
+-- server-wide "X hatched a LEGENDARY Unicorn!" (Legendary and rarer)
+function PetService:AnnounceHatch(player: Player, session, results)
 	local PlayerService = self.Services.PlayerService
+	for _, r in results do
+		local def = PetConfig.Pets[r.Id]
+		local order = PetConfig.Rarities[def.Rarity].Order
+		if order >= PetConfig.Rarities.Legendary.Order then
+			local big = def.Rarity == "Secret" or def.Rarity == "Mythic"
+			PlayerService:NotifyAll(
+				if big then "Big" else "Info",
+				string.format("%s %s hatched a %s %s!", if big then "🚨" else "🎉", player.DisplayName, string.upper(def.Rarity), def.Name),
+				{ Sound = if def.Rarity == "Secret" then "PetSecret" else "PetLegendary", Delay = if session.Passes.FasterHatch then 1 else 3 }
+			)
+		end
+	end
+end
+
+function PetService:Start()
 	local WorldService = self.Services.WorldService
 
 	Guard.On("Hatch", 2, function(session, player, eggId, count)
@@ -4531,18 +4819,7 @@ function PetService:Start()
 			Results = results,
 			Fast = session.Passes.FasterHatch == true,
 		})
-		for _, r in results do
-			local def = PetConfig.Pets[r.Id]
-			local order = PetConfig.Rarities[def.Rarity].Order
-			if order >= PetConfig.Rarities.Legendary.Order then
-				local big = def.Rarity == "Secret" or def.Rarity == "Mythic"
-				PlayerService:NotifyAll(
-					if big then "Big" else "Info",
-					string.format("%s %s hatched a %s %s!", if big then "🚨" else "🎉", player.DisplayName, string.upper(def.Rarity), def.Name),
-					{ Sound = if def.Rarity == "Secret" then "PetSecret" else "PetLegendary", Delay = if session.Passes.FasterHatch then 1 else 3 }
-				)
-			end
-		end
+		self:AnnounceHatch(player, session, results)
 		Rewards.CheckAchievements(session)
 	end)
 
@@ -4572,7 +4849,7 @@ return PetService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">PlayerService</string>
             <string name="Source"><![CDATA[--[[
@@ -4607,6 +4884,7 @@ local Boosts = require(Logic.Boosts)
 local Pets = require(Logic.Pets)
 local Rewards = require(Logic.Rewards)
 local Mults = require(Logic.Mults)
+local AutoPlay = require(Logic.AutoPlay)
 local Guard = require(script.Parent.Parent.Util.Guard)
 
 local TICK = 1
@@ -4882,6 +5160,32 @@ function PlayerService:Tick(dt: number)
 		Boosts.Tick(session, dt)
 		Growth.Tick(session, dt, world, clock)
 		session.Data.Stats.PlayTime += dt
+		if AutoPlay.Enabled(session) then
+			self:AutoPlay(player, session, world, clock)
+		end
+	end
+end
+
+-- ONE-BUTTON MODE: upgrades, gems, rewards, boosts and eggs happen by themselves, and a
+-- newly unlocked world (or the best world on join) is where you get moved to.
+function PlayerService:AutoPlay(player: Player, session, world, clock: number)
+	local results = AutoPlay.Tick(session, world, self.Rng, clock)
+	if results then
+		self.Services.PetService:AnnounceHatch(player, session, results)
+	end
+	local best = ZoneConfig.HighestUnlocked(session.Data.BestHeight)
+	if best > (session.AutoZone or 0) then
+		if best > session.ZoneIndex then
+			if self.Services.WorldService:Teleport(player, best) then
+				session.AutoZone = best
+				session.ZoneIndex = best
+				session.AttrDirty = true
+				Session.MarkDirty(session, "Rates")
+				Session.Effect(session, "Teleported", { Zone = best })
+			end
+		else
+			session.AutoZone = best
+		end
 	end
 end
 
@@ -4948,7 +5252,7 @@ return PlayerService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">RewardService</string>
             <string name="Source"><![CDATA[--[[
@@ -5124,7 +5428,7 @@ return RewardService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">WorldService</string>
             <string name="Source"><![CDATA[--[[
@@ -5838,12 +6142,14 @@ function WorldService:InVIPArea(position: Vector3): boolean
 	return math.abs(d.X) <= VIP_SIZE.X / 2 and math.abs(d.Z) <= VIP_SIZE.Z / 2
 end
 
-function WorldService:Teleport(player: Player, zone: number)
+function WorldService:Teleport(player: Player, zone: number): boolean
 	local character = player.Character
 	local cf = self.ZoneSpawns[zone]
-	if character and cf then
+	if character and cf and character:FindFirstChild("HumanoidRootPart") then
 		character:PivotTo(cf)
+		return true
 	end
+	return false
 end
 
 -- Server truth for "which zone multiplier applies": position-based, but never above what the
@@ -5905,11 +6211,11 @@ return WorldService
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="42">
+      <Item class="Folder" referent="43">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Guard</string>
             <string name="Source"><![CDATA[--[[
@@ -5985,12 +6291,12 @@ return Guard
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="44">
+  <Item class="SoundService" referent="45">
     <Properties>
       <string name="Name">SoundService</string>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="45">
+  <Item class="StarterPlayer" referent="46">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">2500</float>
@@ -6000,11 +6306,11 @@ return Guard
       <float name="CharacterWalkSpeed">18</float>
       <bool name="LoadCharacterAppearance">true</bool>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="46">
+    <Item class="StarterCharacterScripts" referent="47">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="47">
+      <Item class="LocalScript" referent="48">
         <Properties>
           <string name="Name">Animate</string>
           <string name="Source"><![CDATA[--[[
@@ -6018,19 +6324,19 @@ return Guard
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="48">
+    <Item class="StarterPlayerScripts" referent="49">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="49">
+      <Item class="Folder" referent="50">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="Folder" referent="50">
+        <Item class="Folder" referent="51">
           <Properties>
             <string name="Name">Controllers</string>
           </Properties>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="52">
             <Properties>
               <string name="Name">BodyController</string>
               <string name="Source"><![CDATA[--[[
@@ -6835,7 +7141,7 @@ return BodyController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">CameraController</string>
               <string name="Source"><![CDATA[--[[
@@ -6939,7 +7245,7 @@ return CameraController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="53">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">ClientData</string>
               <string name="Source"><![CDATA[--[[
@@ -7028,7 +7334,7 @@ return ClientData
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="54">
+          <Item class="ModuleScript" referent="55">
             <Properties>
               <string name="Name">EffectsController</string>
               <string name="Source"><![CDATA[--[[
@@ -7049,6 +7355,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared.Net)
 local BodyShape = require(Shared.BodyShape)
+local Formulas = require(Shared.Formulas)
+local ShopConfig = require(Shared.ShopConfig)
 local Format = require(Shared.Util.Format)
 
 local UI = script.Parent.Parent.UI
@@ -7420,6 +7728,19 @@ function EffectsController:OnEffect(payload)
 		self.Controllers.CameraController:Shake(0.8, 0.6)
 	elseif name == "Upgrade" then
 		sounds:Play("Upgrade")
+		-- say what was bought (in one-button mode the server buys by itself)
+		local level = tonumber(payload.Level)
+		local text
+		if payload.Kind == "TapPower" and level then
+			text = "👆 TAP POWER " .. Format.Mult(Formulas.TapPower(level)) .. "!"
+		elseif payload.Kind == "AutoGrow" and level then
+			text = "🌱 AUTO GROW " .. Format.Gain(Formulas.AutoRate(level)) .. "/s!"
+		elseif type(payload.Kind) == "string" and ShopConfig.GemUpgrades[payload.Kind] and level then
+			text = "💎 " .. ShopConfig.GemUpgrades[payload.Kind].Name .. " Lv " .. level .. "!"
+		end
+		if text then
+			self:FloatText(text, 3, nil)
+		end
 		local center, total = self:BodyCenter(LocalPlayer)
 		if center then
 			self:BurstAt(center, math.clamp(total / 10, 0.5, 15), { Theme.Colors.Blue, Color3.new(1, 1, 1) }, 18, "Glow")
@@ -7449,7 +7770,7 @@ return EffectsController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="56">
             <Properties>
               <string name="Name">HatchController</string>
               <string name="Source"><![CDATA[--[[
@@ -7829,15 +8150,70 @@ function HatchController:PlayHatch(payload)
 			table.insert(pets, r.Id)
 		end
 	end
-	if #pets > 0 then
+	if #pets == 0 then
+		return
+	end
+	if payload.Auto then
+		-- one-button mode: never block the screen (you keep tapping), a card slides in instead
+		for _, id in pets do
+			self:QuickReveal(id)
+		end
+	else
 		self:Enqueue(pets, egg, payload.Fast == true)
 	end
+end
+
+-- Non-blocking "NEW PET!" card on the right side of the screen
+function HatchController:QuickReveal(petId: string)
+	local def = PetConfig.Pets[petId]
+	local rarity = PetConfig.Rarities[def.Rarity]
+	self.Cards = self.Cards or {}
+	local card = Kit.Panel({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 200 + #self.Cards * 128),
+		Size = UDim2.fromOffset(290, 118),
+		BackgroundColor3 = Theme.Colors.PanelDark,
+		Parent = self.EggRoot,
+	})
+	local stroke = card:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = if def.Rarity == "Secret" then Color3.fromRGB(255, 90, 230) else rarity.Color
+	end
+	table.insert(self.Cards, card)
+	petViewport(card, petId, UDim2.fromOffset(106, 106), UDim2.fromOffset(58, 59))
+	Kit.Label({ Position = UDim2.fromOffset(112, 8), Size = UDim2.new(1, -120, 0, 24), Text = "🐾 NEW PET!", TextColor3 = Theme.Colors.Yellow, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+	Kit.Label({ Position = UDim2.fromOffset(112, 34), Size = UDim2.new(1, -120, 0, 28), Text = def.Name, Font = Theme.Fonts.Title, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+	Kit.Label({
+		Position = UDim2.fromOffset(112, 64),
+		Size = UDim2.new(1, -120, 0, 22),
+		Text = string.upper(def.Rarity) .. "  " .. Format.Mult(def.Mult),
+		TextColor3 = if def.Rarity == "Secret" then Color3.fromRGB(255, 90, 230) else rarity.Color,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = card,
+	})
+	Kit.Pop(card, 0.2)
+	self.Controllers.SoundController:Play(rarity.Sound)
+	if rarity.Order >= PetConfig.Rarities.Legendary.Order then
+		self.Controllers.EffectsController:Celebrate(2)
+		self.Controllers.CameraController:Shake(if def.Rarity == "Secret" then 1.5 else 0.8, 0.6)
+	end
+	task.delay(if rarity.Order >= PetConfig.Rarities.Legendary.Order then 4 else 2.6, function()
+		local index = table.find(self.Cards, card)
+		if index then
+			table.remove(self.Cards, index)
+		end
+		card:Destroy()
+	end)
 end
 
 -- a pet from a reward (daily, playtime gift, chest): reveal without an egg
 function HatchController:ShowReward(petId: string)
 	if PetConfig.Pets[petId] then
-		self:Enqueue({ petId }, nil, false)
+		if self.Controllers.ClientData:Setting("OneButton") then
+			self:QuickReveal(petId)
+		else
+			self:Enqueue({ petId }, nil, false)
+		end
 	end
 end
 
@@ -7871,7 +8247,7 @@ return HatchController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">HudController</string>
               <string name="Source"><![CDATA[--[[
@@ -7885,6 +8261,11 @@ return HatchController
 	           (phone: huge TAP button bottom-right, away from the thumbstick)
 
 	The HEIGHT number follows the visual body (same smoothing), so number and body grow together.
+
+	ONE-BUTTON MODE (default): the upgrade buttons and menus fold away (a single ☰ opens them),
+	the server buys / claims / hatches by itself (a line above the button shows what it does),
+	and when a rebirth is ready the TAP button itself turns into "♻️ REBIRTH!" - the whole
+	game is played with that one button (or Space / click).
 ]]
 
 local Players = game:GetService("Players")
@@ -7915,6 +8296,25 @@ function HudController:Init(controllers)
 	self.DisplayCoins = 0
 	self.DisplayGems = 0
 	self.Badges = {}
+	self.MenuOpen = false
+	self.RebirthArmed = false
+	self.RebirthReadySince = 0
+	self.OneButton = true
+end
+
+function HudController:IsOneButton(): boolean
+	return self.Controllers.ClientData:Setting("OneButton")
+end
+
+function HudController:IsRebirthArmed(): boolean
+	return self.RebirthArmed == true
+end
+
+-- after the REBIRTH press: stop treating presses as rebirths until the next data update
+function HudController:Disarm()
+	self.RebirthReady = false
+	self.RebirthArmed = false
+	self:UpdatePrimary()
 end
 
 ---------------------------------------------------------------------------
@@ -8027,14 +8427,25 @@ end
 function HudController:BuildSides(root: Frame)
 	local panels = self.Controllers.PanelController
 	local size = if self.Touch then 58 else 66
+	-- one-button mode: a single MENU button unfolds all the other buttons
+	local menuButton = Widgets.IconButton(root, "☰", "MENU", Theme.Colors.PanelLight, size, 0, function()
+		self.MenuOpen = not self.MenuOpen
+		self:ApplyMode()
+	end)
+	menuButton.Position = UDim2.new(0, 10, 0, if self.Touch then 70 else 150)
+	local _, setMenuBadge = Widgets.Badge(menuButton)
+	self.MenuButton, self.SetMenuBadge = menuButton, setMenuBadge
+	local columnTop = (if self.Touch then 70 else 150) + size + 8
+
 	local left = Kit.New("Frame", {
 		Name = "Left",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.new(0, 10, 0, if self.Touch then 70 else 150),
+		Position = UDim2.new(0, 10, 0, columnTop),
 		Size = UDim2.fromOffset(if self.Touch then size * 2 + 8 else size, 560),
 		Parent = root,
 	})
+	self.LeftColumn = left
 	if self.Touch then
 		Kit.New("UIGridLayout", {
 			CellSize = UDim2.fromOffset(size, size),
@@ -8075,6 +8486,7 @@ function HudController:BuildSides(root: Frame)
 		Size = UDim2.fromOffset(size, 300),
 		Parent = root,
 	})
+	self.RightColumn = right
 	Kit.New("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = right })
 	for i, item in {
 		{ "Leaderboard", "🏆", "TOP", Theme.Colors.Yellow },
@@ -8133,18 +8545,37 @@ function HudController:BuildBottom(root: Frame)
 	-- every finger / click that lands on the button is a tap (multi-touch friendly)
 	tap.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			tapController:Tap(Vector2.new(input.Position.X, input.Position.Y))
+			tapController:Press(Vector2.new(input.Position.X, input.Position.Y))
 			Kit.Pop(tap, 0.06)
 		end
 	end)
 	self.TapButton = tap
+	self.TapLabel = label
+	self.TapSizes = {
+		Classic = if touch then Vector2.new(310, 150) else Vector2.new(340, 104),
+		OneButton = if touch then Vector2.new(340, 180) else Vector2.new(420, 128),
+	}
+	self.TapBaseSize = self.TapSizes.OneButton
 
-	-- idle "breathing" so the button begs to be pressed (size, so it never fights the press UIScale)
-	local baseSize = tap.Size
+	-- idle "breathing" so the button begs to be pressed (size, so it never fights the press UIScale);
+	-- a ready REBIRTH breathes faster and bigger
 	RunService.Heartbeat:Connect(function()
-		local k = 1 + math.sin(os.clock() * 3) * 0.025
-		tap.Size = UDim2.fromOffset(baseSize.X.Offset * k, baseSize.Y.Offset * k)
+		local armed = self.RebirthArmed
+		local k = 1 + math.sin(os.clock() * (if armed then 8 else 3)) * (if armed then 0.05 else 0.025)
+		tap.Size = UDim2.fromOffset(self.TapBaseSize.X * k, self.TapBaseSize.Y * k)
 	end)
+
+	-- one-button mode: what the autopilot is doing, right above the button
+	self.AutoLine = Kit.Label({
+		Name = "AutoLine",
+		AnchorPoint = if touch then Vector2.new(1, 1) else Vector2.new(0.5, 1),
+		Position = if touch then UDim2.new(1, -16, 1, -202) else UDim2.new(0.5, 0, 1, -150),
+		Size = UDim2.fromOffset(if touch then 340 else 520, 26),
+		Text = "",
+		TextColor3 = Color3.fromRGB(230, 240, 255),
+		Visible = false,
+		Parent = root,
+	})
 
 	local function upgradeButton(kind: string, anchor: Vector2, position: UDim2): (TextButton, TextLabel, TextLabel)
 		local button = Kit.Button({
@@ -8185,7 +8616,7 @@ function HudController:BuildBottom(root: Frame)
 		Name = "AutoTap",
 		Color = Theme.Colors.Purple,
 		AnchorPoint = if touch then Vector2.new(1, 1) else Vector2.new(0.5, 1),
-		Position = if touch then UDim2.new(1, -16, 1, -268) else UDim2.new(0.5, 0, 1, -128),
+		Position = if touch then UDim2.new(1, -16, 1, -232) else UDim2.new(0.5, 0, 1, -180),
 		Size = UDim2.fromOffset(170, 36),
 		Radius = 18,
 		Parent = root,
@@ -8229,13 +8660,29 @@ function HudController:RefreshStats()
 	self.CanUpgrade = canTap or canAuto
 
 	-- tap info
-	self.TapInfo.Text = string.format("%s  •  🪙 +%s", Format.Gain(rates.TapGain or 1), Format.Number(rates.TapCoins or 1))
+	self.TapInfoText = string.format("%s  •  🪙 +%s", Format.Gain(rates.TapGain or 1), Format.Number(rates.TapCoins or 1))
 
 	-- rebirth progress
 	local cost = stats.RebirthCost or Formulas.RebirthCost(stats.Rebirths)
 	local fraction = math.clamp(stats.Height / cost, 0, 1)
 	local ready = stats.Height >= cost
+	if ready and not self.RebirthReady then
+		self.RebirthReadySince = os.clock()
+	end
 	self.RebirthReady = ready
+	self.RebirthInfo = string.format(
+		"%s ➜ %s GROWTH  •  +%s 💎",
+		Format.Mult(Formulas.RebirthMultiplier(stats.Rebirths)),
+		Format.Mult(Formulas.RebirthMultiplier(stats.Rebirths + 1)),
+		Format.Number(Formulas.RebirthGems(stats.Rebirths + 1))
+	)
+	local pets = data:Get("Pets")
+	self.AutoLine.Text = string.format(
+		"🤖 AUTO:  👆 %s   🌱 %s/s   🐾 %s",
+		Format.Mult(Formulas.TapPower(stats.TapLevel)),
+		Format.Gain(rates.AutoGain or 0),
+		Format.Mult(pets and pets.Multiplier or 1)
+	)
 	self.RebirthBar.Set(fraction, if ready then "♻️ REBIRTH READY! (click)" else string.format("♻️ REBIRTH  %s / %s", Format.Length(stats.Height), Format.Length(cost)))
 
 	-- zone line
@@ -8254,8 +8701,10 @@ function HudController:RefreshBadges()
 	local data = self.Controllers.ClientData
 	local rewards = data:Get("Rewards")
 	local boosts = data:Get("Boosts")
+	local attention = false -- anything waiting -> the one-button MENU gets a badge too
 	if rewards then
-		self.Badges.Daily(rewards.Daily and rewards.Daily.CanClaim == true)
+		local daily = rewards.Daily and rewards.Daily.CanClaim == true
+		self.Badges.Daily(daily)
 		local elapsed = (rewards.PlaytimeElapsed or 0) + (os.clock() - data.RewardsClock)
 		local ready = 0
 		for i, gift in RewardConfig.Playtime do
@@ -8272,6 +8721,7 @@ function HudController:RefreshBadges()
 			end
 		end
 		self.Badges.Quests(quests)
+		attention = daily or ready > 0 or quests > 0
 	end
 	if boosts then
 		local count = 0
@@ -8279,8 +8729,10 @@ function HudController:RefreshBadges()
 			count += n
 		end
 		self.Badges.Boosts(count)
+		attention = attention or count > 0
 	end
 	self.Badges.Rebirth(self.RebirthReady == true)
+	self.SetMenuBadge(attention and not self.MenuOpen)
 end
 
 function HudController:RefreshBoosts()
@@ -8349,6 +8801,42 @@ function HudController:RefreshEvent()
 	self.EventLabel.Text = string.format("%s %s  —  %s", def.Icon, def.Name, Format.Time(left))
 end
 
+-- classic <-> one-button layout
+function HudController:ApplyMode()
+	local one = self:IsOneButton()
+	self.OneButton = one
+	self.TapUpgrade.Visible = not one
+	self.AutoUpgrade.Visible = not one
+	self.AutoLine.Visible = one
+	self.MenuButton.Visible = one
+	local columns = not one or self.MenuOpen
+	self.LeftColumn.Visible = columns
+	self.RightColumn.Visible = columns
+	self.TapBaseSize = if one then self.TapSizes.OneButton else self.TapSizes.Classic
+	self:UpdatePrimary()
+end
+
+-- the big button is TAP TO GROW, or REBIRTH! when a rebirth is ready (one-button mode only)
+function HudController:UpdatePrimary()
+	local armed = self.OneButton and self.RebirthReady == true and os.clock() - self.RebirthReadySince >= 0.8
+	if armed ~= self.RebirthArmed then
+		self.RebirthArmed = armed
+		if armed then
+			self.Controllers.SoundController:Play("Achievement")
+			Kit.Pop(self.TapButton, 0.2)
+		end
+	end
+	if armed then
+		self.TapLabel.Text = "♻️ REBIRTH!"
+		self.TapInfo.Text = self.RebirthInfo or ""
+		Kit.SetButtonColor(self.TapButton, Theme.Colors.Purple)
+	else
+		self.TapLabel.Text = "TAP TO GROW"
+		self.TapInfo.Text = self.TapInfoText or ""
+		Kit.SetButtonColor(self.TapButton, Theme.Colors.Green)
+	end
+end
+
 -- per frame: animated numbers that count up, and height synced with the visual body
 function HudController:Step(dt: number)
 	local data = self.Controllers.ClientData
@@ -8389,6 +8877,7 @@ function HudController:Step(dt: number)
 	self.DisplayGems = approach(self.DisplayGems, stats.Gems)
 	self.CoinsLabel.Text = Format.Number(math.floor(self.DisplayCoins + 0.5))
 	self.GemsLabel.Text = Format.Number(math.floor(self.DisplayGems + 0.5))
+	self:UpdatePrimary()
 end
 
 function HudController:Start()
@@ -8403,6 +8892,7 @@ function HudController:Start()
 	local data = self.Controllers.ClientData
 	local function onLoaded()
 		gui.Enabled = true
+		self:ApplyMode()
 		self:RefreshStats()
 		self:RefreshBadges()
 		self:RefreshBoosts()
@@ -8417,6 +8907,9 @@ function HudController:Start()
 			self:RefreshStats()
 		elseif section == "Boosts" or section == "Passes" or section == "Settings" then
 			self:RefreshBoosts()
+			if section == "Settings" then
+				self:ApplyMode()
+			end
 		end
 		self:RefreshBadges()
 	end)
@@ -8446,7 +8939,7 @@ return HudController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">NotifyController</string>
               <string name="Source"><![CDATA[--[[
@@ -8673,7 +9166,7 @@ return NotifyController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="59">
             <Properties>
               <string name="Name">PanelController</string>
               <string name="Source"><![CDATA[--[[
@@ -8869,7 +9362,7 @@ return PanelController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">PetController</string>
               <string name="Source"><![CDATA[--[[
@@ -9001,7 +9494,7 @@ return PetController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">SocialController</string>
               <string name="Source"><![CDATA[--[[
@@ -9216,7 +9709,7 @@ return SocialController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">SoundController</string>
               <string name="Source"><![CDATA[--[[
@@ -9355,7 +9848,7 @@ return SoundController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">TapController</string>
               <string name="Source"><![CDATA[--[[
@@ -9370,6 +9863,9 @@ return SoundController
 	Then the tap is counted and sent in a batch every 0.1 s ("I tapped 3 times"). The server
 	decides the real growth; the client mirrors the server's rate limit so it never shows a
 	"+12 cm" for a tap the server will throw away.
+
+	Press() is THE one button: it taps, or - in one-button mode, when the big button has turned
+	into "♻️ REBIRTH!" - it rebirths. Every input (button, Space, Enter, click, gamepad) uses it.
 ]]
 
 local Players = game:GetService("Players")
@@ -9455,6 +9951,18 @@ function TapController:Tap(screenPosition: Vector2?)
 	self.Tapped:Fire(gain, tier)
 end
 
+-- The one button: tap, or rebirth when the button says REBIRTH!
+function TapController:Press(screenPosition: Vector2?)
+	local hud = self.Controllers.HudController
+	if hud and hud:IsRebirthArmed() then
+		self:Flush() -- taps made just before count first
+		self.Controllers.ClientData:Fire("Rebirth")
+		hud:Disarm()
+		return
+	end
+	self:Tap(screenPosition)
+end
+
 function TapController:Flush()
 	if self.Pending <= 0 then
 		return
@@ -9471,7 +9979,7 @@ function TapController:Start()
 			if UserInputService:GetFocusedTextBox() then
 				return Enum.ContextActionResult.Pass
 			end
-			self:Tap(nil)
+			self:Press(nil)
 			return Enum.ContextActionResult.Sink
 		end
 		return Enum.ContextActionResult.Pass
@@ -9483,7 +9991,7 @@ function TapController:Start()
 			return
 		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			self:Tap(Vector2.new(input.Position.X, input.Position.Y))
+			self:Press(Vector2.new(input.Position.X, input.Position.Y))
 		end
 	end)
 
@@ -9500,7 +10008,7 @@ return TapController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">TutorialController</string>
               <string name="Source"><![CDATA[--[[
@@ -9605,16 +10113,21 @@ function TutorialController:Step()
 		self:Hide()
 		return
 	end
+	local oneButton = hud:IsOneButton()
 	if step <= 1 then
 		if stats.Taps < 10 then
 			self:PointAt(hud.TapButton, "TAP TO GROW! 👆")
+		elseif oneButton then
+			self:PointAt(hud.TapButton, "Just keep tapping - upgrades are automatic!")
 		elseif hud.CanUpgrade then
 			self:PointAt(hud.TapUpgrade, "Buy TAP POWER to grow faster!")
 		else
 			self:PointAt(hud.TapButton, "Keep tapping to earn 🪙 coins!")
 		end
 	elseif step == 2 then
-		if hud.RebirthReady then
+		if oneButton and hud:IsRebirthArmed() then
+			self:PointAt(hud.TapButton, "♻️ The button turned purple: TAP TO REBIRTH!")
+		elseif not oneButton and hud.RebirthReady then
 			self:PointAt(hud.RebirthButton, "♻️ REBIRTH NOW for x2 GROWTH!")
 		else
 			self:PointAt(hud.RebirthBar.Frame, "Reach 100 m to REBIRTH!")
@@ -9623,7 +10136,7 @@ function TutorialController:Step()
 		if not self.FinalShownAt then
 			self.FinalShownAt = os.clock()
 		end
-		self:PointAt(hud.TapButton, "x2 GROWTH! Now become MUCH taller 🚀")
+		self:PointAt(hud.TapButton, if oneButton then "x2 GROWTH! Keep tapping - the rest is automatic 🚀" else "x2 GROWTH! Now become MUCH taller 🚀")
 		if os.clock() - self.FinalShownAt > 7 then
 			data:Fire("Tutorial", 4)
 			self.Done = true
@@ -9643,7 +10156,7 @@ return TutorialController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">ZoneController</string>
               <string name="Source"><![CDATA[--[[
@@ -9792,7 +10305,7 @@ return ZoneController
             </Properties>
           </Item>
         </Item>
-        <Item class="LocalScript" referent="65">
+        <Item class="LocalScript" referent="66">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -9844,11 +10357,11 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="66">
+        <Item class="Folder" referent="67">
           <Properties>
             <string name="Name">UI</string>
           </Properties>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">Kit</string>
               <string name="Source"><![CDATA[--[[
@@ -10119,11 +10632,11 @@ return Kit
 ]]></string>
             </Properties>
           </Item>
-          <Item class="Folder" referent="68">
+          <Item class="Folder" referent="69">
             <Properties>
               <string name="Name">Panels</string>
             </Properties>
-            <Item class="ModuleScript" referent="69">
+            <Item class="ModuleScript" referent="70">
               <Properties>
                 <string name="Name">BoostsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -10244,7 +10757,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="70">
+            <Item class="ModuleScript" referent="71">
               <Properties>
                 <string name="Name">DailyPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -10366,7 +10879,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="71">
+            <Item class="ModuleScript" referent="72">
               <Properties>
                 <string name="Name">FreePanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -10460,7 +10973,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="72">
+            <Item class="ModuleScript" referent="73">
               <Properties>
                 <string name="Name">LeaderboardPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -10544,7 +11057,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="73">
+            <Item class="ModuleScript" referent="74">
               <Properties>
                 <string name="Name">PetsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -10706,7 +11219,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="74">
+            <Item class="ModuleScript" referent="75">
               <Properties>
                 <string name="Name">QuestsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -10868,7 +11381,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="75">
+            <Item class="ModuleScript" referent="76">
               <Properties>
                 <string name="Name">RebirthPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -10982,7 +11495,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="76">
+            <Item class="ModuleScript" referent="77">
               <Properties>
                 <string name="Name">SettingsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -11003,6 +11516,7 @@ local Widgets = require(UI.Widgets)
 local Panel = { Title = "SETTINGS", Icon = "⚙️", Color = Theme.Colors.GrayDark }
 
 local TOGGLES = {
+	{ "OneButton", "🔘 One-button mode (auto upgrades, pets, rewards)" },
 	{ "Sfx", "🔊 Sound effects" },
 	{ "Shake", "📳 Camera shake" },
 	{ "Numbers", "🔢 Floating +numbers" },
@@ -11114,7 +11628,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="77">
+            <Item class="ModuleScript" referent="78">
               <Properties>
                 <string name="Name">ShopPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -11345,7 +11859,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="78">
+            <Item class="ModuleScript" referent="79">
               <Properties>
                 <string name="Name">WorldsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -11441,7 +11955,7 @@ return Panel
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="79">
+          <Item class="ModuleScript" referent="80">
             <Properties>
               <string name="Name">PetIcon</string>
               <string name="Source"><![CDATA[--[[
@@ -11525,7 +12039,7 @@ return PetIcon
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="80">
+          <Item class="ModuleScript" referent="81">
             <Properties>
               <string name="Name">Purchase</string>
               <string name="Source"><![CDATA[--[[
@@ -11575,7 +12089,7 @@ return Purchase
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="81">
+          <Item class="ModuleScript" referent="82">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -11631,7 +12145,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="82">
+          <Item class="ModuleScript" referent="83">
             <Properties>
               <string name="Name">Widgets</string>
               <string name="Source"><![CDATA[--[[
@@ -11903,11 +12417,11 @@ return Widgets
             </Properties>
           </Item>
         </Item>
-        <Item class="Folder" referent="83">
+        <Item class="Folder" referent="84">
           <Properties>
             <string name="Name">Util</string>
           </Properties>
-          <Item class="ModuleScript" referent="84">
+          <Item class="ModuleScript" referent="85">
             <Properties>
               <string name="Name">PetBuilder</string>
               <string name="Source"><![CDATA[--[[
@@ -12098,13 +12612,13 @@ return PetBuilder
       </Item>
     </Item>
   </Item>
-  <Item class="TextChatService" referent="85">
+  <Item class="TextChatService" referent="86">
     <Properties>
       <string name="Name">TextChatService</string>
       <token name="ChatVersion">1</token>
     </Properties>
   </Item>
-  <Item class="Workspace" referent="86">
+  <Item class="Workspace" referent="87">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-500</float>

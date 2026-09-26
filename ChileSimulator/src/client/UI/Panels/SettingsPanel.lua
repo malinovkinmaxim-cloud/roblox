@@ -16,6 +16,7 @@ local Widgets = require(UI.Widgets)
 local Panel = { Title = "SETTINGS", Icon = "⚙️", Color = Theme.Colors.GrayDark }
 
 local TOGGLES = {
+	{ "OneButton", "🔘 One-button mode (auto upgrades, pets, rewards)" },
 	{ "Sfx", "🔊 Sound effects" },
 	{ "Shake", "📳 Camera shake" },
 	{ "Numbers", "🔢 Floating +numbers" },

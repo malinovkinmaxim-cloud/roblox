@@ -9,6 +9,11 @@
 	           (phone: huge TAP button bottom-right, away from the thumbstick)
 
 	The HEIGHT number follows the visual body (same smoothing), so number and body grow together.
+
+	ONE-BUTTON MODE (default): the upgrade buttons and menus fold away (a single ☰ opens them),
+	the server buys / claims / hatches by itself (a line above the button shows what it does),
+	and when a rebirth is ready the TAP button itself turns into "♻️ REBIRTH!" - the whole
+	game is played with that one button (or Space / click).
 ]]
 
 local Players = game:GetService("Players")
@@ -39,6 +44,25 @@ function HudController:Init(controllers)
 	self.DisplayCoins = 0
 	self.DisplayGems = 0
 	self.Badges = {}
+	self.MenuOpen = false
+	self.RebirthArmed = false
+	self.RebirthReadySince = 0
+	self.OneButton = true
+end
+
+function HudController:IsOneButton(): boolean
+	return self.Controllers.ClientData:Setting("OneButton")
+end
+
+function HudController:IsRebirthArmed(): boolean
+	return self.RebirthArmed == true
+end
+
+-- after the REBIRTH press: stop treating presses as rebirths until the next data update
+function HudController:Disarm()
+	self.RebirthReady = false
+	self.RebirthArmed = false
+	self:UpdatePrimary()
 end
 
 ---------------------------------------------------------------------------
@@ -151,14 +175,25 @@ end
 function HudController:BuildSides(root: Frame)
 	local panels = self.Controllers.PanelController
 	local size = if self.Touch then 58 else 66
+	-- one-button mode: a single MENU button unfolds all the other buttons
+	local menuButton = Widgets.IconButton(root, "☰", "MENU", Theme.Colors.PanelLight, size, 0, function()
+		self.MenuOpen = not self.MenuOpen
+		self:ApplyMode()
+	end)
+	menuButton.Position = UDim2.new(0, 10, 0, if self.Touch then 70 else 150)
+	local _, setMenuBadge = Widgets.Badge(menuButton)
+	self.MenuButton, self.SetMenuBadge = menuButton, setMenuBadge
+	local columnTop = (if self.Touch then 70 else 150) + size + 8
+
 	local left = Kit.New("Frame", {
 		Name = "Left",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.new(0, 10, 0, if self.Touch then 70 else 150),
+		Position = UDim2.new(0, 10, 0, columnTop),
 		Size = UDim2.fromOffset(if self.Touch then size * 2 + 8 else size, 560),
 		Parent = root,
 	})
+	self.LeftColumn = left
 	if self.Touch then
 		Kit.New("UIGridLayout", {
 			CellSize = UDim2.fromOffset(size, size),
@@ -199,6 +234,7 @@ function HudController:BuildSides(root: Frame)
 		Size = UDim2.fromOffset(size, 300),
 		Parent = root,
 	})
+	self.RightColumn = right
 	Kit.New("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = right })
 	for i, item in {
 		{ "Leaderboard", "🏆", "TOP", Theme.Colors.Yellow },
@@ -257,18 +293,37 @@ function HudController:BuildBottom(root: Frame)
 	-- every finger / click that lands on the button is a tap (multi-touch friendly)
 	tap.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			tapController:Tap(Vector2.new(input.Position.X, input.Position.Y))
+			tapController:Press(Vector2.new(input.Position.X, input.Position.Y))
 			Kit.Pop(tap, 0.06)
 		end
 	end)
 	self.TapButton = tap
+	self.TapLabel = label
+	self.TapSizes = {
+		Classic = if touch then Vector2.new(310, 150) else Vector2.new(340, 104),
+		OneButton = if touch then Vector2.new(340, 180) else Vector2.new(420, 128),
+	}
+	self.TapBaseSize = self.TapSizes.OneButton
 
-	-- idle "breathing" so the button begs to be pressed (size, so it never fights the press UIScale)
-	local baseSize = tap.Size
+	-- idle "breathing" so the button begs to be pressed (size, so it never fights the press UIScale);
+	-- a ready REBIRTH breathes faster and bigger
 	RunService.Heartbeat:Connect(function()
-		local k = 1 + math.sin(os.clock() * 3) * 0.025
-		tap.Size = UDim2.fromOffset(baseSize.X.Offset * k, baseSize.Y.Offset * k)
+		local armed = self.RebirthArmed
+		local k = 1 + math.sin(os.clock() * (if armed then 8 else 3)) * (if armed then 0.05 else 0.025)
+		tap.Size = UDim2.fromOffset(self.TapBaseSize.X * k, self.TapBaseSize.Y * k)
 	end)
+
+	-- one-button mode: what the autopilot is doing, right above the button
+	self.AutoLine = Kit.Label({
+		Name = "AutoLine",
+		AnchorPoint = if touch then Vector2.new(1, 1) else Vector2.new(0.5, 1),
+		Position = if touch then UDim2.new(1, -16, 1, -202) else UDim2.new(0.5, 0, 1, -150),
+		Size = UDim2.fromOffset(if touch then 340 else 520, 26),
+		Text = "",
+		TextColor3 = Color3.fromRGB(230, 240, 255),
+		Visible = false,
+		Parent = root,
+	})
 
 	local function upgradeButton(kind: string, anchor: Vector2, position: UDim2): (TextButton, TextLabel, TextLabel)
 		local button = Kit.Button({
@@ -309,7 +364,7 @@ function HudController:BuildBottom(root: Frame)
 		Name = "AutoTap",
 		Color = Theme.Colors.Purple,
 		AnchorPoint = if touch then Vector2.new(1, 1) else Vector2.new(0.5, 1),
-		Position = if touch then UDim2.new(1, -16, 1, -268) else UDim2.new(0.5, 0, 1, -128),
+		Position = if touch then UDim2.new(1, -16, 1, -232) else UDim2.new(0.5, 0, 1, -180),
 		Size = UDim2.fromOffset(170, 36),
 		Radius = 18,
 		Parent = root,
@@ -353,13 +408,29 @@ function HudController:RefreshStats()
 	self.CanUpgrade = canTap or canAuto
 
 	-- tap info
-	self.TapInfo.Text = string.format("%s  •  🪙 +%s", Format.Gain(rates.TapGain or 1), Format.Number(rates.TapCoins or 1))
+	self.TapInfoText = string.format("%s  •  🪙 +%s", Format.Gain(rates.TapGain or 1), Format.Number(rates.TapCoins or 1))
 
 	-- rebirth progress
 	local cost = stats.RebirthCost or Formulas.RebirthCost(stats.Rebirths)
 	local fraction = math.clamp(stats.Height / cost, 0, 1)
 	local ready = stats.Height >= cost
+	if ready and not self.RebirthReady then
+		self.RebirthReadySince = os.clock()
+	end
 	self.RebirthReady = ready
+	self.RebirthInfo = string.format(
+		"%s ➜ %s GROWTH  •  +%s 💎",
+		Format.Mult(Formulas.RebirthMultiplier(stats.Rebirths)),
+		Format.Mult(Formulas.RebirthMultiplier(stats.Rebirths + 1)),
+		Format.Number(Formulas.RebirthGems(stats.Rebirths + 1))
+	)
+	local pets = data:Get("Pets")
+	self.AutoLine.Text = string.format(
+		"🤖 AUTO:  👆 %s   🌱 %s/s   🐾 %s",
+		Format.Mult(Formulas.TapPower(stats.TapLevel)),
+		Format.Gain(rates.AutoGain or 0),
+		Format.Mult(pets and pets.Multiplier or 1)
+	)
 	self.RebirthBar.Set(fraction, if ready then "♻️ REBIRTH READY! (click)" else string.format("♻️ REBIRTH  %s / %s", Format.Length(stats.Height), Format.Length(cost)))
 
 	-- zone line
@@ -378,8 +449,10 @@ function HudController:RefreshBadges()
 	local data = self.Controllers.ClientData
 	local rewards = data:Get("Rewards")
 	local boosts = data:Get("Boosts")
+	local attention = false -- anything waiting -> the one-button MENU gets a badge too
 	if rewards then
-		self.Badges.Daily(rewards.Daily and rewards.Daily.CanClaim == true)
+		local daily = rewards.Daily and rewards.Daily.CanClaim == true
+		self.Badges.Daily(daily)
 		local elapsed = (rewards.PlaytimeElapsed or 0) + (os.clock() - data.RewardsClock)
 		local ready = 0
 		for i, gift in RewardConfig.Playtime do
@@ -396,6 +469,7 @@ function HudController:RefreshBadges()
 			end
 		end
 		self.Badges.Quests(quests)
+		attention = daily or ready > 0 or quests > 0
 	end
 	if boosts then
 		local count = 0
@@ -403,8 +477,10 @@ function HudController:RefreshBadges()
 			count += n
 		end
 		self.Badges.Boosts(count)
+		attention = attention or count > 0
 	end
 	self.Badges.Rebirth(self.RebirthReady == true)
+	self.SetMenuBadge(attention and not self.MenuOpen)
 end
 
 function HudController:RefreshBoosts()
@@ -473,6 +549,42 @@ function HudController:RefreshEvent()
 	self.EventLabel.Text = string.format("%s %s  —  %s", def.Icon, def.Name, Format.Time(left))
 end
 
+-- classic <-> one-button layout
+function HudController:ApplyMode()
+	local one = self:IsOneButton()
+	self.OneButton = one
+	self.TapUpgrade.Visible = not one
+	self.AutoUpgrade.Visible = not one
+	self.AutoLine.Visible = one
+	self.MenuButton.Visible = one
+	local columns = not one or self.MenuOpen
+	self.LeftColumn.Visible = columns
+	self.RightColumn.Visible = columns
+	self.TapBaseSize = if one then self.TapSizes.OneButton else self.TapSizes.Classic
+	self:UpdatePrimary()
+end
+
+-- the big button is TAP TO GROW, or REBIRTH! when a rebirth is ready (one-button mode only)
+function HudController:UpdatePrimary()
+	local armed = self.OneButton and self.RebirthReady == true and os.clock() - self.RebirthReadySince >= 0.8
+	if armed ~= self.RebirthArmed then
+		self.RebirthArmed = armed
+		if armed then
+			self.Controllers.SoundController:Play("Achievement")
+			Kit.Pop(self.TapButton, 0.2)
+		end
+	end
+	if armed then
+		self.TapLabel.Text = "♻️ REBIRTH!"
+		self.TapInfo.Text = self.RebirthInfo or ""
+		Kit.SetButtonColor(self.TapButton, Theme.Colors.Purple)
+	else
+		self.TapLabel.Text = "TAP TO GROW"
+		self.TapInfo.Text = self.TapInfoText or ""
+		Kit.SetButtonColor(self.TapButton, Theme.Colors.Green)
+	end
+end
+
 -- per frame: animated numbers that count up, and height synced with the visual body
 function HudController:Step(dt: number)
 	local data = self.Controllers.ClientData
@@ -513,6 +625,7 @@ function HudController:Step(dt: number)
 	self.DisplayGems = approach(self.DisplayGems, stats.Gems)
 	self.CoinsLabel.Text = Format.Number(math.floor(self.DisplayCoins + 0.5))
 	self.GemsLabel.Text = Format.Number(math.floor(self.DisplayGems + 0.5))
+	self:UpdatePrimary()
 end
 
 function HudController:Start()
@@ -527,6 +640,7 @@ function HudController:Start()
 	local data = self.Controllers.ClientData
 	local function onLoaded()
 		gui.Enabled = true
+		self:ApplyMode()
 		self:RefreshStats()
 		self:RefreshBadges()
 		self:RefreshBoosts()
@@ -541,6 +655,9 @@ function HudController:Start()
 			self:RefreshStats()
 		elseif section == "Boosts" or section == "Passes" or section == "Settings" then
 			self:RefreshBoosts()
+			if section == "Settings" then
+				self:ApplyMode()
+			end
 		end
 		self:RefreshBadges()
 	end)

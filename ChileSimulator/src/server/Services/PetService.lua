@@ -23,8 +23,24 @@ function PetService:Init(services)
 	self.Rng = Random.new()
 end
 
-function PetService:Start()
+-- server-wide "X hatched a LEGENDARY Unicorn!" (Legendary and rarer)
+function PetService:AnnounceHatch(player: Player, session, results)
 	local PlayerService = self.Services.PlayerService
+	for _, r in results do
+		local def = PetConfig.Pets[r.Id]
+		local order = PetConfig.Rarities[def.Rarity].Order
+		if order >= PetConfig.Rarities.Legendary.Order then
+			local big = def.Rarity == "Secret" or def.Rarity == "Mythic"
+			PlayerService:NotifyAll(
+				if big then "Big" else "Info",
+				string.format("%s %s hatched a %s %s!", if big then "🚨" else "🎉", player.DisplayName, string.upper(def.Rarity), def.Name),
+				{ Sound = if def.Rarity == "Secret" then "PetSecret" else "PetLegendary", Delay = if session.Passes.FasterHatch then 1 else 3 }
+			)
+		end
+	end
+end
+
+function PetService:Start()
 	local WorldService = self.Services.WorldService
 
 	Guard.On("Hatch", 2, function(session, player, eggId, count)
@@ -47,18 +63,7 @@ function PetService:Start()
 			Results = results,
 			Fast = session.Passes.FasterHatch == true,
 		})
-		for _, r in results do
-			local def = PetConfig.Pets[r.Id]
-			local order = PetConfig.Rarities[def.Rarity].Order
-			if order >= PetConfig.Rarities.Legendary.Order then
-				local big = def.Rarity == "Secret" or def.Rarity == "Mythic"
-				PlayerService:NotifyAll(
-					if big then "Big" else "Info",
-					string.format("%s %s hatched a %s %s!", if big then "🚨" else "🎉", player.DisplayName, string.upper(def.Rarity), def.Name),
-					{ Sound = if def.Rarity == "Secret" then "PetSecret" else "PetLegendary", Delay = if session.Passes.FasterHatch then 1 else 3 }
-				)
-			end
-		end
+		self:AnnounceHatch(player, session, results)
 		Rewards.CheckAchievements(session)
 	end)
 

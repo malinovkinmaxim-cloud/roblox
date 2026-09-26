@@ -68,10 +68,13 @@ check("map part budget < 1500", serverParts < 1500, serverParts .. " parts")
 print("       map: " .. serverParts .. " parts")
 
 local alice, alicePlayer = Engine.AddPlayer("Alice")
+-- this scenario tests the classic (manual) UI; one-button mode has its own test (e2e_onebutton)
+Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.ClientData"):Fire("SetSetting", "OneButton", false)
 Engine.SpawnCharacter("Alice")
 Engine.Step(1)
 local session = PlayerService:Get(alicePlayer)
 check("server session created", session ~= nil)
+check("one-button mode is the default, classic mode can be chosen", session.Data.Settings.OneButton == false)
 local cd = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.ClientData")
 local hud = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.HudController")
 local bodies = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.BodyController")
@@ -314,7 +317,8 @@ check("event banner visible", hud.EventFrame.Visible == true)
 local h0 = session.Data.Height
 tapper:Tap(nil)
 Engine.Step(0.3)
-check("MEGA GROWTH x10 on taps", session.Data.Height - h0 >= 10 * 2 * 2, session.Data.Height - h0)
+local megaGrowth = Engine.Module(server, "ReplicatedStorage.Shared.EventConfig").Events.MegaGrowth.Height
+check("MEGA GROWTH x" .. megaGrowth .. " on taps", session.Data.Height - h0 >= megaGrowth * 2 * 2, session.Data.Height - h0)
 Engine.Step(61)
 check("event ended + participation gems", alice.Game:GetService("Workspace"):GetAttribute("EventId") == "" and session.Data.Stats.Events == 1)
 local RewardService = Engine.Module(server, "ServerScriptService.Server.Services.RewardService")
@@ -428,7 +432,13 @@ notify.ShowBanner = function(self, item)
 end
 session.Data.Height = 2e7
 cd:Fire("Tap", 1)
-Engine.Step(4)
+-- several milestones are crossed at once: their banners play one after another
+for _ = 1, 40 do
+	Engine.Step(0.5)
+	if shownBanner then
+		break
+	end
+end
 check("milestone banner: TALLER THAN A SKYSCRAPER", shownBanner)
 EventService:StartEvent("GiantMode")
 Engine.Step(3)

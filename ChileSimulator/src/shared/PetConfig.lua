@@ -31,40 +31,40 @@ PetConfig.MaxHatchCount = 3 -- hatch 1 or 3 at once
 -- Ears: "Pointy" | "Floppy" | "Long" | "Round" | "None";  Extra: "Horn" | "Wings" | "Halo" | "Antenna" | "Ring" | "Beak" | nil
 PetConfig.Pets = {
 	-- Basic Egg --------------------------------------------------------------
-	Doggy = { Name = "Doggy", Rarity = "Common", Mult = 1.1, Look = { Body = Color3.fromRGB(210, 160, 110), Accent = Color3.fromRGB(120, 80, 50), Ears = "Floppy" } },
-	Kitty = { Name = "Kitty", Rarity = "Common", Mult = 1.15, Look = { Body = Color3.fromRGB(255, 170, 90), Accent = Color3.fromRGB(255, 240, 220), Ears = "Pointy" } },
-	Bunny = { Name = "Bunny", Rarity = "Rare", Mult = 1.5, Look = { Body = Color3.fromRGB(245, 245, 250), Accent = Color3.fromRGB(255, 160, 190), Ears = "Long" } },
-	Piggy = { Name = "Piggy", Rarity = "Epic", Mult = 2, Look = { Body = Color3.fromRGB(255, 160, 185), Accent = Color3.fromRGB(230, 110, 150), Ears = "Pointy", Snout = true } },
-	GoldenChick = { Name = "Golden Chick", Rarity = "Legendary", Mult = 5, Look = { Body = Color3.fromRGB(255, 215, 60), Accent = Color3.fromRGB(255, 140, 20), Ears = "None", Extra = "Beak", Neon = true } },
-	RainbowFox = { Name = "Rainbow Fox", Rarity = "Mythic", Mult = 10, Look = { Body = Color3.fromRGB(255, 90, 160), Accent = Color3.fromRGB(90, 220, 255), Ears = "Pointy", Rainbow = true, Neon = true } },
-	TallNoob = { Name = "Tall Noob", Rarity = "Secret", Mult = 25, Look = { Body = Color3.fromRGB(245, 205, 50), Accent = Color3.fromRGB(40, 110, 220), Ears = "None", Tall = true, Sparkle = true } },
+	Doggy = { Name = "Doggy", Rarity = "Common", Mult = 1.05, Look = { Body = Color3.fromRGB(210, 160, 110), Accent = Color3.fromRGB(120, 80, 50), Ears = "Floppy" } },
+	Kitty = { Name = "Kitty", Rarity = "Common", Mult = 1.08, Look = { Body = Color3.fromRGB(255, 170, 90), Accent = Color3.fromRGB(255, 240, 220), Ears = "Pointy" } },
+	Bunny = { Name = "Bunny", Rarity = "Rare", Mult = 1.2, Look = { Body = Color3.fromRGB(245, 245, 250), Accent = Color3.fromRGB(255, 160, 190), Ears = "Long" } },
+	Piggy = { Name = "Piggy", Rarity = "Epic", Mult = 1.35, Look = { Body = Color3.fromRGB(255, 160, 185), Accent = Color3.fromRGB(230, 110, 150), Ears = "Pointy", Snout = true } },
+	GoldenChick = { Name = "Golden Chick", Rarity = "Legendary", Mult = 2, Look = { Body = Color3.fromRGB(255, 215, 60), Accent = Color3.fromRGB(255, 140, 20), Ears = "None", Extra = "Beak", Neon = true } },
+	RainbowFox = { Name = "Rainbow Fox", Rarity = "Mythic", Mult = 3.5, Look = { Body = Color3.fromRGB(255, 90, 160), Accent = Color3.fromRGB(90, 220, 255), Ears = "Pointy", Rainbow = true, Neon = true } },
+	TallNoob = { Name = "Tall Noob", Rarity = "Secret", Mult = 10, Look = { Body = Color3.fromRGB(245, 205, 50), Accent = Color3.fromRGB(40, 110, 220), Ears = "None", Tall = true, Sparkle = true } },
 
 	-- Big Egg ----------------------------------------------------------------
-	Bear = { Name = "Bear", Rarity = "Common", Mult = 1.5, Look = { Body = Color3.fromRGB(140, 95, 60), Accent = Color3.fromRGB(90, 60, 40), Ears = "Round" } },
-	Panda = { Name = "Panda", Rarity = "Common", Mult = 1.6, Look = { Body = Color3.fromRGB(245, 245, 245), Accent = Color3.fromRGB(30, 30, 35), Ears = "Round" } },
-	Penguin = { Name = "Penguin", Rarity = "Rare", Mult = 2.5, Look = { Body = Color3.fromRGB(40, 45, 60), Accent = Color3.fromRGB(255, 170, 40), Ears = "None", Extra = "Beak" } },
-	Fox = { Name = "Fox", Rarity = "Epic", Mult = 4, Look = { Body = Color3.fromRGB(255, 120, 40), Accent = Color3.fromRGB(255, 245, 235), Ears = "Pointy" } },
-	Unicorn = { Name = "Unicorn", Rarity = "Legendary", Mult = 10, Look = { Body = Color3.fromRGB(255, 240, 255), Accent = Color3.fromRGB(255, 120, 220), Ears = "Pointy", Extra = "Horn", Neon = true } },
-	CrystalDragon = { Name = "Crystal Dragon", Rarity = "Mythic", Mult = 22, Look = { Body = Color3.fromRGB(120, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Ears = "Pointy", Extra = "Wings", Neon = true, Sparkle = true } },
-	StretchyCat = { Name = "Stretchy Cat", Rarity = "Secret", Mult = 60, Look = { Body = Color3.fromRGB(60, 60, 70), Accent = Color3.fromRGB(120, 255, 120), Ears = "Pointy", Tall = true, Sparkle = true } },
+	Bear = { Name = "Bear", Rarity = "Common", Mult = 1.2, Look = { Body = Color3.fromRGB(140, 95, 60), Accent = Color3.fromRGB(90, 60, 40), Ears = "Round" } },
+	Panda = { Name = "Panda", Rarity = "Common", Mult = 1.25, Look = { Body = Color3.fromRGB(245, 245, 245), Accent = Color3.fromRGB(30, 30, 35), Ears = "Round" } },
+	Penguin = { Name = "Penguin", Rarity = "Rare", Mult = 1.6, Look = { Body = Color3.fromRGB(40, 45, 60), Accent = Color3.fromRGB(255, 170, 40), Ears = "None", Extra = "Beak" } },
+	Fox = { Name = "Fox", Rarity = "Epic", Mult = 2.2, Look = { Body = Color3.fromRGB(255, 120, 40), Accent = Color3.fromRGB(255, 245, 235), Ears = "Pointy" } },
+	Unicorn = { Name = "Unicorn", Rarity = "Legendary", Mult = 4.5, Look = { Body = Color3.fromRGB(255, 240, 255), Accent = Color3.fromRGB(255, 120, 220), Ears = "Pointy", Extra = "Horn", Neon = true } },
+	CrystalDragon = { Name = "Crystal Dragon", Rarity = "Mythic", Mult = 9, Look = { Body = Color3.fromRGB(120, 230, 255), Accent = Color3.fromRGB(255, 255, 255), Ears = "Pointy", Extra = "Wings", Neon = true, Sparkle = true } },
+	StretchyCat = { Name = "Stretchy Cat", Rarity = "Secret", Mult = 25, Look = { Body = Color3.fromRGB(60, 60, 70), Accent = Color3.fromRGB(120, 255, 120), Ears = "Pointy", Tall = true, Sparkle = true } },
 
 	-- Giant Egg --------------------------------------------------------------
-	CloudPup = { Name = "Cloud Pup", Rarity = "Common", Mult = 3, Look = { Body = Color3.fromRGB(240, 248, 255), Accent = Color3.fromRGB(170, 210, 255), Ears = "Floppy" } },
-	SkyWhale = { Name = "Sky Whale", Rarity = "Common", Mult = 3.3, Look = { Body = Color3.fromRGB(90, 150, 230), Accent = Color3.fromRGB(230, 240, 255), Ears = "None" } },
-	StormBird = { Name = "Storm Bird", Rarity = "Rare", Mult = 5, Look = { Body = Color3.fromRGB(80, 90, 130), Accent = Color3.fromRGB(255, 240, 90), Ears = "None", Extra = "Wings" } },
-	ThunderWolf = { Name = "Thunder Wolf", Rarity = "Epic", Mult = 9, Look = { Body = Color3.fromRGB(70, 80, 120), Accent = Color3.fromRGB(120, 230, 255), Ears = "Pointy", Neon = true } },
-	Angel = { Name = "Angel", Rarity = "Legendary", Mult = 22, Look = { Body = Color3.fromRGB(255, 250, 235), Accent = Color3.fromRGB(255, 220, 90), Ears = "None", Extra = "Halo", Neon = true } },
-	Phoenix = { Name = "Phoenix", Rarity = "Mythic", Mult = 50, Look = { Body = Color3.fromRGB(255, 90, 30), Accent = Color3.fromRGB(255, 220, 60), Ears = "None", Extra = "Wings", Neon = true, Sparkle = true } },
-	Titan = { Name = "Titan", Rarity = "Secret", Mult = 140, Look = { Body = Color3.fromRGB(30, 30, 35), Accent = Color3.fromRGB(255, 60, 60), Ears = "None", Tall = true, Sparkle = true } },
+	CloudPup = { Name = "Cloud Pup", Rarity = "Common", Mult = 1.6, Look = { Body = Color3.fromRGB(240, 248, 255), Accent = Color3.fromRGB(170, 210, 255), Ears = "Floppy" } },
+	SkyWhale = { Name = "Sky Whale", Rarity = "Common", Mult = 1.7, Look = { Body = Color3.fromRGB(90, 150, 230), Accent = Color3.fromRGB(230, 240, 255), Ears = "None" } },
+	StormBird = { Name = "Storm Bird", Rarity = "Rare", Mult = 2.2, Look = { Body = Color3.fromRGB(80, 90, 130), Accent = Color3.fromRGB(255, 240, 90), Ears = "None", Extra = "Wings" } },
+	ThunderWolf = { Name = "Thunder Wolf", Rarity = "Epic", Mult = 3.5, Look = { Body = Color3.fromRGB(70, 80, 120), Accent = Color3.fromRGB(120, 230, 255), Ears = "Pointy", Neon = true } },
+	Angel = { Name = "Angel", Rarity = "Legendary", Mult = 7.5, Look = { Body = Color3.fromRGB(255, 250, 235), Accent = Color3.fromRGB(255, 220, 90), Ears = "None", Extra = "Halo", Neon = true } },
+	Phoenix = { Name = "Phoenix", Rarity = "Mythic", Mult = 16, Look = { Body = Color3.fromRGB(255, 90, 30), Accent = Color3.fromRGB(255, 220, 60), Ears = "None", Extra = "Wings", Neon = true, Sparkle = true } },
+	Titan = { Name = "Titan", Rarity = "Secret", Mult = 45, Look = { Body = Color3.fromRGB(30, 30, 35), Accent = Color3.fromRGB(255, 60, 60), Ears = "None", Tall = true, Sparkle = true } },
 
 	-- Galaxy Egg -------------------------------------------------------------
-	MoonBunny = { Name = "Moon Bunny", Rarity = "Common", Mult = 8, Look = { Body = Color3.fromRGB(210, 215, 235), Accent = Color3.fromRGB(150, 160, 200), Ears = "Long" } },
-	Alien = { Name = "Alien", Rarity = "Common", Mult = 9, Look = { Body = Color3.fromRGB(120, 240, 110), Accent = Color3.fromRGB(20, 30, 20), Ears = "None", Extra = "Antenna" } },
-	RocketDog = { Name = "Rocket Dog", Rarity = "Rare", Mult = 14, Look = { Body = Color3.fromRGB(230, 230, 240), Accent = Color3.fromRGB(255, 80, 60), Ears = "Floppy", Extra = "Antenna" } },
-	Comet = { Name = "Comet", Rarity = "Epic", Mult = 25, Look = { Body = Color3.fromRGB(120, 200, 255), Accent = Color3.fromRGB(255, 255, 255), Ears = "None", Neon = true, Sparkle = true } },
-	StarGuardian = { Name = "Star Guardian", Rarity = "Legendary", Mult = 60, Look = { Body = Color3.fromRGB(255, 225, 80), Accent = Color3.fromRGB(120, 80, 255), Ears = "Pointy", Extra = "Halo", Neon = true, Sparkle = true } },
-	BlackHole = { Name = "Black Hole", Rarity = "Mythic", Mult = 150, Look = { Body = Color3.fromRGB(15, 10, 25), Accent = Color3.fromRGB(200, 90, 255), Ears = "None", Extra = "Ring", Neon = true, Sparkle = true } },
-	TheTallest = { Name = "The Tallest", Rarity = "Secret", Mult = 500, Look = { Body = Color3.fromRGB(255, 255, 255), Accent = Color3.fromRGB(255, 60, 220), Ears = "Pointy", Tall = true, Rainbow = true, Sparkle = true, Neon = true } },
+	MoonBunny = { Name = "Moon Bunny", Rarity = "Common", Mult = 2.8, Look = { Body = Color3.fromRGB(210, 215, 235), Accent = Color3.fromRGB(150, 160, 200), Ears = "Long" } },
+	Alien = { Name = "Alien", Rarity = "Common", Mult = 3, Look = { Body = Color3.fromRGB(120, 240, 110), Accent = Color3.fromRGB(20, 30, 20), Ears = "None", Extra = "Antenna" } },
+	RocketDog = { Name = "Rocket Dog", Rarity = "Rare", Mult = 4.2, Look = { Body = Color3.fromRGB(230, 230, 240), Accent = Color3.fromRGB(255, 80, 60), Ears = "Floppy", Extra = "Antenna" } },
+	Comet = { Name = "Comet", Rarity = "Epic", Mult = 7, Look = { Body = Color3.fromRGB(120, 200, 255), Accent = Color3.fromRGB(255, 255, 255), Ears = "None", Neon = true, Sparkle = true } },
+	StarGuardian = { Name = "Star Guardian", Rarity = "Legendary", Mult = 16, Look = { Body = Color3.fromRGB(255, 225, 80), Accent = Color3.fromRGB(120, 80, 255), Ears = "Pointy", Extra = "Halo", Neon = true, Sparkle = true } },
+	BlackHole = { Name = "Black Hole", Rarity = "Mythic", Mult = 38, Look = { Body = Color3.fromRGB(15, 10, 25), Accent = Color3.fromRGB(200, 90, 255), Ears = "None", Extra = "Ring", Neon = true, Sparkle = true } },
+	TheTallest = { Name = "The Tallest", Rarity = "Secret", Mult = 125, Look = { Body = Color3.fromRGB(255, 255, 255), Accent = Color3.fromRGB(255, 60, 220), Ears = "Pointy", Tall = true, Rainbow = true, Sparkle = true, Neon = true } },
 }
 
 PetConfig.Eggs = {
@@ -88,7 +88,7 @@ PetConfig.Eggs = {
 	{
 		Id = "Big",
 		Name = "Big Egg",
-		Cost = 1e4,
+		Cost = 1e5,
 		Zone = 2,
 		Color = Color3.fromRGB(150, 220, 120),
 		Spots = Color3.fromRGB(255, 240, 120),
@@ -105,7 +105,7 @@ PetConfig.Eggs = {
 	{
 		Id = "Giant",
 		Name = "Giant Egg",
-		Cost = 1e6,
+		Cost = 1e8,
 		Zone = 4,
 		Color = Color3.fromRGB(190, 225, 255),
 		Spots = Color3.fromRGB(255, 255, 255),
@@ -122,7 +122,7 @@ PetConfig.Eggs = {
 	{
 		Id = "Galaxy",
 		Name = "Galaxy Egg",
-		Cost = 1e9,
+		Cost = 1e13,
 		Zone = 7,
 		Color = Color3.fromRGB(90, 40, 160),
 		Spots = Color3.fromRGB(255, 120, 240),

@@ -40,14 +40,17 @@ Config.Tap = {
 -- Coins
 ---------------------------------------------------------------------------
 Config.Coins = {
-	-- coins per tap = PerTapBase * (height gained by the tap in cm) ^ GainExponent
-	--                 * coin multipliers * heightBonus
+	-- coins per tap = PerTapBase * (tap power * rebirth * zone * gem bonus * extra ^ ExtraShare)
+	--                   ^ GainExponent * coin multipliers * heightBonus
 	PerTapBase = 1,
 	GainExponent = 0.8,
 	-- taller = richer: heightBonus = 1 + HeightBonusPerDecade * log10(1 + height in metres)
 	HeightBonusPerDecade = 0.3,
 	-- auto growth pays this fraction of what the same growth would pay when tapped
 	AutoCoinFactor = 0.3,
+	-- pets / boosts / events / passes multiply growth fully, but count for coins only as
+	-- multiplier ^ ExtraShare (x10 growth -> x2 in the coin formula), so they can't snowball
+	ExtraShare = 0.3,
 }
 
 ---------------------------------------------------------------------------
@@ -60,9 +63,9 @@ Config.Upgrades = {
 		MaxLevel = 150,
 		BaseCost = 40,
 		-- level n+1 costs (RatioStart - RatioDecay * n) times more than level n, never below RatioMin
-		RatioStart = 6,
+		RatioStart = 6.3,
 		RatioDecay = 0.3,
-		RatioMin = 2.3,
+		RatioMin = 2.5,
 	},
 	AutoGrow = {
 		Name = "AUTO GROW",
@@ -71,7 +74,7 @@ Config.Upgrades = {
 		BaseCost = 150,
 		RatioStart = 6.4,
 		RatioDecay = 0.3,
-		RatioMin = 2.5,
+		RatioMin = 2.7,
 	},
 }
 
@@ -81,9 +84,9 @@ Config.Upgrades = {
 Config.Rebirth = {
 	BaseCost = 10000, -- first rebirth: cm = 100 m
 	-- rebirth i+1 costs RatioStart - RatioDecay * i times more than rebirth i (never below RatioMin)
-	RatioStart = 8,
-	RatioDecay = 0.5,
-	RatioMin = 1.8,
+	RatioStart = 10,
+	RatioDecay = 0.45,
+	RatioMin = 2.4,
 	-- multiplier = round(1 + r + Quadratic * r^2): R1 x2, R2 x3, R3 x5, R10 x21, R100 x1101
 	Quadratic = 0.1,
 	-- gems for rebirth number r (1-based): Base + PerRebirth * r

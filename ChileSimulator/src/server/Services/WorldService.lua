@@ -709,12 +709,14 @@ function WorldService:InVIPArea(position: Vector3): boolean
 	return math.abs(d.X) <= VIP_SIZE.X / 2 and math.abs(d.Z) <= VIP_SIZE.Z / 2
 end
 
-function WorldService:Teleport(player: Player, zone: number)
+function WorldService:Teleport(player: Player, zone: number): boolean
 	local character = player.Character
 	local cf = self.ZoneSpawns[zone]
-	if character and cf then
+	if character and cf and character:FindFirstChild("HumanoidRootPart") then
 		character:PivotTo(cf)
+		return true
 	end
+	return false
 end
 
 -- Server truth for "which zone multiplier applies": position-based, but never above what the

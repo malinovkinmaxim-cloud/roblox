@@ -49,6 +49,7 @@ function Defaults.New()
 			OthersFx = true,
 			LowGraphics = false,
 			AutoTap = true,
+			OneButton = true, -- one-button mode: tap only, the server plays the rest (Logic/AutoPlay)
 		},
 		Tutorial = 0,
 		HistogramBucket = -1, -- bucket this player is counted in (global "taller than X%")

@@ -16,6 +16,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared.Net)
 local BodyShape = require(Shared.BodyShape)
+local Formulas = require(Shared.Formulas)
+local ShopConfig = require(Shared.ShopConfig)
 local Format = require(Shared.Util.Format)
 
 local UI = script.Parent.Parent.UI
@@ -387,6 +389,19 @@ function EffectsController:OnEffect(payload)
 		self.Controllers.CameraController:Shake(0.8, 0.6)
 	elseif name == "Upgrade" then
 		sounds:Play("Upgrade")
+		-- say what was bought (in one-button mode the server buys by itself)
+		local level = tonumber(payload.Level)
+		local text
+		if payload.Kind == "TapPower" and level then
+			text = "👆 TAP POWER " .. Format.Mult(Formulas.TapPower(level)) .. "!"
+		elseif payload.Kind == "AutoGrow" and level then
+			text = "🌱 AUTO GROW " .. Format.Gain(Formulas.AutoRate(level)) .. "/s!"
+		elseif type(payload.Kind) == "string" and ShopConfig.GemUpgrades[payload.Kind] and level then
+			text = "💎 " .. ShopConfig.GemUpgrades[payload.Kind].Name .. " Lv " .. level .. "!"
+		end
+		if text then
+			self:FloatText(text, 3, nil)
+		end
 		local center, total = self:BodyCenter(LocalPlayer)
 		if center then
 			self:BurstAt(center, math.clamp(total / 10, 0.5, 15), { Theme.Colors.Blue, Color3.new(1, 1, 1) }, 18, "Glow")

@@ -146,6 +146,8 @@ export type MultState = {
 export type Multipliers = {
 	TapHeight: number, -- multiplier on tap growth
 	AutoHeight: number, -- multiplier on auto growth
+	TapCoinGrowth: number, -- the part of TapHeight that also counts for coins (see TapCoins)
+	AutoCoinGrowth: number,
 	Coins: number, -- multiplier on coins
 	Rebirth: number,
 	Zone: number,
@@ -166,8 +168,10 @@ function Formulas.Multipliers(state: MultState): Multipliers
 	local pet = Num.Sanitize(state.PetMult or 1, 1)
 	local vip = if passes.VIP then ShopConfig.VIPMultiplier else 1
 
-	local common = Num.Product({
-		zone,
+	-- "extra" growth: pets, boosts, events, passes. It multiplies growth fully but counts for
+	-- coins only as extra ^ Coins.ExtraShare - otherwise every extra would also buy upgrades
+	-- faster and snowball (a x15 pet team would end up as x10,000,000 an hour later).
+	local extra = Num.Product({
 		pet,
 		state.BoostHeight or 1,
 		state.EventHeight or 1,
@@ -175,8 +179,9 @@ function Formulas.Multipliers(state: MultState): Multipliers
 		vip,
 		if state.VIPArea then ShopConfig.VIPAreaBonus else 1,
 	})
-	local tapHeight = Num.Product({ common, rebirth, gemBonus(state, "TapBonus") })
-	local autoHeight = Num.Product({ common, rebirth, gemBonus(state, "AutoBonus") })
+	local tapCore = Num.Product({ zone, rebirth, gemBonus(state, "TapBonus") })
+	local autoCore = Num.Product({ zone, rebirth, gemBonus(state, "AutoBonus") })
+	local extraForCoins = Num.Sanitize(extra ^ Config.Coins.ExtraShare, 1)
 
 	-- coin-only multipliers; growth multipliers reach coins through the tap gain (see TapCoins)
 	local coins = Num.Product({
@@ -188,8 +193,10 @@ function Formulas.Multipliers(state: MultState): Multipliers
 	})
 
 	return {
-		TapHeight = tapHeight,
-		AutoHeight = autoHeight,
+		TapHeight = Num.Mul(tapCore, extra),
+		AutoHeight = Num.Mul(autoCore, extra),
+		TapCoinGrowth = Num.Mul(tapCore, extraForCoins),
+		AutoCoinGrowth = Num.Mul(autoCore, extraForCoins),
 		Coins = coins,
 		Rebirth = rebirth,
 		Zone = zone,
@@ -221,7 +228,7 @@ function Formulas.CoinsFromGain(gain: number, mults: Multipliers, heightCm: numb
 end
 
 function Formulas.TapCoins(tapLevel: number, mults: Multipliers, heightCm: number): number
-	return Formulas.CoinsFromGain(Formulas.TapGain(tapLevel, mults), mults, heightCm)
+	return Formulas.CoinsFromGain(Num.Mul(Formulas.TapPower(tapLevel), mults.TapCoinGrowth), mults, heightCm)
 end
 
 -- Auto growth (cm) per second
@@ -231,7 +238,7 @@ end
 
 -- Auto coins per second (a fraction of what the same growth would pay when tapped)
 function Formulas.AutoCoins(autoLevel: number, mults: Multipliers, heightCm: number): number
-	local gain = Formulas.AutoGain(autoLevel, mults)
+	local gain = Num.Mul(Formulas.AutoRate(autoLevel), mults.AutoCoinGrowth)
 	if gain <= 0 then
 		return 0
 	end

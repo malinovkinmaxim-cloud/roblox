@@ -10,6 +10,9 @@
 	Then the tap is counted and sent in a batch every 0.1 s ("I tapped 3 times"). The server
 	decides the real growth; the client mirrors the server's rate limit so it never shows a
 	"+12 cm" for a tap the server will throw away.
+
+	Press() is THE one button: it taps, or - in one-button mode, when the big button has turned
+	into "♻️ REBIRTH!" - it rebirths. Every input (button, Space, Enter, click, gamepad) uses it.
 ]]
 
 local Players = game:GetService("Players")
@@ -95,6 +98,18 @@ function TapController:Tap(screenPosition: Vector2?)
 	self.Tapped:Fire(gain, tier)
 end
 
+-- The one button: tap, or rebirth when the button says REBIRTH!
+function TapController:Press(screenPosition: Vector2?)
+	local hud = self.Controllers.HudController
+	if hud and hud:IsRebirthArmed() then
+		self:Flush() -- taps made just before count first
+		self.Controllers.ClientData:Fire("Rebirth")
+		hud:Disarm()
+		return
+	end
+	self:Tap(screenPosition)
+end
+
 function TapController:Flush()
 	if self.Pending <= 0 then
 		return
@@ -111,7 +126,7 @@ function TapController:Start()
 			if UserInputService:GetFocusedTextBox() then
 				return Enum.ContextActionResult.Pass
 			end
-			self:Tap(nil)
+			self:Press(nil)
 			return Enum.ContextActionResult.Sink
 		end
 		return Enum.ContextActionResult.Pass
@@ -123,7 +138,7 @@ function TapController:Start()
 			return
 		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			self:Tap(Vector2.new(input.Position.X, input.Position.Y))
+			self:Press(Vector2.new(input.Position.X, input.Position.Y))
 		end
 	end)
 

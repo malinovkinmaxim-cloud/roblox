@@ -58,6 +58,14 @@ end
 
 local baseline = {}
 local baselineClasses = {}
+local baselinePets = {}
+local function petCount(name)
+	local count = 0
+	for _ in PlayerService:Get(server.PlayersByName[name]).Data.Pets do
+		count += 1
+	end
+	return count
+end
 local function classCounts(world)
 	local counts = {}
 	local ws = rawget(world.Game:GetService("Workspace"), "__real")
@@ -120,6 +128,7 @@ for tick = 1, totalTicks do
 		for name, client in clients do
 			baseline[name] = instanceCount(client)
 			baselineClasses[name] = classCounts(client)
+			baselinePets[name] = petCount(name)
 		end
 	end
 	if tick % 3000 == 0 then
@@ -134,9 +143,13 @@ ok = ok and #Engine.Errors == 0
 for _, name in { "Ana", "Cat" } do
 	local now = instanceCount(clients[name])
 	local growth = now - baseline[name]
-	print(string.format("  %s client instances: %d -> %d", name, baseline[name], now))
-	-- pets / cosmetics / hatched items legitimately add a little; a leak would add thousands
-	if growth > 400 then
+	-- every pet in storage can have a card (~20 instances) in the Pets panel (rebuilt when it is
+	-- opened); one-button mode hatches a lot, so allow for that. Cosmetics / effects add a
+	-- little; a leak would add thousands.
+	local pets = petCount(name)
+	local allowed = 400 + 25 * pets
+	print(string.format("  %s client instances: %d -> %d (allowed +%d, %d pets, %d at baseline)", name, baseline[name], now, allowed, pets, baselinePets[name]))
+	if growth > allowed then
 		print("  LEAK suspected for " .. name)
 		ok = false
 	end
