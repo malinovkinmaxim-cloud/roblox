@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a64ff"/><stop offset="1" stop-color="#bfe9ff"/></linearGradient></defs>
+<rect width="1920" height="1080" fill="url(#sky)"/>
+<rect x="980" y="780" width="90" height="180" fill="#5a6a90" stroke="#1b1530" stroke-width="4"/>
+<rect x="1080" y="700" width="80" height="260" fill="#5a6a90" stroke="#1b1530" stroke-width="4"/>
+<rect x="1170" y="810" width="100" height="150" fill="#5a6a90" stroke="#1b1530" stroke-width="4"/>
+<rect x="1290" y="640" width="90" height="320" fill="#5a6a90" stroke="#1b1530" stroke-width="4"/>
+<rect x="1400" y="750" width="120" height="210" fill="#5a6a90" stroke="#1b1530" stroke-width="4"/>
+<rect x="1540" y="680" width="90" height="280" fill="#5a6a90" stroke="#1b1530" stroke-width="4"/>
+<rect x="1650" y="790" width="110" height="170" fill="#5a6a90" stroke="#1b1530" stroke-width="4"/>
+<rect x="1780" y="720" width="100" height="240" fill="#5a6a90" stroke="#1b1530" stroke-width="4"/>
+<ellipse cx="1200" cy="380" rx="130" ry="42" fill="#ffffff" fill-opacity="0.9"/>
+<ellipse cx="1650" cy="300" rx="130" ry="42" fill="#ffffff" fill-opacity="0.9"/>
+<ellipse cx="300" cy="250" rx="130" ry="42" fill="#ffffff" fill-opacity="0.9"/>
+<ellipse cx="700" cy="160" rx="130" ry="42" fill="#ffffff" fill-opacity="0.9"/>
+<rect y="960" width="1920" height="120" fill="#4cc93f" stroke="#1b1530" stroke-width="6"/>
+<rect x="238.5" y="947.1" width="116.7" height="14.9" rx="11.9" fill="#0039A6" stroke="#1b1530" stroke-width="4.0"/>
+<rect x="232.5" y="958.3" width="130.9" height="3.7" rx="1.1" fill="#23232b" stroke="#1b1530" stroke-width="4.0"/>
+<rect x="362.5" y="947.1" width="116.7" height="14.9" rx="11.9" fill="#0039A6" stroke="#1b1530" stroke-width="4.0"/>
+<rect x="356.5" y="958.3" width="130.9" height="3.7" rx="1.1" fill="#23232b" stroke="#1b1530" stroke-width="4.0"/>
+<rect x="236.0" y="912.4" width="248.0" height="34.7" rx="19.8" fill="#D52B1E" stroke="#1b1530" stroke-width="4.0"/>
+<text x="360.0" y="922.4" font-size="10.0" text-anchor="middle" fill="#ffffff" font-family="Arial">★</text>
+<rect x="211.3" y="921.5" width="26.6" height="14.4" rx="3.9" fill="#D52B1E" stroke="#1b1530" stroke-width="4.0"/>
+<rect x="212.6" y="935.9" width="23.4" height="17.6" rx="5.2" fill="#F5CD30" stroke="#1b1530" stroke-width="4.0"/>
+<rect x="482.7" y="921.5" width="26.6" height="14.4" rx="3.9" fill="#D52B1E" stroke="#1b1530" stroke-width="4.0"/>
+<rect x="484.0" y="935.9" width="23.4" height="17.6" rx="5.2" fill="#F5CD30" stroke="#1b1530" stroke-width="4.0"/>
+<rect x="327.4" y="847.3" width="65.1" height="65.1" rx="18.2" fill="#F5CD30" stroke="#1b1530" stroke-width="4.0"/>
+<circle cx="348.9" cy="874.6" r="5.2" fill="#1b1530"/>
+<circle cx="371.1" cy="874.6" r="5.2" fill="#1b1530"/>
+<path d="M 347.0 889.0 Q 360.0 899.4 373.0 889.0" stroke="#1b1530" stroke-width="3.3" fill="none" stroke-linecap="round"/>
+<text x="360.0" y="760.0" font-size="110.0" fill="#ffffff" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" stroke="#1b1530" stroke-width="13.2" paint-order="stroke">1 TAP</text>
+<path d="M 640 700 L 880 700 L 880 650 L 990 740 L 880 830 L 880 780 L 640 780 Z" fill="#ffe23d" stroke="#1b1530" stroke-width="8" stroke-linejoin="round"/>
+<rect x="1402.4" y="335.6" width="16.9" height="626.4" rx="1.7" fill="#0039A6" stroke="#1b1530" stroke-width="5.0"/>
+<rect x="1401.5" y="933.2" width="19.0" height="28.8" rx="8.6" fill="#23232b" stroke="#1b1530" stroke-width="5.0"/>
+<rect x="1420.4" y="335.6" width="16.9" height="626.4" rx="1.7" fill="#0039A6" stroke="#1b1530" stroke-width="5.0"/>
+<rect x="1419.5" y="933.2" width="19.0" height="28.8" rx="8.6" fill="#23232b" stroke="#1b1530" stroke-width="5.0"/>
+<rect x="1402.0" y="-118.0" width="36.0" height="453.6" rx="2.9" fill="#D52B1E" stroke="#1b1530" stroke-width="5.0"/>
+<text x="1420.0" y="-107.6" font-size="10.4" text-anchor="middle" fill="#ffffff" font-family="Arial">★</text>
+<rect x="1385.6" y="-112.0" width="17.6" height="187.8" rx="2.6" fill="#D52B1E" stroke="#1b1530" stroke-width="5.0"/>
+<rect x="1386.4" y="75.8" width="15.6" height="229.5" rx="3.5" fill="#F5CD30" stroke="#1b1530" stroke-width="5.0"/>
+<rect x="1437.1" y="-112.0" width="17.6" height="187.8" rx="2.6" fill="#D52B1E" stroke="#1b1530" stroke-width="5.0"/>
+<rect x="1438.0" y="75.8" width="15.6" height="229.5" rx="3.5" fill="#F5CD30" stroke="#1b1530" stroke-width="5.0"/>
+<rect x="1394.8" y="-168.4" width="50.4" height="50.4" rx="14.1" fill="#F5CD30" stroke="#1b1530" stroke-width="5.0"/>
+<circle cx="1411.4" cy="-147.2" r="4.0" fill="#1b1530"/>
+<circle cx="1428.6" cy="-147.2" r="4.0" fill="#1b1530"/>
+<path d="M 1409.9 -136.1 Q 1420.0 -128.1 1430.1 -136.1" stroke="#1b1530" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+<text x="1880.0" y="560.0" font-size="150.0" fill="#ffe23d" text-anchor="end" font-family="Arial Black, Arial, sans-serif" font-weight="900" stroke="#1b1530" stroke-width="18.0" paint-order="stroke">HUGE</text>
+</svg>
