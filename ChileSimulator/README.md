@@ -20,7 +20,7 @@ Roblox-симулятор, который понятен за 3 секунды: 
 |---|---|
 | **Windows** | двойной клик `PLAY.bat` |
 | **macOS / Linux** | `PLAY.command` (при первом запуске на Mac: правый клик → «Открыть») |
-| **Вручную** | открыть `ChileSimulator.rbxlx` в Roblox Studio → **Play (F5)** |
+| **Готовый файл** | открыть `ChileSimulator.rbxlx` (он же лежит в корне репозитория, рядом с `DoppelgangerObby.rbxlx`) в Roblox Studio → **Play (F5)** |
 | **Для разработки** | [Rojo 7](https://rojo.space): `rojo serve` → в Studio плагин Rojo → Connect |
 
 Скрипты сами скачают Rojo (один раз, в `tools/`), соберут игру из `src/` и откроют Studio.

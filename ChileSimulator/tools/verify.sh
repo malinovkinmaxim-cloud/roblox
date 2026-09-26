@@ -21,4 +21,5 @@ echo "== one button";     lune run tests/e2e_onebutton.luau
 echo "== studio offline"; lune run tests/e2e_offline.luau
 echo "== soak (5 min)";   lune run tests/soak.luau 5
 echo "== build";          rojo build default.project.json -o ChileSimulator.rbxlx
+cp ChileSimulator.rbxlx ../ChileSimulator.rbxlx # ready-to-open copy in the repository root
 echo "ALL GOOD"
