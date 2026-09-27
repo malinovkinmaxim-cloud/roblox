@@ -1,0 +1,9 @@
+# generated
+sourcemap.json
+*.rbxl
+*.rbxlx.lock
+# downloaded by PLAY scripts
+tools/rojo
+tools/rojo.exe
+tools/rojo.zip
+globalTypes.d.luau
