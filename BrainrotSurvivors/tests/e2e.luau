@@ -258,8 +258,16 @@ section("death -> results -> rewards saved")
 mark = #Engine.Errors
 local coinsBefore = session.Data.Coins
 cd:Fire("Admin", "god", "")
-cd:Fire("Admin", "die", "")
-Engine.Step(1)
+local freeRevives = run.Revives
+for _ = 1, 4 do
+	-- free revives (meta / MAIN CHARACTER card) bring the player back first
+	if run.Dead then
+		break
+	end
+	cd:Fire("Admin", "die", "")
+	Engine.Step(1)
+end
+check("free revives were used before death", run.Revives == 0, freeRevives)
 check("run is in the dead state", run.Dead == true)
 check("death screen visible", results.Death.Visible == true)
 local giveUp = findGui(alice, "GiveUp")
@@ -267,7 +275,7 @@ Engine.Click(giveUp)
 Engine.Step(1)
 check("run ended on the server", GM.Entries[alicePlayer] == nil and run.Ended)
 check("results screen visible", results.Panel.Visible == true)
-check("results title says RUN OVER", results.ResultTitle.Text == "RUN OVER", results.ResultTitle.Text)
+check("results title says RUN OVER", results.ResultTitle.Text == "RUN OVER", results.ResultTitle.Text .. " / " .. tostring(run.EndReason))
 check("coins rewarded", session.Data.Coins > coinsBefore, session.Data.Coins - coinsBefore)
 check("stats saved in profile", session.Data.Stats.Runs == 1 and session.Data.Stats.Kills == run.Kills)
 check("best time recorded", session.Data.Stats.BestTime == math.floor(run.Time))
