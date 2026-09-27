@@ -7,3 +7,5 @@ tools/rojo
 tools/rojo.exe
 tools/rojo.zip
 globalTypes.d.luau
+# visual UI check output (tools/ui_check.sh)
+/build/

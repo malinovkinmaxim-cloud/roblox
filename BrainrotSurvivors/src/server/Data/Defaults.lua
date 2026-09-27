@@ -195,6 +195,16 @@ function Defaults.Reconcile(raw: any)
 		end
 	end
 	out.LastRunDay = int(r.LastRunDay, 0, 0)
+	out.RedeemedCodes = {}
+	if type(r.RedeemedCodes) == "table" then
+		local n = 0
+		for code, done in r.RedeemedCodes do
+			if type(code) == "string" and #code <= 20 and done == true and n < 200 then
+				n += 1
+				out.RedeemedCodes[code] = true
+			end
+		end
+	end
 	return out
 end
 

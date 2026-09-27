@@ -162,7 +162,7 @@ function LeaderboardManager:UpdateLobbyBoard()
 				list.Size = UDim2.fromScale(1, 1)
 				list.BackgroundColor3 = Color3.fromRGB(30, 25, 50)
 				list.TextColor3 = Color3.fromRGB(255, 255, 255)
-				list.Font = Enum.Font.FredokaOne
+				list.Font = Enum.Font.BuilderSansBold
 				list.TextScaled = true
 				list.TextXAlignment = Enum.TextXAlignment.Left
 				list.TextYAlignment = Enum.TextYAlignment.Top
@@ -170,7 +170,7 @@ function LeaderboardManager:UpdateLobbyBoard()
 				gui = g
 			end
 			assert(gui)
-			local lines = { "🏆 LONGEST SURVIVAL" }
+			local lines = { "LONGEST SURVIVAL" }
 			for _, row in self.Top[key] or {} do
 				table.insert(lines, string.format("%d. %s  %s", row.Rank, row.Name, formatTime(row.Value)))
 			end

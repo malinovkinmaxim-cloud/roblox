@@ -49,7 +49,7 @@ function DebugController:Build()
 	self.Gui = gui
 	local panel = Kit.Panel({
 		Size = UDim2.fromOffset(470, 330),
-		Position = UDim2.new(1, -12, 1, -60),
+		Position = UDim2.new(1, -8, 1, -46),
 		AnchorPoint = Vector2.new(1, 1),
 		Visible = false,
 		Parent = root,
@@ -60,7 +60,8 @@ function DebugController:Build()
 		Kit.Button({
 			Text = cmd[1],
 			Size = UDim2.fromOffset(146, 44),
-			Color = C.PanelLight,
+			Color = C.Neutral,
+			TextSize = 14,
 			LayoutOrder = i,
 			OnClick = function()
 				local arg = cmd[3]
@@ -74,10 +75,11 @@ function DebugController:Build()
 	end
 	Kit.Button({
 		Text = "DEBUG",
-		Size = UDim2.fromOffset(100, 40),
-		Position = UDim2.new(1, -12, 1, -12),
+		Size = UDim2.fromOffset(78, 30),
+		Position = UDim2.new(1, -8, 1, -8),
 		AnchorPoint = Vector2.new(1, 1),
-		Color = C.Gray,
+		Color = C.Neutral,
+		TextSize = 12,
 		OnClick = function()
 			panel.Visible = not panel.Visible
 		end,

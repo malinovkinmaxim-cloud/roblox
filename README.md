@@ -2,7 +2,7 @@
 
 > 📁 В этом репозитории три игры: **The Doppelgänger Obby** (этот файл, корень репозитория),
 > **[🇨🇱 Chile Simulator — TAP → GET TALLER](ChileSimulator/README.md)** (папка `ChileSimulator/`) и
-> **[🧠 Brainrot Survivors — survivor-like с ордами, level up и 67](BrainrotSurvivors/README.md)** (папка `BrainrotSurvivors/`).
+> **[🧠 Brainrot Survivors — survivor-like с ордами, level up и 67](BrainrotSurvivors/README.md)** (папка `BrainrotSurvivors/`): минималистичный хаб (большая PLAY в центре, 4 пункта внизу, остальное в MORE), минимальный HUD, адаптив под ПК / планшет / телефон — [скриншоты](BrainrotSurvivors/README.md#интерфейс-один-экран--одна-цель).
 > Готовые файлы мест лежат рядом в корне: `DoppelgangerObby.rbxlx`, `ChileSimulator.rbxlx` и `BrainrotSurvivors.rbxlx` — открыть в Roblox Studio → **Play (F5)**.
 > 🧠 **Brainrot Survivors одним кликом:** `PLAY_BrainrotSurvivors.bat` (Windows) / `PLAY_BrainrotSurvivors.command` (macOS) — открывает готовый `BrainrotSurvivors.rbxlx` в Studio, ничего не скачивая. Или просто двойной клик по `BrainrotSurvivors.rbxlx`.
 

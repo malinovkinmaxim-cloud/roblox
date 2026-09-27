@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local GameConfig = require(Shared.GameConfig)
+local Looks = require(Shared.Looks)
 local MetaData = require(Shared.MetaData)
 
 local CharacterManager = {}
@@ -26,171 +27,28 @@ function CharacterManager:Init(services)
 	end)
 end
 
-local function weld(part: BasePart, to: BasePart)
-	local w = Instance.new("WeldConstraint")
-	w.Part0 = part
-	w.Part1 = to
-	w.Parent = part
-end
-
-local function deco(name: string, size: Vector3, color: Color3, head: BasePart, offset: CFrame, shape: Enum.PartType?): BasePart
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Size = size
-	p.Color = color
-	p.Material = Enum.Material.SmoothPlastic
-	p.CanCollide = false
-	p.CanQuery = false
-	p.CanTouch = false
-	p.Massless = true
-	p.CastShadow = false
-	if shape then
-		p.Shape = shape
-	end
-	p.CFrame = head.CFrame * offset
-	weld(p, head)
-	return p
-end
-
--- the survivor look: a few welded parts on the head
-function CharacterManager:ApplyLook(character: Model, key: string)
-	local head = character:FindFirstChild("Head") :: BasePart?
-	if not head then
-		return
-	end
-	local old = character:FindFirstChild("SurvivorLook")
+-- the survivor look + cosmetic hat: welded parts on the head (shared/Looks.lua)
+local function rebuild(character: Model, name: string, pieces)
+	local old = character:FindFirstChild(name)
 	if old then
 		old:Destroy()
 	end
-	local look = Instance.new("Model")
-	look.Name = "SurvivorLook"
-	look.Parent = character
-	local function add(p: BasePart)
-		p.Parent = look
+	local head = character:FindFirstChild("Head") :: BasePart?
+	if not head or not pieces or #pieces == 0 then
+		return
 	end
-	if key == "Sigma" then
-		add(deco("Shades", Vector3.new(1.3, 0.3, 0.2), rgb(15, 15, 20), head, CFrame.new(0, 0.15, -0.6)))
-		add(deco("Jaw", Vector3.new(1.1, 0.35, 0.4), rgb(230, 190, 150), head, CFrame.new(0, -0.55, -0.45)))
-	elseif key == "SixSeven" then
-		local anchor = deco("Anchor67", Vector3.new(0.2, 0.2, 0.2), rgb(255, 205, 50), head, CFrame.new(0, 1.2, 0))
-		anchor.Transparency = 1
-		add(anchor)
-		local gui = Instance.new("BillboardGui")
-		gui.Size = UDim2.fromScale(3, 1.5)
-		gui.StudsOffset = Vector3.new(0, 0.6, 0)
-		gui.LightInfluence = 0
-		gui.Parent = anchor
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.fromScale(1, 1)
-		label.BackgroundTransparency = 1
-		label.Text = "67"
-		label.TextScaled = true
-		label.Font = Enum.Font.LuckiestGuy
-		label.TextColor3 = rgb(255, 215, 50)
-		label.Parent = gui
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 2
-		stroke.Parent = label
-	elseif key == "Brainrot" then
-		add(deco("Brain", Vector3.new(1.4, 0.9, 1.3), rgb(255, 150, 190), head, CFrame.new(0, 0.75, 0), Enum.PartType.Ball))
-		add(deco("BrainLobe", Vector3.new(0.9, 0.7, 0.9), rgb(255, 130, 175), head, CFrame.new(0.25, 0.95, 0.1), Enum.PartType.Ball))
-	elseif key == "TheNPC" then
-		add(deco("Cap", Vector3.new(1.3, 0.3, 1.4), rgb(40, 127, 71), head, CFrame.new(0, 0.65, -0.1)))
-	else
-		add(deco("Antenna", Vector3.new(0.15, 0.8, 0.15), rgb(60, 60, 70), head, CFrame.new(0, 0.9, 0)))
-		add(deco("AntennaBall", Vector3.new(0.45, 0.45, 0.45), rgb(120, 220, 90), head, CFrame.new(0, 1.35, 0), Enum.PartType.Ball))
-	end
+	local model = Instance.new("Model")
+	model.Name = name
+	model.Parent = character
+	Looks.Build(pieces, head, model, true)
 end
 
--- cosmetic hats (shared/SkinData.lua)
-local HATS = {}
-
-function HATS.Cone(head: BasePart, add)
-	for i = 0, 2 do
-		local r = 1.3 - i * 0.35
-		add(deco("Cone" .. i, Vector3.new(0.55, r, r), if i % 2 == 0 then rgb(255, 120, 30) else rgb(255, 255, 255), head, CFrame.new(0, 0.85 + i * 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.PartType.Cylinder))
-	end
-end
-
-function HATS.BrainHat(head: BasePart, add)
-	add(deco("HatBrain", Vector3.new(1.5, 1, 1.4), rgb(255, 150, 190), head, CFrame.new(0, 0.8, 0), Enum.PartType.Ball))
-	add(deco("HatLobe", Vector3.new(0.9, 0.8, 1), rgb(255, 125, 170), head, CFrame.new(0.3, 1.05, 0.1), Enum.PartType.Ball))
-end
-
-function HATS.Shades(head: BasePart, add)
-	add(deco("HatShades", Vector3.new(1.35, 0.32, 0.2), rgb(10, 10, 15), head, CFrame.new(0, 0.15, -0.62)))
-	add(deco("HatShadesBridge", Vector3.new(1.45, 0.08, 0.1), rgb(255, 205, 60), head, CFrame.new(0, 0.3, -0.66)))
-end
-
-function HATS.Propeller(head: BasePart, add)
-	add(deco("CapTop", Vector3.new(0.5, 1.35, 1.35), rgb(60, 140, 255), head, CFrame.new(0, 0.72, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.PartType.Cylinder))
-	add(deco("CapStick", Vector3.new(0.1, 0.4, 0.1), rgb(40, 40, 40), head, CFrame.new(0, 1.15, 0)))
-	add(deco("Blade", Vector3.new(1.6, 0.06, 0.25), rgb(255, 60, 70), head, CFrame.new(0, 1.35, 0)))
-	add(deco("Blade2", Vector3.new(0.25, 0.06, 1.6), rgb(255, 215, 60), head, CFrame.new(0, 1.35, 0)))
-end
-
-function HATS.Headband67(head: BasePart, add)
-	local band = deco("Headband", Vector3.new(1.3, 0.3, 1.3), rgb(255, 205, 50), head, CFrame.new(0, 0.35, 0), nil)
-	band.Material = Enum.Material.Neon
-	add(band)
-	local tag = deco("Tag67", Vector3.new(0.6, 0.3, 0.05), rgb(40, 20, 60), head, CFrame.new(0, 0.35, -0.68))
-	add(tag)
-	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Front
-	gui.LightInfluence = 0
-	gui.CanvasSize = Vector2.new(120, 60)
-	gui.Parent = tag
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Text = "67"
-	label.TextScaled = true
-	label.Font = Enum.Font.LuckiestGuy
-	label.TextColor3 = rgb(255, 215, 50)
-	label.Parent = gui
-end
-
-function HATS.Halo(head: BasePart, add)
-	local halo = deco("Halo", Vector3.new(0.15, 1.5, 1.5), rgb(255, 245, 170), head, CFrame.new(0, 1.2, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.PartType.Cylinder)
-	halo.Material = Enum.Material.Neon
-	add(halo)
-end
-
-function HATS.GoldAntenna(head: BasePart, add)
-	add(deco("GoldStick", Vector3.new(0.15, 0.9, 0.15), rgb(220, 170, 30), head, CFrame.new(0, 0.95, 0)))
-	local ball = deco("GoldBall", Vector3.new(0.55, 0.55, 0.55), rgb(255, 215, 50), head, CFrame.new(0, 1.45, 0), Enum.PartType.Ball)
-	ball.Material = Enum.Material.Neon
-	add(ball)
-end
-
-function HATS.Crown(head: BasePart, add)
-	local band = deco("CrownBand", Vector3.new(1.3, 0.35, 1.3), rgb(255, 205, 50), head, CFrame.new(0, 0.8, 0))
-	band.Material = Enum.Material.Neon
-	add(band)
-	for i = -1, 1 do
-		local spike = deco("CrownSpike", Vector3.new(0.3, 0.45, 0.3), rgb(255, 215, 60), head, CFrame.new(i * 0.45, 1.15, -0.5))
-		spike.Material = Enum.Material.Neon
-		add(spike)
-	end
-	add(deco("CrownGem", Vector3.new(0.25, 0.25, 0.1), rgb(255, 60, 120), head, CFrame.new(0, 0.8, -0.68), Enum.PartType.Ball))
+function CharacterManager:ApplyLook(character: Model, key: string)
+	rebuild(character, "SurvivorLook", Looks.Characters[key] or Looks.Characters.Goober)
 end
 
 function CharacterManager:ApplyHat(character: Model, key: string)
-	local old = character:FindFirstChild("SurvivorHat")
-	if old then
-		old:Destroy()
-	end
-	local builder = HATS[key]
-	local head = character:FindFirstChild("Head") :: BasePart?
-	if not builder or not head then
-		return
-	end
-	local hat = Instance.new("Model")
-	hat.Name = "SurvivorHat"
-	hat.Parent = character
-	builder(head, function(p: BasePart)
-		p.Parent = hat
-	end)
+	rebuild(character, "SurvivorHat", Looks.Hats[key])
 end
 
 function CharacterManager:ApplyNameTag(player: Player, character: Model)
@@ -215,16 +73,16 @@ function CharacterManager:ApplyNameTag(player: Player, character: Model)
 	local name = Instance.new("TextLabel")
 	name.Size = UDim2.new(1, 0, 0.6, 0)
 	name.BackgroundTransparency = 1
-	name.Font = Enum.Font.FredokaOne
+	name.Font = Enum.Font.BuilderSansExtraBold
 	name.TextScaled = true
-	name.Text = (if vip then "👑 " else "") .. player.DisplayName
+	name.Text = (if vip then "VIP  " else "") .. player.DisplayName
 	name.TextColor3 = if vip then rgb(255, 215, 60) else rgb(255, 255, 255)
 	name.Parent = gui
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.new(1, 0, 0.4, 0)
 	title.Position = UDim2.fromScale(0, 0.6)
 	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBold
+	title.Font = Enum.Font.BuilderSansBold
 	title.TextScaled = true
 	title.Text = string.format("Lv.%d %s", level, MetaData.TitleFor(level))
 	title.TextColor3 = rgb(200, 205, 225)

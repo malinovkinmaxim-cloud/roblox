@@ -19,6 +19,11 @@ echo "== unit tests";     lune run tests/run.luau
 echo "== end-to-end";     lune run tests/e2e.luau
 echo "== soak (2 full runs)"; lune run tests/soak.luau
 echo "== balance (bot)";  lune run tests/sim.luau 3 Goober 0.8
+if python3 -c "import PIL" 2>/dev/null; then
+  echo "== UI (visual)";    tools/ui_check.sh | tail -1
+else
+  echo "(skipping the visual UI check: pip install pillow)"
+fi
 echo "== build";          rojo build default.project.json -o BrainrotSurvivors.rbxlx
 cp BrainrotSurvivors.rbxlx ../BrainrotSurvivors.rbxlx
 echo "ALL GOOD"

@@ -59,7 +59,7 @@ local function grantPass(self, player: Player, key: string)
 	self.Owned[player][key] = true
 	local PM = self.Services.PlayerManager
 	local def = MonetizationData.PassByKey[key]
-	PM:Notify(player, "Thank you! " .. def.Icon .. " " .. def.Name .. " is active", "Reward")
+	PM:Notify(player, "Thank you! " .. def.Name .. " is active", "Reward")
 	PM:Sync(player)
 	self.Services.CharacterManager:Refresh(player)
 end

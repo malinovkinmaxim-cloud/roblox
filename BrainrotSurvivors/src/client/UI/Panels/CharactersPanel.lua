@@ -1,6 +1,7 @@
 --[[
-	CharactersPanel - pick a survivor. Locked ones show how to unlock them (coins and/or an
-	achievement); secret characters stay hidden until unlocked.
+	CharactersPanel - full-screen: every survivor as a card (3D preview, name, rarity,
+	LOCKED / OWNED / EQUIPPED, what makes them different, how to unlock).
+	Secret characters stay a silhouette until unlocked.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,67 +10,107 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local CharacterData = require(Shared.CharacterData)
 local WeaponData = require(Shared.WeaponData)
 local AchievementData = require(Shared.AchievementData)
-local Format = require(Shared.Util.Format)
 
 local Kit = require(script.Parent.Parent.Kit)
 local Theme = require(script.Parent.Parent.Theme)
-local Widgets = require(script.Parent.Parent.Widgets)
+local Cards = require(script.Parent.Parent.Cards)
+local Previews = require(script.Parent.Parent.Previews)
 
 local C = Theme.Colors
+local F = Theme.Fonts
 
 local Panel = {}
+Panel.Kind = "Screen"
 Panel.Title = "CHARACTERS"
-Panel.Size = Vector2.new(900, 520)
+
+local CARD = Vector2.new(196, 456)
+local GAP = 14
 
 function Panel.Build(body: Frame, controllers)
-	local scroll = Widgets.Scroll(body, Vector2.new(200, 400), 10)
 	local state = { Cards = {}, C = controllers }
+	-- one row with every survivor; it shrinks as a whole on small screens (no scrolling)
+	local count = #CharacterData.List
+	local row = Kit.New("Frame", {
+		Name = "CardRow",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(count * CARD.X + (count - 1) * GAP, CARD.Y),
+		Position = UDim2.fromScale(0.5, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Parent = body,
+	})
+	Kit.New("UIScale", { Name = "RowFit", Parent = row })
+	Kit.New("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Padding = UDim.new(0, GAP),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = row,
+	})
+	state.Row = row
 	for i, def in CharacterData.List do
-		local card = Kit.Panel({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.PanelLight, LayoutOrder = i, Radius = 16, Parent = scroll })
-		Kit.Gradient(card, def.Color:Lerp(C.Panel, 0.5), C.PanelDark)
-		local icon = Kit.Label({ Text = def.Icon, Size = UDim2.fromOffset(90, 90), Position = UDim2.new(0.5, 0, 0, 10), AnchorPoint = Vector2.new(0.5, 0), StrokeThickness = 0, Parent = card })
-		local name = Kit.Label({ Text = def.Name, Size = UDim2.new(1, -16, 0, 30), Position = UDim2.fromOffset(8, 102), Font = Theme.Fonts.Title, Parent = card })
-		local desc = Kit.Label({
-			Text = def.Desc,
-			Size = UDim2.new(1, -16, 0, 56),
-			Position = UDim2.fromOffset(8, 136),
-			Font = Theme.Fonts.Body,
-			TextWrapped = true,
-			TextColor3 = C.TextDim,
-			StrokeThickness = 0,
-			Parent = card,
-		})
-		local perk = Kit.Label({
-			Text = def.Perk,
-			Size = UDim2.new(1, -16, 0, 70),
-			Position = UDim2.fromOffset(8, 196),
-			Font = Theme.Fonts.Body,
-			TextWrapped = true,
-			TextColor3 = C.Gold,
-			StrokeThickness = 0,
-			Parent = card,
-		})
-		local weapon = WeaponData.ByKey[def.StartWeapon]
-		Kit.Label({
-			Text = "Starts with " .. (if weapon then weapon.Icon .. " " .. weapon.Name else "?"),
-			Size = UDim2.new(1, -16, 0, 22),
-			Position = UDim2.fromOffset(8, 272),
-			Font = Theme.Fonts.Body,
-			Parent = card,
-		})
-		local button, label = Kit.Button({
-			Text = "SELECT",
-			Size = UDim2.new(1, -20, 0, 50),
-			Position = UDim2.new(0, 10, 1, -60),
-			Color = C.Lime,
+		local ui = Cards.Item(row, {
+			Name = def.Name,
+			Desc = def.Desc,
+			Rarity = def.Rarity,
+			Order = i,
+			PictureHeight = 150,
 			OnClick = function()
 				Panel.Click(state, def)
 			end,
-			Parent = card,
 		})
-		state.Cards[def.Key] = { Card = card, Icon = icon, Name = name, Desc = desc, Perk = perk, Button = button, Label = label }
+		ui.Card.Size = UDim2.fromOffset(CARD.X, CARD.Y)
+		ui.Preview = Previews.Character(ui.Picture, def.Key)
+		-- perk (the unique mechanic) and the starting weapon
+		ui.Desc.Size = UDim2.new(1, -24, 0, 50)
+		ui.Perk = Kit.Label({
+			Name = "Perk",
+			Text = def.Perk,
+			Size = UDim2.new(1, -24, 0, 54),
+			Position = UDim2.fromOffset(12, 284),
+			Font = F.Body,
+			MaxTextSize = 13,
+			TextWrapped = true,
+			TextColor3 = C.TextMuted,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			Parent = ui.Card,
+		})
+		local weapon = WeaponData.ByKey[def.StartWeapon]
+		local start = Kit.New("Frame", {
+			Name = "Start",
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -24, 0, 30),
+			Position = UDim2.fromOffset(12, 346),
+			Parent = ui.Card,
+		})
+		local icon = Kit.New("Frame", { Name = "WeaponIcon", Size = UDim2.fromOffset(30, 30), BackgroundColor3 = C.SurfaceLight, BackgroundTransparency = 0.3, Parent = start })
+		Kit.Corner(icon, 8)
+		ui.WeaponPreview = Previews.Weapon(icon, def.StartWeapon)
+		ui.Start = Kit.Label({
+			Text = if weapon then weapon.Name else "",
+			Size = UDim2.new(1, -40, 1, 0),
+			Position = UDim2.fromOffset(40, 0),
+			Font = F.Medium,
+			MaxTextSize = 13,
+			TextColor3 = C.TextDim,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = start,
+		})
+		state.Cards[def.Key] = ui
 	end
 	return state
+end
+
+-- fit the row into the screen body (design units; margins as in Widgets.Screen)
+function Panel.OnOpen(state)
+	local view = Kit.View
+	local width = view.X - 2 * (Theme.Margin + 12)
+	local height = view.Y - 2 * Theme.Margin - 64
+	local row = state.Row
+	local scale = math.min(1, width / row.Size.X.Offset, height / row.Size.Y.Offset)
+	local fit = row:FindFirstChild("RowFit") :: UIScale
+	fit.Scale = scale
+	-- UIScale grows around the anchor (top centre): keep the row vertically centred
+	row.Position = UDim2.new(0.5, 0, 0.5, -row.Size.Y.Offset * scale / 2)
 end
 
 function Panel.Click(state, def)
@@ -78,7 +119,9 @@ function Panel.Click(state, def)
 		return
 	end
 	if data.Characters[def.Key] then
-		state.C.ClientData:Fire("SelectCharacter", def.Key)
+		if data.Selected ~= def.Key then
+			state.C.ClientData:Fire("SelectCharacter", def.Key)
+		end
 	elseif def.Unlock.Cost then
 		state.C.ClientData:Fire("UnlockCharacter", def.Key)
 	end
@@ -89,26 +132,32 @@ function Panel.Refresh(state, data)
 		local ui = state.Cards[def.Key]
 		local unlocked = data.Characters[def.Key]
 		local hidden = def.Secret and not unlocked
-		ui.Icon.Text = if hidden then "❓" else def.Icon
 		ui.Name.Text = if hidden then "???" else def.Name
 		ui.Desc.Text = if hidden then "A secret survivor." else def.Desc
-		ui.Perk.Text = if hidden then "" else def.Perk
+		ui.Perk.Text = if hidden then "Nobody knows how to unlock it. Maybe it is just standing somewhere." else def.Perk
+		ui.Start.Text = if hidden then "???" else (WeaponData.ByKey[def.StartWeapon] or { Name = "" }).Name
+		ui.Preview.ImageColor3 = if hidden then Color3.fromRGB(12, 11, 20) else Color3.new(1, 1, 1)
+		ui.WeaponPreview.Visible = not hidden
 		if unlocked then
-			local selected = data.Selected == def.Key
-			ui.Label.Text = if selected then "✔ SELECTED" else "SELECT"
-			Kit.SetButtonColor(ui.Button, if selected then C.Gold else C.Lime)
+			if data.Selected == def.Key then
+				Cards.Set(ui, "EQUIPPED", "EQUIPPED", C.SuccessDark)
+			else
+				Cards.Set(ui, "OWNED", "SELECT", C.Accent)
+			end
+		elseif hidden then
+			Cards.Set(ui, "LOCKED", "SECRET", C.Neutral)
 		else
-			local parts = {}
+			local ach = def.Unlock.Achievement and AchievementData.ByKey[def.Unlock.Achievement]
 			if def.Unlock.Cost then
-				table.insert(parts, "🪙 " .. Format.Commas(def.Unlock.Cost))
+				local affordable = data.Coins >= def.Unlock.Cost
+				Cards.Set(ui, "LOCKED", nil, if affordable then C.AccentSoft else C.Neutral, def.Unlock.Cost)
+				if ach then
+					ui.Need.Text = "or achievement: " .. ach.Name
+				end
+			else
+				Cards.Set(ui, "LOCKED", "LOCKED", C.Neutral)
+				ui.Need.Text = if ach then "Achievement: " .. ach.Name else ""
 			end
-			if def.Unlock.Achievement and not hidden then
-				local ach = AchievementData.ByKey[def.Unlock.Achievement]
-				table.insert(parts, "🏆 " .. (if ach then ach.Name else "?"))
-			end
-			ui.Label.Text = if hidden then "🔒 SECRET" else table.concat(parts, " or ")
-			local affordable = def.Unlock.Cost and data.Coins >= def.Unlock.Cost
-			Kit.SetButtonColor(ui.Button, if affordable then C.Blue else C.Gray)
 		end
 	end
 end

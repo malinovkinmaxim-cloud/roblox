@@ -14,6 +14,7 @@ export type CharacterDef = {
 	Stats: { [string]: number },
 	Color: Color3,
 	Unlock: { Default: boolean?, Cost: number?, Achievement: string? },
+	Rarity: string, -- Common / Rare / Epic / Legendary / Secret (menu colour only)
 	Secret: boolean?,
 }
 
@@ -30,6 +31,7 @@ local LIST: { CharacterDef } = ({
 		Stats = { Armor = 1, MaxHP = 10 },
 		Color = rgb(120, 220, 90),
 		Unlock = { Default = true },
+		Rarity = "Common",
 	},
 	{
 		Key = "Sigma",
@@ -41,6 +43,7 @@ local LIST: { CharacterDef } = ({
 		Stats = { MoveSpeed = 0.25, Area = 0.1, Might = -0.1 },
 		Color = rgb(40, 40, 50),
 		Unlock = { Cost = 1500, Achievement = "Survivor10" },
+		Rarity = "Rare",
 	},
 	{
 		Key = "SixSeven",
@@ -52,6 +55,7 @@ local LIST: { CharacterDef } = ({
 		Stats = { Luck = 0.67 },
 		Color = rgb(255, 205, 50),
 		Unlock = { Cost = 2500, Achievement = "SixSeven" },
+		Rarity = "Epic",
 	},
 	{
 		Key = "Brainrot",
@@ -63,6 +67,7 @@ local LIST: { CharacterDef } = ({
 		Stats = { Growth = 0.3, MaxHPMult = -0.25 },
 		Color = rgb(255, 130, 190),
 		Unlock = { Cost = 2000, Achievement = "Level25" },
+		Rarity = "Epic",
 	},
 	{
 		Key = "TheNPC",
@@ -74,6 +79,7 @@ local LIST: { CharacterDef } = ({
 		Stats = { Might = 0.1, AttackSpeed = 0.1, Area = 0.1, MoveSpeed = 0.1, Growth = 0.1 },
 		Color = rgb(245, 205, 48),
 		Unlock = { Achievement = "JustStanding" },
+		Rarity = "Secret",
 		Secret = true,
 	},
 } :: any)

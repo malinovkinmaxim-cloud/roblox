@@ -35,6 +35,7 @@ Net.ClientToServer = {
 	"SetStartWeapon", -- (key | "")
 	"BuySkin", -- (key)
 	"EquipSkin", -- (key)
+	"RedeemCode", -- (code: string)
 	"ClaimDaily", -- ()
 	"ClaimQuest", -- (index)
 	"SetSetting", -- (key, value)

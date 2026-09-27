@@ -12,20 +12,21 @@ export type SkinDef = {
 	Default: boolean?,
 	Cost: number?,
 	Achievement: string?,
+	Rarity: string, -- Common / Rare / Epic / Legendary (menu colour only)
 }
 
 local SkinData = {}
 
 SkinData.List = {
-	{ Key = "None", Name = "No Hat", Icon = "🚫", Desc = "Just your head.", Default = true },
-	{ Key = "Cone", Name = "Traffic Cone", Icon = "🚧", Desc = "Caution: brainrot ahead.", Cost = 400 },
-	{ Key = "BrainHat", Name = "Exposed Brain", Icon = "🧠", Desc = "Big thoughts, no skull.", Cost = 800 },
-	{ Key = "Shades", Name = "Sigma Shades", Icon = "🕶️", Desc = "Never blink again.", Cost = 1200 },
-	{ Key = "Propeller", Name = "Propeller Cap", Icon = "🧢", Desc = "It spins. Obviously.", Cost = 2500 },
-	{ Key = "Headband67", Name = "67 Headband", Icon = "6️⃣", Desc = "Witness a 67 EVENT.", Achievement = "SixSeven" },
-	{ Key = "Halo", Name = "Untouchable Halo", Icon = "😇", Desc = "3 minutes without a scratch.", Achievement = "Untouchable" },
-	{ Key = "GoldAntenna", Name = "Golden Antenna", Icon = "🥇", Desc = "Defeat a Golden Goober.", Achievement = "GoldenGoober" },
-	{ Key = "Crown", Name = "Survivor Crown", Icon = "👑", Desc = "Defeat THE FINAL GOOBER.", Achievement = "Victory" },
+	{ Key = "None", Name = "No Hat", Icon = "🚫", Desc = "Just your head.", Default = true, Rarity = "Common" },
+	{ Key = "Cone", Name = "Traffic Cone", Icon = "🚧", Desc = "Caution: brainrot ahead.", Cost = 400, Rarity = "Common" },
+	{ Key = "BrainHat", Name = "Exposed Brain", Icon = "🧠", Desc = "Big thoughts, no skull.", Cost = 800, Rarity = "Common" },
+	{ Key = "Shades", Name = "Sigma Shades", Icon = "🕶️", Desc = "Never blink again.", Cost = 1200, Rarity = "Rare" },
+	{ Key = "Propeller", Name = "Propeller Cap", Icon = "🧢", Desc = "It spins. Obviously.", Cost = 2500, Rarity = "Rare" },
+	{ Key = "Headband67", Name = "67 Headband", Icon = "6️⃣", Desc = "Witness a 67 EVENT.", Achievement = "SixSeven", Rarity = "Epic" },
+	{ Key = "Halo", Name = "Untouchable Halo", Icon = "😇", Desc = "3 minutes without a scratch.", Achievement = "Untouchable", Rarity = "Epic" },
+	{ Key = "GoldAntenna", Name = "Golden Antenna", Icon = "🥇", Desc = "Defeat a Golden Goober.", Achievement = "GoldenGoober", Rarity = "Epic" },
+	{ Key = "Crown", Name = "Survivor Crown", Icon = "👑", Desc = "Defeat THE FINAL GOOBER.", Achievement = "Victory", Rarity = "Legendary" },
 } :: { SkinDef }
 
 SkinData.ByKey = {} :: { [string]: SkinDef }

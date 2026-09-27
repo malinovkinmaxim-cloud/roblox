@@ -475,7 +475,7 @@ function WeaponFx:Fx(weaponId: number, x: number, z: number, angle: number, p1: 
 			sound:Play("Zap", 0.7)
 		elseif variant == 4 then
 			fx:Ring(pos, p1, rgb(255, 140, 200), 0.4)
-			fx:WorldText(pos + Vector3.new(0, 5, 0), "🍕", rgb(255, 255, 255), 1.6)
+			fx:WorldText(pos + Vector3.new(0, 5, 0), "SNACK!", rgb(255, 200, 120), 1.6)
 		else
 			fx:Ring(pos, p1, rgb(255, 255, 255), 0.5)
 			sound:Play("VineBoom")

@@ -1,75 +1,138 @@
 --[[
-	Theme - colours and fonts. Dark glossy panels with loud neon accents: readable over a
-	chaotic horde on a phone screen.
+	Theme - one small, consistent colour system.
+
+	  neutral dark surfaces (semi-transparent, the world stays visible behind the UI)
+	  white text
+	  ONE primary accent  (Accent - hot pink: PLAY, XP, selected tabs, the important button)
+	  ONE secondary accent (Gold - coins, rewards, legendary)
+	  Red   only for danger / damage / locked / errors
+	  Green only for success / owned / selected / claim
+
+	Loud meme colours are reserved for special moments (67 EVENT, rare cards).
 ]]
 
 local Theme = {}
 
 local rgb = Color3.fromRGB
 
+local Accent = rgb(255, 64, 150)
+local AccentDark = rgb(196, 30, 112)
+local Gold = rgb(255, 196, 64)
+local GoldDark = rgb(204, 146, 30)
+local Success = rgb(70, 214, 120)
+local SuccessDark = rgb(40, 150, 82)
+local Danger = rgb(255, 70, 86)
+local DangerDark = rgb(170, 30, 50)
+local Surface = rgb(20, 18, 32)
+local SurfaceLight = rgb(38, 35, 58)
+local SurfaceDark = rgb(12, 11, 20)
+local Neutral = rgb(52, 49, 76) -- secondary buttons
+
 Theme.Colors = {
+	-- semantic
 	Text = rgb(255, 255, 255),
-	TextDim = rgb(190, 190, 220),
-	TextDark = rgb(30, 25, 50),
-	Outline = rgb(18, 14, 36),
-	Panel = rgb(34, 28, 64),
-	PanelLight = rgb(52, 44, 96),
-	PanelDark = rgb(22, 18, 44),
-	Overlay = rgb(10, 6, 24),
-	Pink = rgb(255, 80, 190),
-	PinkDark = rgb(190, 30, 130),
-	Lime = rgb(120, 240, 80),
-	LimeDark = rgb(50, 170, 40),
-	Green = rgb(70, 220, 100),
-	Blue = rgb(70, 170, 255),
-	BlueDark = rgb(30, 100, 210),
-	Purple = rgb(170, 100, 255),
-	PurpleDark = rgb(110, 50, 200),
-	Gold = rgb(255, 205, 50),
-	GoldDark = rgb(215, 140, 20),
-	Orange = rgb(255, 140, 40),
-	Red = rgb(255, 60, 80),
-	RedDark = rgb(170, 20, 45),
-	Cyan = rgb(80, 230, 255),
-	Gray = rgb(110, 110, 135),
-	HP = rgb(255, 70, 90),
-	XP = rgb(80, 200, 255),
-	Coin = rgb(255, 205, 50),
+	TextDim = rgb(172, 168, 198),
+	TextMuted = rgb(118, 114, 146),
+	Surface = Surface,
+	SurfaceLight = SurfaceLight,
+	SurfaceDark = SurfaceDark,
+	Border = rgb(255, 255, 255),
+	Overlay = rgb(6, 5, 14),
+	Accent = Accent,
+	AccentDark = AccentDark,
+	-- calmer accent for the many "buy" buttons in a grid (PLAY keeps the loud one)
+	AccentSoft = rgb(150, 44, 104),
+	Gold = Gold,
+	GoldDark = GoldDark,
+	Success = Success,
+	SuccessDark = SuccessDark,
+	Danger = Danger,
+	DangerDark = DangerDark,
+	Neutral = Neutral,
+	HP = Danger,
+	XP = Accent,
+	Coin = Gold,
+	Rare = rgb(168, 118, 255),
+
+	-- older names used around the code, mapped onto the palette above
+	Outline = SurfaceDark,
+	Panel = Surface,
+	PanelLight = SurfaceLight,
+	PanelDark = SurfaceDark,
+	Pink = Accent,
+	PinkDark = AccentDark,
+	Lime = Success,
+	LimeDark = SuccessDark,
+	Green = Success,
+	Blue = Neutral,
+	BlueDark = SurfaceLight,
+	Purple = rgb(168, 118, 255),
+	PurpleDark = rgb(96, 60, 170),
+	Orange = Gold,
+	Red = Danger,
+	RedDark = DangerDark,
+	Cyan = rgb(130, 210, 255),
+	Gray = Neutral,
 }
 
+-- surface transparency: panels let the world show through
+Theme.Glass = 0.18
+Theme.GlassStrong = 0.08
+Theme.BorderTransparency = 0.86
+
 Theme.Rarity = {
-	Common = rgb(90, 170, 255),
-	Rare = rgb(190, 100, 255),
-	Legendary = rgb(255, 200, 40),
+	Common = rgb(150, 158, 190),
+	Rare = rgb(168, 118, 255),
+	Epic = Accent,
+	Legendary = Gold,
+	Secret = Gold,
 }
 
 Theme.BannerStyles = {
-	Info = { rgb(70, 170, 255), rgb(20, 60, 140) },
-	Wave = { rgb(255, 150, 40), rgb(170, 60, 10) },
-	Boss = { rgb(255, 60, 70), rgb(120, 10, 25) },
-	Event = { rgb(255, 80, 200), rgb(110, 20, 130) },
-	Secret = { rgb(255, 215, 60), rgb(150, 90, 10) },
-	Victory = { rgb(255, 215, 60), rgb(160, 90, 10) },
-	Reward = { rgb(120, 240, 80), rgb(30, 120, 30) },
-	Sigma = { rgb(60, 60, 70), rgb(15, 15, 20) },
+	Info = { Neutral, SurfaceDark },
+	Wave = { AccentDark, SurfaceDark },
+	Boss = { DangerDark, SurfaceDark },
+	Event = { AccentDark, rgb(60, 20, 90) },
+	Secret = { GoldDark, SurfaceDark },
+	Victory = { GoldDark, SurfaceDark },
+	Reward = { SuccessDark, SurfaceDark },
+	Sigma = { rgb(30, 30, 36), SurfaceDark },
 }
 
 Theme.ToastColors = {
-	Info = rgb(70, 170, 255),
-	Success = rgb(70, 220, 100),
-	Error = rgb(255, 70, 80),
-	Reward = rgb(255, 205, 50),
-	Achievement = rgb(255, 170, 40),
-	Unlock = rgb(190, 100, 255),
+	Info = Theme.Colors.TextDim,
+	Success = Success,
+	Error = Danger,
+	Reward = Gold,
+	Achievement = Gold,
+	Unlock = Accent,
 }
 
 Theme.Fonts = {
-	Title = Enum.Font.LuckiestGuy,
-	Bold = Enum.Font.FredokaOne,
-	Body = Enum.Font.GothamBold,
+	Title = Enum.Font.BuilderSansExtraBold,
+	Bold = Enum.Font.BuilderSansBold,
+	Medium = Enum.Font.BuilderSansMedium,
+	Body = Enum.Font.BuilderSans,
+	Meme = Enum.Font.LuckiestGuy, -- only for meme moments (67!)
 }
+
+-- text sizes (design units)
+Theme.Text = {
+	Hero = 48,
+	Title = 30,
+	Heading = 22,
+	Button = 20,
+	Body = 16,
+	Small = 13,
+}
+
+-- screen margin kept free on every side (design units)
+Theme.Margin = 28
 
 -- design resolution: everything is laid out for this size and scaled with UIScale
 Theme.DesignSize = Vector2.new(1100, 620)
+-- phones in landscape use a smaller canvas (bigger UI); screens that need more height scroll
+-- or shrink to fit (Kit.FitScale)
+Theme.CompactDesignSize = Vector2.new(1000, 520)
 
 return Theme

@@ -130,19 +130,47 @@ local results = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.
 check("client received its profile", cd.Loaded == true)
 check("lobby UI visible", lobby.Gui.Enabled == true)
 check("HUD hidden in the lobby", hud.Gui.Enabled == false)
-check("coins shown in the lobby", lobby.CoinsLabel.Text == "🪙 0", lobby.CoinsLabel.Text)
+check("coins shown in the lobby", lobby.CoinsLabel.Text == "0", lobby.CoinsLabel.Text)
+check("hub: PLAY + tagline in the centre", findGui(alice, "Play") ~= nil and lobby.Tagline.Text == "Survive. Level up. Become unstoppable.")
+check("hub: 4 navigation items", #lobby.NavButtons.Characters:GetChildren() >= 0 and lobby.NavButtons.Weapons and lobby.NavButtons.Shop and lobby.NavButtons.More)
+check("hub: daily quest card filled", lobby.QuestText.Text ~= "", lobby.QuestText.Text)
+check("hub: character card shows the selected survivor", lobby.CharacterName.Text == "DEFAULT GOOBER", lobby.CharacterName.Text)
 check("admin tools offered in Studio", cd.Data.Admin == true and findGui(alice, "BrainrotDebug") ~= nil)
 check("no errors on join", #Engine.Errors == 0, Engine.Errors[1])
 
 -- every lobby panel opens and renders
 local mark = #Engine.Errors
-for _, key in { "Characters", "Skins", "Weapons", "Upgrades", "Achievements", "Daily", "Collection", "Leaderboard", "Shop", "Settings" } do
+for _, key in { "Characters", "Weapons", "Shop", "More", "Achievements", "Leaderboard", "Statistics", "Codes", "Settings", "Credits", "Profile", "Daily" } do
 	lobby:OpenPanel(key)
 	Engine.Step(0.2)
-	check("panel opens: " .. key, lobby.Open and lobby.Open.Key == key)
+	check("panel opens: " .. key, lobby.Open and lobby.Open.Key == key and lobby.Open.Frame.Visible)
 end
 lobby:ClosePanel()
 check("no errors while opening panels", errorsSince(mark) == 0, Engine.Errors[mark + 1])
+
+-- navigation by clicks: MORE -> tile -> close; coins pill -> shop COINS page
+Engine.Click(lobby.NavButtons.More)
+Engine.Step(0.2)
+check("MORE opens a compact window", lobby.Open and lobby.Open.Key == "More" and lobby.Open.Module.Kind == "Window")
+Engine.Click(lobby.Open.State.Tiles.Statistics)
+Engine.Step(0.2)
+check("MORE tile opens its window", lobby.Open and lobby.Open.Key == "Statistics")
+lobby:ClosePanel()
+check("closing hides the panel", lobby.Open == nil and not lobby.Panels.Statistics.Frame.Visible)
+Engine.Click(lobby.Safe:FindFirstChild("TopRight"):FindFirstChild("Coins"))
+Engine.Step(0.2)
+check("coins pill opens the shop on COINS", lobby.Open and lobby.Open.Key == "Shop" and lobby.Open.State.Current == "Coins")
+lobby:OpenPanel("Achievements", false, "Collection")
+Engine.Step(0.2)
+check("achievements screen has the collection tab", lobby.Open.State.Current == "Collection")
+lobby:ClosePanel()
+Engine.Click(lobby.NavButtons.Characters)
+Engine.Step(0.2)
+local charactersState = lobby.Open and lobby.Open.State
+check("CHARACTERS is a full-screen menu", lobby.Open and lobby.Open.Module.Kind == "Screen")
+check("character cards show EQUIPPED / LOCKED", charactersState and charactersState.Cards.Goober.State.Text == "EQUIPPED" and charactersState.Cards.Sigma.State.Text == "LOCKED")
+lobby:ClosePanel()
+check("no errors while navigating", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
 section("PLAY -> run starts")
@@ -178,7 +206,8 @@ check("XP gems collected", run.Result.Gems >= 10, run.Result.Gems)
 check("level up happened", run.Level >= 3, run.Level)
 check("level-up cards were picked through the UI", picks >= 2, picks)
 check("client HUD shows the level", hud.LevelLabel.Text == "LV " .. run.Level, hud.LevelLabel.Text)
-check("client HUD shows kills", hud.Kills.Text == "💀 " .. run.Kills, hud.Kills.Text)
+check("client HUD shows the timer", hud.Timer.Text ~= "" and hud.Timer.Text ~= "0:00", hud.Timer.Text)
+check("client HUD shows the weapon icon", hud.WeaponRow:FindFirstChild("BrainBlast") ~= nil)
 check("damage numbers were shown", #effects.NumberFree < 40 or #effects.Numbers >= 0)
 check("frames decoded on the client", runClient.Stats.Frames > 250, runClient.Stats.Frames)
 local avgBytes = runClient.Stats.Bytes / math.max(1, runClient.Stats.Frames)
@@ -310,6 +339,21 @@ local coins = session.Data.Coins
 cd:Fire("ClaimDaily")
 Engine.Step(0.5)
 check("daily reward cannot be claimed twice", session.Data.Coins == coins)
+
+-- codes: each works once per player, unknown codes do nothing
+coins = session.Data.Coins
+cd:Fire("RedeemCode", "67")
+Engine.Step(0.5)
+check("code redeemed", session.Data.Coins == coins + 67, session.Data.Coins - coins)
+cd:Fire("RedeemCode", "67")
+cd:Fire("RedeemCode", "NOT_A_CODE")
+cd:Fire("RedeemCode", { "table" })
+Engine.Step(0.5)
+check("code works only once, bad codes ignored", session.Data.Coins == coins + 67, session.Data.Coins - coins)
+Engine.Step(6) -- redeem requests are rate limited (burst 3)
+cd:Fire("RedeemCode", " sigma ")
+Engine.Step(0.5)
+check("codes ignore case and spaces", session.Data.Coins == coins + 167, session.Data.Coins - coins)
 
 -- hats
 coins = session.Data.Coins

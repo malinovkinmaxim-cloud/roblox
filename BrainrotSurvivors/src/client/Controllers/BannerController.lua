@@ -29,7 +29,7 @@ function BannerController:Init(controllers)
 	local banner = Kit.New("Frame", {
 		Name = "Banner",
 		BackgroundColor3 = Color3.new(1, 1, 1),
-		Size = UDim2.new(1, 0, 0, 120),
+		Size = UDim2.new(1, 0, 0, 100),
 		Position = UDim2.new(0.5, 0, 0.3, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BorderSizePixel = 0,
@@ -37,29 +37,34 @@ function BannerController:Init(controllers)
 		Parent = root,
 	})
 	self.BannerGradient = Kit.New("UIGradient", {
-		Color = ColorSequence.new(C.Blue, C.BlueDark),
+		Color = ColorSequence.new(C.Neutral, C.SurfaceDark),
 		Transparency = NumberSequence.new({
 			NumberSequenceKeypoint.new(0, 1),
-			NumberSequenceKeypoint.new(0.2, 0.15),
-			NumberSequenceKeypoint.new(0.8, 0.15),
+			NumberSequenceKeypoint.new(0.25, 0.25),
+			NumberSequenceKeypoint.new(0.75, 0.25),
 			NumberSequenceKeypoint.new(1, 1),
 		}),
 		Parent = banner,
 	})
 	self.BannerTitle = Kit.Label({
 		Text = "",
-		Size = UDim2.new(0.9, 0, 0, 74),
-		Position = UDim2.new(0.5, 0, 0, 6),
+		Size = UDim2.new(0.9, 0, 0, 50),
+		Position = UDim2.new(0.5, 0, 0, 12),
 		AnchorPoint = Vector2.new(0.5, 0),
 		Font = Theme.Fonts.Title,
-		StrokeThickness = 4,
+		MaxTextSize = 44,
+		StrokeThickness = 1.5,
+		StrokeTransparency = 0.5,
 		Parent = banner,
 	})
 	self.BannerSub = Kit.Label({
 		Text = "",
-		Size = UDim2.new(0.8, 0, 0, 30),
-		Position = UDim2.new(0.5, 0, 0, 82),
+		Size = UDim2.new(0.8, 0, 0, 22),
+		Position = UDim2.new(0.5, 0, 0, 66),
 		AnchorPoint = Vector2.new(0.5, 0),
+		Font = Theme.Fonts.Medium,
+		MaxTextSize = 18,
+		TextColor3 = C.TextDim,
 		Parent = banner,
 	})
 	self.BannerScale = Kit.New("UIScale", { Parent = banner })
@@ -82,7 +87,8 @@ function BannerController:Init(controllers)
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Font = Theme.Fonts.Title,
 		TextColor3 = C.Gold,
-		StrokeThickness = 6,
+		StrokeThickness = 3,
+		StrokeTransparency = 0.4,
 		Visible = false,
 		Parent = root,
 	})
@@ -135,8 +141,8 @@ function BannerController:Next()
 	local banner = self.Banner
 	banner.Visible = true
 	banner.BackgroundTransparency = 0
-	self.BannerScale.Scale = 1.6
-	Kit.Tween(self.BannerScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+	self.BannerScale.Scale = 1.12
+	Kit.Tween(self.BannerScale, 0.25, { Scale = 1 })
 	self.C.SoundController:Play("Banner")
 	task.delay(2.3, function()
 		Kit.Tween(self.BannerScale, 0.2, { Scale = 0.01 })
@@ -148,14 +154,16 @@ function BannerController:Next()
 	end)
 end
 
-function BannerController:GiantText(text: string, color: Color3, hold: number)
+-- the meme font is only used for the 67 moment
+function BannerController:GiantText(text: string, color: Color3, hold: number, meme: boolean?)
 	local giant = self.Giant
+	giant.Font = if meme then Theme.Fonts.Meme else Theme.Fonts.Title
 	giant.Text = text
 	giant.TextColor3 = color
 	giant.Visible = true
 	giant.TextTransparency = 0
-	self.GiantScale.Scale = 2.4
-	Kit.Tween(self.GiantScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+	self.GiantScale.Scale = if meme then 2 else 1.3
+	Kit.Tween(self.GiantScale, 0.25, { Scale = 1 }, if meme then Enum.EasingStyle.Back else Enum.EasingStyle.Quad)
 	task.delay(hold, function()
 		if giant.Text == text then
 			Kit.Tween(giant, 0.2, { TextTransparency = 1 })
@@ -171,14 +179,14 @@ end
 function BannerController:BossWarning(title: string, delay: number)
 	local S = self.C.SoundController
 	S:Play("Siren")
-	self.C.EffectsController:Flash(C.Red, 0.3)
-	self:GiantText("⚠ WARNING ⚠", C.Red, 1.1)
+	self.C.EffectsController:Flash(C.Danger, 0.3)
+	self:GiantText("WARNING", C.Danger, 1.1)
 	task.delay(1.2, function()
 		self:Show("THE BRAINROT HAS ARRIVED", title, "Boss")
 		self.C.CameraController:Shake(1)
 	end)
 	task.delay(math.max(0.5, delay - 0.3), function()
-		self.C.EffectsController:Flash(C.Red, 0.4)
+		self.C.EffectsController:Flash(C.Danger, 0.4)
 	end)
 end
 
@@ -188,14 +196,14 @@ function BannerController:RandomEvent(p)
 	if p.Key == "Event67" then
 		-- the 67 sequence
 		Kit.Tween(self.Dim, 0.2, { BackgroundTransparency = 0.45 })
-		self:GiantText("6", C.Gold, 0.5)
+		self:GiantText("6", C.Gold, 0.5, true)
 		S:Play("Six")
 		task.delay(0.67, function()
-			self:GiantText("7", C.Pink, 0.5)
+			self:GiantText("7", C.Accent, 0.5, true)
 			S:Play("Seven")
 		end)
 		task.delay(1.34, function()
-			self:GiantText("67", C.Gold, 1.3)
+			self:GiantText("67", C.Gold, 1.3, true)
 			S:Play("SixSeven")
 			Cam:ZoomPunch(0.3, 1.8) -- absurd zoom
 			Cam:Shake(1.5)
@@ -214,7 +222,7 @@ function BannerController:RandomEvent(p)
 	elseif p.Key == "WhyRunning" then
 		S:Play("Goofy")
 	elseif p.Key == "BrainrotStorm" then
-		self.C.EffectsController:Flash(C.Purple, 0.4)
+		self.C.EffectsController:Flash(C.Rare, 0.4)
 	end
 end
 
@@ -231,34 +239,46 @@ end
 -- toasts
 ---------------------------------------------------------------------------
 function BannerController:Toast(text: string, kind: string?)
+	if (kind == "Achievement" or kind == "Unlock") and self.C.ResultsController:IsOpen() then
+		return -- the results screen already lists them
+	end
 	local color = Theme.ToastColors[kind or "Info"] or Theme.ToastColors.Info
 	self.ToastOrder += 1
 	local frame = Kit.Panel({
-		Size = UDim2.fromOffset(440, 44),
-		BackgroundColor3 = C.Panel,
+		Size = UDim2.fromOffset(400, 40),
+		BackgroundTransparency = Theme.GlassStrong,
 		LayoutOrder = self.ToastOrder,
 		Radius = 12,
 		Parent = self.Toasts,
 	})
-	local stroke = frame:FindFirstChildOfClass("UIStroke")
-	if stroke then
-		stroke.Color = color
-	end
-	Kit.Label({
-		Text = text,
-		Size = UDim2.new(1, -20, 1, -8),
-		Position = UDim2.fromOffset(10, 4),
-		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.4),
+	frame:SetAttribute("Kind", kind or "Info")
+	-- a small coloured dot says what kind of message it is
+	local dot = Kit.New("Frame", {
+		Size = UDim2.fromOffset(8, 8),
+		Position = UDim2.new(0, 16, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		BackgroundColor3 = color,
 		Parent = frame,
 	})
-	Kit.Pop(frame, 0.25)
+	Kit.Corner(dot, 4)
+	Kit.Label({
+		Text = text,
+		Size = UDim2.new(1, -52, 0, 20),
+		Position = UDim2.new(0, 34, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Font = Theme.Fonts.Bold,
+		MaxTextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = frame,
+	})
+	Kit.Appear(frame)
 	local count = 0
 	for _, child in self.Toasts:GetChildren() do
 		if child:IsA("Frame") then
 			count += 1
 		end
 	end
-	if count > 4 then
+	if count > 3 then
 		local oldest, order = nil, math.huge
 		for _, child in self.Toasts:GetChildren() do
 			if child:IsA("Frame") and child.LayoutOrder < order then
@@ -279,6 +299,16 @@ function BannerController:Toast(text: string, kind: string?)
 			frame:Destroy()
 		end
 	end)
+end
+
+-- removes the achievement / unlock toasts (the results screen lists them itself)
+function BannerController:ClearRewardToasts()
+	for _, child in self.Toasts:GetChildren() do
+		local kind = child:GetAttribute("Kind")
+		if kind == "Achievement" or kind == "Unlock" then
+			child:Destroy()
+		end
+	end
 end
 
 function BannerController:Start()

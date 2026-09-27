@@ -55,19 +55,19 @@ local function unlockByAchievement(data, key: string, out: { string })
 	for _, def in WeaponData.List do
 		if def.Unlock.Achievement == key and not data.Weapons[def.Key] then
 			data.Weapons[def.Key] = true
-			table.insert(out, def.Icon .. " " .. def.Name)
+			table.insert(out, def.Name)
 		end
 	end
 	for _, def in CharacterData.List do
 		if def.Unlock.Achievement == key and not data.Characters[def.Key] then
 			data.Characters[def.Key] = true
-			table.insert(out, def.Icon .. " " .. def.Name)
+			table.insert(out, def.Name)
 		end
 	end
 	for _, def in SkinData.List do
 		if def.Achievement == key and not data.Skins[def.Key] then
 			data.Skins[def.Key] = true
-			table.insert(out, def.Icon .. " " .. def.Name .. " (hat)")
+			table.insert(out, def.Name .. " (hat)")
 		end
 	end
 end
@@ -107,7 +107,7 @@ function RewardManager:CheckAchievements(session, run: any?): ({ string }, { str
 		local PM = self.Services.PlayerManager
 		for _, key in new do
 			local def = AchievementData.ByKey[key]
-			PM:Notify(player, string.format("🏆 %s  +%d coins", def.Name, def.Coins), "Achievement")
+			PM:Notify(player, string.format("Achievement: %s  +%d coins", def.Name, def.Coins), "Achievement")
 		end
 		for _, name in unlocks do
 			PM:Notify(player, "UNLOCKED: " .. name, "Unlock")

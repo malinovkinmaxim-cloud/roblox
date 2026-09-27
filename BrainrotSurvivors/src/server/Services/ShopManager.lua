@@ -14,6 +14,7 @@ local WeaponData = require(Shared.WeaponData)
 local SkinData = require(Shared.SkinData)
 
 local Guard = require(script.Parent.Parent.Util.Guard)
+local Codes = require(script.Parent.Parent.Data.Codes)
 
 local ShopManager = {}
 
@@ -56,7 +57,7 @@ function ShopManager:BuyMeta(player: Player, key: string)
 		return
 	end
 	session.Data.Meta[key] = level + 1
-	PM:Notify(player, string.format("%s %s -> level %d", def.Icon, def.Name, level + 1), "Success")
+	PM:Notify(player, string.format("%s upgraded to level %d", def.Name, level + 1), "Success")
 	PM:Sync(player)
 end
 
@@ -78,7 +79,7 @@ function ShopManager:UnlockCharacter(player: Player, key: string)
 	end
 	session.Data.Characters[key] = true
 	session.Data.Selected = key
-	PM:Notify(player, "UNLOCKED: " .. def.Icon .. " " .. def.Name, "Unlock")
+	PM:Notify(player, "Unlocked: " .. def.Name, "Unlock")
 	PM:Sync(player)
 	self.Services.CharacterManager:Refresh(player)
 end
@@ -109,7 +110,7 @@ function ShopManager:UnlockWeapon(player: Player, key: string)
 		return
 	end
 	session.Data.Weapons[key] = true
-	PM:Notify(player, "UNLOCKED: " .. def.Icon .. " " .. def.Name, "Unlock")
+	PM:Notify(player, "Unlocked: " .. def.Name, "Unlock")
 	PM:Sync(player)
 end
 
@@ -146,7 +147,7 @@ function ShopManager:BuySkin(player: Player, key: string)
 	end
 	session.Data.Skins[key] = true
 	session.Data.EquippedSkin = key
-	PM:Notify(player, "UNLOCKED: " .. def.Icon .. " " .. def.Name, "Unlock")
+	PM:Notify(player, "Unlocked: " .. def.Name, "Unlock")
 	PM:Sync(player)
 	self.Services.CharacterManager:Refresh(player)
 end
@@ -159,6 +160,28 @@ function ShopManager:EquipSkin(player: Player, key: string)
 	session.Data.EquippedSkin = key
 	self.Services.PlayerManager:Sync(player)
 	self.Services.CharacterManager:Refresh(player)
+end
+
+function ShopManager:RedeemCode(player: Player, text: string)
+	local session = self.Services.PlayerManager:Get(player)
+	if not session then
+		return
+	end
+	local PM = self.Services.PlayerManager
+	local code = string.upper((string.gsub(text, "%s", "")))
+	local reward = Codes[code]
+	if not reward then
+		PM:Notify(player, "That code doesn't exist", "Error")
+		return
+	end
+	if session.Data.RedeemedCodes[code] then
+		PM:Notify(player, "Code already redeemed", "Error")
+		return
+	end
+	session.Data.RedeemedCodes[code] = true
+	self.Services.RewardManager:GiveCoins(session, reward.Coins)
+	PM:Notify(player, "CODE: " .. reward.Text, "Reward")
+	PM:Sync(player)
 end
 
 function ShopManager:Start()
@@ -180,6 +203,11 @@ function ShopManager:Start()
 	Guard.Connect(Net.Event("UnlockWeapon"), { Rate = 2, Burst = 3 }, function(player, key)
 		if Guard.Str(key, 32) then
 			self:UnlockWeapon(player, key)
+		end
+	end)
+	Guard.Connect(Net.Event("RedeemCode"), { Rate = 0.5, Burst = 3 }, function(player, code)
+		if Guard.Str(code, 24) then
+			self:RedeemCode(player, code)
 		end
 	end)
 	Guard.Connect(Net.Event("BuySkin"), { Rate = 2, Burst = 3 }, function(player, key)

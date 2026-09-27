@@ -86,11 +86,11 @@ def table_keys(text, start):
     return keys
 
 
-BUTTON_OPTIONS = {"Text", "Color", "Dark", "Size", "Position", "AnchorPoint", "Parent", "TextSize", "Font", "Radius", "Name", "OnClick", "LayoutOrder"}
+BUTTON_OPTIONS = {"Text", "Color", "Dark", "TextColor", "Size", "Position", "AnchorPoint", "Parent", "TextSize", "Font", "Radius", "Name", "OnClick", "LayoutOrder"}
 PATTERNS = [
     # regex, class (or None = taken from group 1), extra allowed keys
     (r'Kit\.New\(\s*"(\w+)"\s*,\s*\{', None, {"Parent"}),
-    (r"Kit\.Label\(\s*\{", "TextLabel", {"Parent", "StrokeThickness", "StrokeColor"}),
+    (r"Kit\.Label\(\s*\{", "TextLabel", {"Parent", "StrokeThickness", "StrokeColor", "StrokeTransparency", "MaxTextSize"}),
     (r"Kit\.Panel\(\s*\{", "Frame", {"Parent", "Radius"}),
     (r"Widgets\.Scroll\(\s*[\w.\[\]\"]+\s*,\s*\{", "ScrollingFrame", set()),
     (r"\bpart\(\s*[\w.]+\s*,\s*\{", "Part", {"CanCollide", "CastShadow", "Parent"}),

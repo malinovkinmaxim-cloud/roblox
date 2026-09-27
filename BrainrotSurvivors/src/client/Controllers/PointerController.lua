@@ -1,7 +1,8 @@
 --[[
 	PointerController - arrows on the screen edge towards things worth walking to when they are
-	off screen: the boss 👹, treasure chests 🎁 and rare runners (67 Goblin 💰, Why Is He
-	Running 🏃, The NPC 😐). Also the one-time "how to play" hint of the very first run.
+	off screen: the boss, treasure chests and rare runners (67 Goblin, Why Is He Running,
+	The NPC). Each arrow carries a small monogram badge. Also the one-time "how to play" hint
+	of the very first run.
 ]]
 
 local Players = game:GetService("Players")
@@ -10,13 +11,14 @@ local Workspace = game:GetService("Workspace")
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local Widgets = require(script.Parent.Parent.UI.Widgets)
 
 local PointerController = {}
 
 local C = Theme.Colors
 local MAX_ARROWS = 5
 local MARGIN = 0.07 -- fraction of the screen kept free at the edges
-local RARE_ICONS = { Goblin67 = "💰", Runner = "🏃", TheNPC = "😐", GoldenGoober = "🥇" }
+local RARE_ICONS = { Goblin67 = "67", Runner = "RUN", TheNPC = "NPC", GoldenGoober = "GG" }
 
 function PointerController:Init(controllers)
 	self.C = controllers
@@ -36,34 +38,37 @@ function PointerController:Init(controllers)
 		local arrow = Kit.Label({
 			Name = "Arrow",
 			Text = "▲",
-			Size = UDim2.fromOffset(40, 40),
+			Size = UDim2.fromOffset(22, 22),
 			Position = UDim2.fromScale(0.5, 0.5),
 			AnchorPoint = Vector2.new(0.5, 0.5),
+			Font = Theme.Fonts.Title,
 			TextColor3 = C.Gold,
-			StrokeThickness = 3,
+			StrokeThickness = 1.5,
+			StrokeTransparency = 0.4,
 			Parent = holder,
 		})
-		local icon = Kit.Label({
-			Name = "Icon",
-			Text = "",
-			Size = UDim2.fromOffset(34, 34),
-			Position = UDim2.fromScale(0.5, 0.5),
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			StrokeThickness = 0,
-			Parent = holder,
-		})
-		self.Arrows[i] = { Frame = holder, Arrow = arrow, Icon = icon }
+		local icon = Widgets.Mono(holder, "", C.Gold, 34, { Name = "Icon", Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
+		icon.BackgroundColor3 = C.SurfaceDark
+		icon.BackgroundTransparency = Theme.Glass
+		self.Arrows[i] = { Frame = holder, Arrow = arrow, Icon = icon, IconText = icon:FindFirstChild("Text") :: TextLabel, IconStroke = icon:FindFirstChildOfClass("UIStroke") :: UIStroke }
 	end
 
 	self.Hint = Kit.Label({
 		Name = "Hint",
 		Text = "",
-		Size = UDim2.fromOffset(640, 40),
+		Size = UDim2.fromOffset(520, 44),
 		Position = UDim2.new(0.5, 0, 0.72, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
+		Font = Theme.Fonts.Bold,
+		MaxTextSize = 18,
+		BackgroundColor3 = C.Surface,
+		BackgroundTransparency = Theme.Glass,
 		Visible = false,
 		Parent = root,
 	})
+	Kit.Corner(self.Hint, 22)
+	Kit.Stroke(self.Hint)
+	Kit.Padding(self.Hint, 18, 10)
 end
 
 -- targets: { Pos: Vector3, Icon: string, Color: Color3 }
@@ -74,12 +79,12 @@ function PointerController:Targets()
 	if boss then
 		local e = run.Enemies[boss.Id]
 		if e then
-			table.insert(out, { Pos = run:World(e.RX or e.X1, e.RZ or e.Z1, 3), Icon = "👹", Color = C.Red })
+			table.insert(out, { Pos = run:World(e.RX or e.X1, e.RZ or e.Z1, 3), Icon = "BOSS", Color = C.Danger })
 		end
 	end
 	for _, item in self.C.PickupRenderer.Items do
 		if item.Kind == "Chest" and #out < MAX_ARROWS then
-			table.insert(out, { Pos = run:World(item.X, item.Z, 2), Icon = "🎁", Color = C.Gold })
+			table.insert(out, { Pos = run:World(item.X, item.Z, 2), Icon = "LOOT", Color = C.Gold })
 		end
 	end
 	for _, e in run.Enemies do
@@ -123,9 +128,11 @@ function PointerController:Update()
 					local k = math.min((0.5 - MARGIN) / math.max(math.abs(dx), 1e-4), (0.5 - MARGIN) / math.max(math.abs(dy), 1e-4))
 					a.Frame.Position = UDim2.fromScale(0.5 + dx * k, 0.5 + dy * k)
 					a.Arrow.Rotation = math.deg(math.atan2(dx, -dy))
-					a.Arrow.Position = UDim2.new(0.5, dx * 26, 0.5, dy * 26)
+					a.Arrow.Position = UDim2.new(0.5, dx * 28, 0.5, dy * 28)
 					a.Arrow.TextColor3 = t.Color
-					a.Icon.Text = t.Icon
+					a.IconText.Text = t.Icon
+					a.IconText.TextColor3 = t.Color
+					a.IconStroke.Color = t.Color
 					shown = true
 				end
 			end
@@ -140,12 +147,13 @@ function PointerController:ShowFirstRunHint()
 		return
 	end
 	local hint = self.Hint
-	hint.Text = if Kit.IsTouch() then "🕹️ Move with the joystick — attacks are automatic!" else "⌨️ Move with WASD — attacks are automatic!"
+	hint.Text = if Kit.IsTouch() then "Move with the joystick. Attacks are automatic." else "Move with WASD. Attacks are automatic."
 	hint.Visible = true
 	hint.TextTransparency = 0
-	Kit.Pop(hint, 0.3)
+	hint.BackgroundTransparency = Theme.Glass
+	Kit.Appear(hint)
 	task.delay(6, function()
-		Kit.Tween(hint, 0.6, { TextTransparency = 1 })
+		Kit.Tween(hint, 0.6, { TextTransparency = 1, BackgroundTransparency = 1 })
 		task.delay(0.6, function()
 			hint.Visible = false
 		end)
