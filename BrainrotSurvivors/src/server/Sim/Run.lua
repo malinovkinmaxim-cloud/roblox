@@ -364,6 +364,8 @@ function Run:AddXP(amount: number)
 		self.XP -= GameConfig.XPNeeded(self.Level)
 		self.Level += 1
 		self.PendingLevels += 1
+		-- every level up patches you up a little (early levels come fast: a natural safety net)
+		self:Heal(GameConfig.LevelUp.Heal)
 	end
 end
 

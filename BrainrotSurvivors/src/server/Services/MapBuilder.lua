@@ -203,7 +203,7 @@ local function landmarks(parent: Instance)
 	end
 
 	-- the staring NPC statue (huge, always facing the park center)
-	local look = CFrame.lookAt(CENTER + Vector3.new(130, 0, 10), CENTER)
+	local look = CFrame.lookAt(CENTER + Vector3.new(135, 0, 45), CENTER)
 	local function statue(name, size, offset, color)
 		block(name, size, look * CFrame.new(offset), color, { Blocker = name == "Legs" })
 	end
@@ -262,6 +262,39 @@ local function secretRoom(parent: Instance)
 	trigger:SetAttribute("SecretRegion", "Backrooms")
 end
 
+-- flat colour (flower beds, ponds): purely visual, enemies and players walk over them.
+-- spot(radius, margin) returns a free position (or nil) and marks it as taken.
+local function decorations(arena: Instance, spot: (number, number) -> (number?, number?))
+	local deco = folder("Decorations", arena)
+	local flat = CFrame.Angles(0, 0, math.rad(90))
+	local rng = Random.new(76)
+	for _, r in { 26, 22 } do
+		local x, z = spot(r + 3, 40)
+		if x and z then
+			current = deco
+			block("PondRim", Vector3.new(0.3, r * 2 + 4, r * 2 + 4), at(x, 0.15, z) * flat, rgb(200, 190, 160), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Pebble })
+			block("Pond", Vector3.new(0.35, r * 2, r * 2), at(x, 0.2, z) * flat, rgb(80, 170, 255), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Glass, Transparency = 0.15 })
+			block("LilyPad", Vector3.new(0.4, 4, 4), at(x + r * 0.3, 0.25, z - r * 0.2) * flat, rgb(90, 200, 90), { Shape = Enum.PartType.Cylinder })
+			block("LilyPad", Vector3.new(0.4, 3, 3), at(x - r * 0.4, 0.25, z + r * 0.3) * flat, rgb(90, 200, 90), { Shape = Enum.PartType.Cylinder })
+		end
+	end
+	local colors = { rgb(255, 110, 190), rgb(255, 215, 60), rgb(180, 110, 255), rgb(255, 140, 70), rgb(255, 255, 255) }
+	for _ = 1, 16 do
+		local r = rng:NextNumber(4, 6.5)
+		local x, z = spot(r, 20)
+		if x and z then
+			current = deco
+			block("FlowerBed", Vector3.new(0.3, r * 2, r * 2), at(x, 0.15, z) * flat, rgb(95, 150, 70), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Grass })
+			local color = colors[rng:NextInteger(1, #colors)]
+			for k = 1, 8 do
+				local a = k * (math.pi * 2 / 8) + rng:NextNumber(-0.3, 0.3)
+				local d = r * (if k % 2 == 0 then 0.35 else 0.7)
+				block("Flower", Vector3.new(1.9, 1.9, 1.9), at(x + math.cos(a) * d, 0.7, z + math.sin(a) * d), color, { Shape = Enum.PartType.Ball })
+			end
+		end
+	end
+end
+
 local function buildArena(map: Model)
 	local arena = Instance.new("Model")
 	arena.Name = "Arena"
@@ -312,30 +345,54 @@ local function buildArena(map: Model)
 	building("NPCMart", "NPC MART", 150, -150, Vector3.new(34, 16, 26), rgb(120, 170, 255), rgb(60, 90, 200), buildings)
 	building("GooberGym", "GOOBER GYM", -150, -150, Vector3.new(30, 14, 30), rgb(255, 150, 90), rgb(200, 80, 50), buildings)
 	building("Casino67", "67 CASINO", 150, 150, Vector3.new(30, 18, 30), rgb(170, 110, 255), rgb(255, 205, 40), buildings)
-	building("SigmaBarber", "SIGMA BARBER", -150, 150, Vector3.new(28, 14, 28), rgb(60, 60, 75), rgb(255, 205, 60), buildings)
+	building("SigmaBarber", "SIGMA BARBER", -150, 150, Vector3.new(28, 14, 28), rgb(235, 235, 240), rgb(35, 35, 45), buildings)
 	secretRoom(buildings) -- hidden behind NPC MART
 
-	-- trees: scattered, away from the roads and the spawn plaza
-	local trees = folder("Trees", arena)
+	-- free spots: away from roads, the spawn plaza, buildings and everything placed before
+	local occupied = {
+		{ -60, -95, 25 }, -- 67 monument
+		{ 95, 70, 25 }, -- duck
+		{ -110, 80, 16 }, -- floating brain
+		{ 135, 45, 16 }, -- NPC statue
+		{ 40, 120, 14 }, -- traffic cone
+		{ 150, -196, 20 }, -- backrooms
+		{ -30, 150, 10 }, -- sus machine
+	}
 	local rng = Random.new(67)
-	local placed = 0
-	local tries = 0
-	while placed < 42 and tries < 600 do
-		tries += 1
-		local x = rng:NextNumber(-HALF + 12, HALF - 12)
-		local z = rng:NextNumber(-HALF + 12, HALF - 12)
-		local nearRoad = math.abs(x) < 22 or math.abs(z) < 22
-		local nearCenter = math.sqrt(x * x + z * z) < 70
-		local nearBuilding = (math.abs(math.abs(x) - 150) < 30 and math.abs(math.abs(z) - 150) < 30)
-		local nearLandmark = (Vector2.new(x, z) - Vector2.new(-60, -95)).Magnitude < 25
-			or (Vector2.new(x, z) - Vector2.new(95, 70)).Magnitude < 25
-			or (Vector2.new(x, z) - Vector2.new(-110, 80)).Magnitude < 16
-			or (Vector2.new(x, z) - Vector2.new(130, 10)).Magnitude < 16
-			or (Vector2.new(x, z) - Vector2.new(40, 120)).Magnitude < 14
-			or (Vector2.new(x, z) - Vector2.new(150, -196)).Magnitude < 20
-		if not (nearRoad or nearCenter or nearBuilding or nearLandmark) then
-			placed += 1
-			tree(x, z, rng:NextNumber(0.8, 1.3), trees)
+	local function free(x: number, z: number, r: number): boolean
+		if math.abs(x) < 22 + r or math.abs(z) < 22 + r or math.sqrt(x * x + z * z) < 70 then
+			return false
+		end
+		if math.abs(math.abs(x) - 150) < 26 + r and math.abs(math.abs(z) - 150) < 26 + r then
+			return false
+		end
+		for _, o in occupied do
+			if (x - o[1]) ^ 2 + (z - o[2]) ^ 2 < (o[3] + r) ^ 2 then
+				return false
+			end
+		end
+		return true
+	end
+	local function spot(r: number, margin: number): (number?, number?)
+		for _ = 1, 200 do
+			local x = rng:NextNumber(-HALF + margin, HALF - margin)
+			local z = rng:NextNumber(-HALF + margin, HALF - margin)
+			if free(x, z, r) then
+				table.insert(occupied, { x, z, r })
+				return x, z
+			end
+		end
+		return nil, nil
+	end
+
+	decorations(arena, spot)
+
+	local trees = folder("Trees", arena)
+	for _ = 1, 42 do
+		local scale = rng:NextNumber(0.8, 1.3)
+		local x, z = spot(6 * scale, 12)
+		if x and z then
+			tree(x, z, scale, trees)
 		end
 	end
 
@@ -406,6 +463,23 @@ local function buildLobby(map: Model)
 		local nameplate = block("Name", Vector3.new(8, 2, 0.5), L(x - 15, 11.5, 40), rgb(30, 25, 50), { Transparency = 1, CanCollide = false })
 		sign(nameplate, Enum.NormalId.Back, names[i], rgb(255, 255, 255))
 		body:SetAttribute("Showcase", i)
+	end
+
+	-- planters and lamps along the rails
+	for i = -2, 2 do
+		for _, side in { -1, 1 } do
+			local x, z = side * (size / 2 - 5), i * 28
+			block("Planter", Vector3.new(4, 2.5, 8), L(x, 1.25, z), rgb(90, 70, 140))
+			block("Bush", Vector3.new(4.5, 3.5, 8.5), L(x, 3.5, z), rgb(90, 200, 110), { Shape = Enum.PartType.Ball })
+		end
+		if i ~= 0 then
+			local lamp = block("LobbyLamp", Vector3.new(2, 2, 2), L(i * 28, 10, size / 2 - 6), rgb(255, 230, 170), { Shape = Enum.PartType.Ball, Material = Enum.Material.Neon })
+			block("LampPost", Vector3.new(0.8, 9, 0.8), L(i * 28, 4.5, size / 2 - 6), rgb(60, 50, 90))
+			local light = Instance.new("PointLight")
+			light.Range = 20
+			light.Color = rgb(255, 200, 230)
+			light.Parent = lamp
+		end
 	end
 
 	-- the grass nobody touches (secret)

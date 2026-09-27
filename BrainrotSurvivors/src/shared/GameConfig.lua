@@ -87,6 +87,7 @@ GameConfig.LevelUp = {
 	WeaponLevelWeight = 1.35,
 	PassiveWeight = 1.0,
 	FreeRerolls = 1,
+	Heal = 6, -- HP healed on every level up (matters early, not late)
 	SkipCoins = 5,
 }
 

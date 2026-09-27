@@ -567,7 +567,11 @@ function EnemyManager.Step(run, dt: number)
 
 	local touchMax, touchCount = 0, 0
 	local expired = nil
-	for _, e in run.Enemies do
+	-- index loop over the enemies that existed at the start of the step: bosses summon
+	-- during the loop (appended at the end, they move from the next step on)
+	local list = run.Enemies
+	for index = 1, #list do
+		local e = list[index]
 		local dx, dz = px - e.X, pz - e.Z
 		local d = sqrt(dx * dx + dz * dz)
 		if d < 0.01 then

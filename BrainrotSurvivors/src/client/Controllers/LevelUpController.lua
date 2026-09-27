@@ -93,12 +93,23 @@ function LevelUpController:Init(controllers)
 		Color = C.Gray,
 		OnClick = function()
 			if not self.Busy then
-				self.Busy = true
+				self:Lock()
 				self.C.ClientData:Fire("Skip")
 			end
 		end,
 		Parent = root,
 	})
+end
+
+-- blocks double clicks until the server answers; never stays blocked if no answer comes
+function LevelUpController:Lock()
+	self.Busy = true
+	local offer = self.Offer
+	task.delay(2, function()
+		if self.Offer == offer then
+			self.Busy = false
+		end
+	end)
 end
 
 function LevelUpController:IsOpen(): boolean
@@ -236,7 +247,7 @@ function LevelUpController:Pick(index: number)
 	if not offer or self.Busy or not offer.Cards[index] then
 		return
 	end
-	self.Busy = true
+	self:Lock()
 	local card = self.Cards:FindFirstChild("Card" .. index)
 	if card then
 		Kit.Pop(card :: GuiObject, 0.15)
@@ -250,7 +261,7 @@ function LevelUpController:Reroll()
 		self.C.SoundController:Play("Error")
 		return
 	end
-	self.Busy = true
+	self:Lock()
 	self.C.SoundController:Play("Reroll")
 	self.C.ClientData:Fire("Reroll")
 end

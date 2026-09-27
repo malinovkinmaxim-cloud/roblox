@@ -16,6 +16,7 @@ local ORDER = {
 	"WeaponFx",
 	"RunClient",
 	"HudController",
+	"PointerController",
 	"LevelUpController",
 	"BannerController",
 	"ResultsController",

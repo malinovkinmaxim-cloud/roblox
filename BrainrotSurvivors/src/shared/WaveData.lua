@@ -101,7 +101,7 @@ end
 
 function WaveData.DamageScale(t: number): number
 	local m = t / 60
-	return 1 + 0.08 * m
+	return 0.75 + 0.1 * m
 end
 
 function WaveData.EntryAt(t: number): (number, any)
