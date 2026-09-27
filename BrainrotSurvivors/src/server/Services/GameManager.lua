@@ -344,6 +344,8 @@ function GameManager:Start()
 	Guard.Connect(Net.Event("Revive"), { Rate = 1, Burst = 2 }, function(player)
 		local run = self:GetRun(player)
 		if run and run.Dead and not run.RobuxRevived then
+			-- the purchase dialog takes time: keep the run waiting (once)
+			run.ReviveGrace = run.ReviveGrace or 25
 			self.Services.MonetizationManager:PromptProduct(player, "Revive")
 		end
 	end)

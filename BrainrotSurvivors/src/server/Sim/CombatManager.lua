@@ -266,7 +266,9 @@ function KINDS.Beam(run, w, dt)
 	end
 	local s = w.S
 	w.Timer = s.Cooldown
-	local base = atan2(run.FZ, run.FX)
+	-- aims at the nearest enemy in reach (kind to phones), else where the player walks
+	local target = CombatManager.Nearest(run, run.PX, run.PZ, s.Length + 6)
+	local base = if target then atan2(target.Z - run.PZ, target.X - run.PX) else atan2(run.FZ, run.FX)
 	for i = 1, min(s.Amount, #BEAM_OFFSETS) do
 		local a = base + BEAM_OFFSETS[i]
 		local dx, dz = cos(a), sin(a)

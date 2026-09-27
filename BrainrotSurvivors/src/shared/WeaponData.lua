@@ -83,7 +83,7 @@ local LIST: { WeaponDef } = ({
 		Color = rgb(255, 205, 60),
 		MaxLevel = 7,
 		NoAmount = true,
-		Base = { Damage = 5, Cooldown = 0.55, Radius = 7, Knockback = 0.5 },
+		Base = { Damage = 6, Cooldown = 0.5, Radius = 8.5, Knockback = 0.5 },
 		Levels = {
 			[2] = { Radius = 1.5, Desc = "Bigger aura" },
 			[3] = { Damage = 3, Desc = "+3 damage" },
@@ -138,7 +138,7 @@ local LIST: { WeaponDef } = ({
 		Key = "BrainrotBeam",
 		Name = "Brainrot Beam",
 		Icon = "🔦",
-		Desc = "A beam of pure brainrot in the direction you walk.",
+		Desc = "A beam of pure brainrot at the nearest enemy.",
 		Kind = "Beam",
 		Rarity = "Common",
 		Color = rgb(120, 255, 170),

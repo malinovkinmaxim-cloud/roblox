@@ -12,16 +12,33 @@ local Bot = {}
 
 local HALF = 240
 
+-- how close enemies may come: a player with only close-range weapons lets them into the aura
+local function engageDistance(run): number
+	local reach = 0
+	for _, w in run.Weapons do
+		local kind = w.Def.Kind
+		if kind == "Aura" or kind == "FinalAura" or kind == "Slam" or kind == "Blast67" then
+			reach = math.max(reach, (w.S.Radius or 6) * 0.7)
+		elseif kind == "Orbit" then
+			reach = math.max(reach, (w.S.Orbit or 6) * 0.9)
+		else
+			return 18
+		end
+	end
+	return math.clamp(reach, 5, 18)
+end
+
 function Bot.Direction(run, skill: number?): (number, number)
 	skill = skill or 1
 	local px, pz = run.PX, run.PZ
 	local mx, mz = 0, 0
+	local engage = engageDistance(run)
 
 	for _, e in run.Enemies do
 		if not e.NoContact then
 			local dx, dz = px - e.X, pz - e.Z
 			local d2 = dx * dx + dz * dz
-			local r = 18 + e.Radius * (if e.IsBoss then 3 else 1)
+			local r = engage + e.Radius * (if e.IsBoss then 3 else 1)
 			if d2 < r * r then
 				local d = math.sqrt(d2) + 0.01
 				local w = (r - d) / r

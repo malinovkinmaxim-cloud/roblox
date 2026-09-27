@@ -143,6 +143,7 @@ function EnemyRenderer:Clear()
 		self.Pool:Release(d.Item)
 	end
 	table.clear(self.Dying)
+	self.Pool:Trim(24)
 end
 
 function EnemyRenderer:Update(dt: number)

@@ -472,7 +472,7 @@ function Run:Step(dt: number)
 	end
 	if self.Dead then
 		self.DeadFor += dt
-		if self.DeadFor >= GameConfig.Run.DeathReviveWindow + 1 then
+		if self.DeadFor >= GameConfig.Run.DeathReviveWindow + 1 + (self.ReviveGrace or 0) then
 			self:End("Death")
 		end
 		return

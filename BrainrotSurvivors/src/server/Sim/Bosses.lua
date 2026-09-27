@@ -233,6 +233,7 @@ function Bosses.OnKilled(run, e, EM)
 	run:Event("BossDefeated", { Id = e.Id, Key = e.Key, Title = p.Title, Final = p.Final == true })
 	if p.Final then
 		run.VictoryAt = run.Time + 3.5
+		run.Invulnerable = math.max(run.Invulnerable, 10) -- nothing can take this win away
 		run:Banner("VICTORY", "THE FINAL GOOBER has been defeated", "Victory")
 	else
 		run:Banner(p.Title .. " DEFEATED", "Grab the chest!", "Reward")

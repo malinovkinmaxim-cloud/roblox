@@ -1,8 +1,9 @@
 # THE DOPPELGÄNGER OBBY
 
-> 📁 В этом репозитории две игры: **The Doppelgänger Obby** (этот файл, корень репозитория) и
-> **[🇨🇱 Chile Simulator — TAP → GET TALLER](ChileSimulator/README.md)** (папка `ChileSimulator/`).
-> Готовые файлы мест лежат рядом в корне: `DoppelgangerObby.rbxlx` и `ChileSimulator.rbxlx` — открыть в Roblox Studio → **Play (F5)**.
+> 📁 В этом репозитории три игры: **The Doppelgänger Obby** (этот файл, корень репозитория),
+> **[🇨🇱 Chile Simulator — TAP → GET TALLER](ChileSimulator/README.md)** (папка `ChileSimulator/`) и
+> **[🧠 Brainrot Survivors — survivor-like с ордами, level up и 67](BrainrotSurvivors/README.md)** (папка `BrainrotSurvivors/`).
+> Готовые файлы мест лежат рядом в корне: `DoppelgangerObby.rbxlx`, `ChileSimulator.rbxlx` и `BrainrotSurvivors.rbxlx` — открыть в Roblox Studio → **Play (F5)**.
 
 Multiplayer-obby для Roblox, в котором главный игровой элемент — **точная копия игрока (Doppelgänger)**.
 На каждом уровне двойник получает роль: Echo (следует за тобой), Rival (соревнуется с тобой), Shadow (повторяет твои действия с задержкой), Ally (помогает по команде) или Troll (притворяется союзником).

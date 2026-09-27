@@ -641,6 +641,29 @@ local function buildTree(world, node, parentReal)
 	end
 end
 
+-- deterministic math.random for every script (reproducible test runs; Engine.Seed)
+Engine.Seed = 12345
+local mathState = Engine.Seed
+local function nextRandom(): number
+	mathState = (mathState * 48271) % 2147483647
+	return (mathState - 1) / 2147483646
+end
+Engine.Math = setmetatable({
+	random = function(m, n)
+		local r = nextRandom()
+		if m == nil then
+			return r
+		end
+		if n == nil then
+			m, n = 1, m
+		end
+		return m + math.floor(r * (n - m + 1))
+	end,
+	randomseed = function(seed)
+		mathState = math.floor(seed) % 2147483646 + 1
+	end,
+}, { __index = math })
+
 local FakeRandom = {}
 FakeRandom.__index = FakeRandom
 local randomSeed = 1
@@ -1008,6 +1031,7 @@ local function newWorld(name, isServer, opts)
 			end,
 		},
 		Random = FakeRandom,
+		math = Engine.Math,
 	}
 	env.require = function(target)
 		if isProxy(target) then

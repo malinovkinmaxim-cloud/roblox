@@ -3,7 +3,7 @@
 
 	Pool.new(folder, build) where build(key) -> (model, root, info)
 	pool:Acquire(key) returns a parked or new model; pool:Release(item) parks it far below
-	the map (a single CFrame write, no reparenting).
+	the map (a single CFrame write, no reparenting); pool:Trim(n) frees extras between runs.
 ]]
 
 local Pool = {}
@@ -43,6 +43,18 @@ end
 
 function Pool:Count(): number
 	return self.Created
+end
+
+-- Destroys parked models above `keep` per key (called between runs: late-game kinds do not
+-- keep hundreds of early-game models alive forever)
+function Pool:Trim(keep: number)
+	for _, free in self.Free do
+		while #free > keep do
+			local item = table.remove(free)
+			item.Model:Destroy()
+			self.Created -= 1
+		end
+	end
 end
 
 return Pool
