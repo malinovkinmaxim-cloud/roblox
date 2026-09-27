@@ -158,6 +158,25 @@ function CharacterManager:ApplyTrail(player: Player, character: Model)
 	local Monetization = self.Services.MonetizationManager
 	local rainbow = Monetization:HasPass(player, "Cosmetics")
 	local gold = Monetization:HasPass(player, "VIP")
+	player:SetAttribute("VIP", gold)
+	local oldAura = root:FindFirstChild("SurvivorAura")
+	if oldAura then
+		oldAura:Destroy()
+	end
+	if rainbow then
+		-- Cosmetic Pack: a soft sparkle aura around the character
+		local aura = Instance.new("ParticleEmitter")
+		aura.Name = "SurvivorAura"
+		aura.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		aura.Rate = 6
+		aura.Lifetime = NumberRange.new(0.8, 1.4)
+		aura.Speed = NumberRange.new(0.5, 1.5)
+		aura.SpreadAngle = Vector2.new(180, 180)
+		aura.Size = NumberSequence.new(0.4, 0)
+		aura.LightEmission = 0.8
+		aura.Color = ColorSequence.new(rgb(255, 120, 220), rgb(120, 220, 255))
+		aura.Parent = root
+	end
 	if not (rainbow or gold) then
 		return
 	end

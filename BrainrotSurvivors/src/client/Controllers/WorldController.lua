@@ -48,7 +48,7 @@ function WorldController:UpdateGhosts()
 	end
 end
 
-function WorldController:Update(dt: number)
+function WorldController:Update()
 	local now = os.clock()
 	for _, s in self.Spinners do
 		s.Part.CFrame = s.Base * CFrame.new(0, math.sin(now * 1.5) * s.Bob, 0) * CFrame.Angles(0, now * s.Spin, 0)
@@ -62,15 +62,37 @@ function WorldController:Update(dt: number)
 		self.NextBeat = now + 0.5
 		self.C.SoundController:Play("Beat")
 	end
-	local _ = dt
+end
+
+-- VIP chat tag (the server marks owners with the VIP attribute)
+function WorldController:HookChat()
+	local ok, TextChatService = pcall(function()
+		return game:GetService("TextChatService")
+	end)
+	if not ok or not TextChatService then
+		return
+	end
+	pcall(function()
+		(TextChatService :: any).OnIncomingMessage = function(message)
+			local source = message.TextSource
+			local player = source and Players:GetPlayerByUserId(source.UserId)
+			if player and player:GetAttribute("VIP") then
+				local props = Instance.new("TextChatMessageProperties")
+				props.PrefixText = "<font color='#FFD23C'>[VIP]</font> " .. message.PrefixText
+				return props
+			end
+			return nil
+		end
+	end)
 end
 
 function WorldController:Start()
+	self:HookChat()
 	task.delay(2, function()
 		self:FindSpinners()
 	end)
-	RunService.Heartbeat:Connect(function(dt)
-		self:Update(dt)
+	RunService.Heartbeat:Connect(function()
+		self:Update()
 	end)
 end
 

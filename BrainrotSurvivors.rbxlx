@@ -2810,6 +2810,25 @@ function CharacterManager:ApplyTrail(player: Player, character: Model)
 	local Monetization = self.Services.MonetizationManager
 	local rainbow = Monetization:HasPass(player, "Cosmetics")
 	local gold = Monetization:HasPass(player, "VIP")
+	player:SetAttribute("VIP", gold)
+	local oldAura = root:FindFirstChild("SurvivorAura")
+	if oldAura then
+		oldAura:Destroy()
+	end
+	if rainbow then
+		-- Cosmetic Pack: a soft sparkle aura around the character
+		local aura = Instance.new("ParticleEmitter")
+		aura.Name = "SurvivorAura"
+		aura.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		aura.Rate = 6
+		aura.Lifetime = NumberRange.new(0.8, 1.4)
+		aura.Speed = NumberRange.new(0.5, 1.5)
+		aura.SpreadAngle = Vector2.new(180, 180)
+		aura.Size = NumberSequence.new(0.4, 0)
+		aura.LightEmission = 0.8
+		aura.Color = ColorSequence.new(rgb(255, 120, 220), rgb(120, 220, 255))
+		aura.Parent = root
+	end
 	if not (rainbow or gold) then
 		return
 	end
@@ -13218,7 +13237,7 @@ function WorldController:UpdateGhosts()
 	end
 end
 
-function WorldController:Update(dt: number)
+function WorldController:Update()
 	local now = os.clock()
 	for _, s in self.Spinners do
 		s.Part.CFrame = s.Base * CFrame.new(0, math.sin(now * 1.5) * s.Bob, 0) * CFrame.Angles(0, now * s.Spin, 0)
@@ -13232,15 +13251,37 @@ function WorldController:Update(dt: number)
 		self.NextBeat = now + 0.5
 		self.C.SoundController:Play("Beat")
 	end
-	local _ = dt
+end
+
+-- VIP chat tag (the server marks owners with the VIP attribute)
+function WorldController:HookChat()
+	local ok, TextChatService = pcall(function()
+		return game:GetService("TextChatService")
+	end)
+	if not ok or not TextChatService then
+		return
+	end
+	pcall(function()
+		(TextChatService :: any).OnIncomingMessage = function(message)
+			local source = message.TextSource
+			local player = source and Players:GetPlayerByUserId(source.UserId)
+			if player and player:GetAttribute("VIP") then
+				local props = Instance.new("TextChatMessageProperties")
+				props.PrefixText = "<font color='#FFD23C'>[VIP]</font> " .. message.PrefixText
+				return props
+			end
+			return nil
+		end
+	end)
 end
 
 function WorldController:Start()
+	self:HookChat()
 	task.delay(2, function()
 		self:FindSpinners()
 	end)
-	RunService.Heartbeat:Connect(function(dt)
-		self:Update(dt)
+	RunService.Heartbeat:Connect(function()
+		self:Update()
 	end)
 end
 

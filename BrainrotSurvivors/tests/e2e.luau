@@ -312,6 +312,28 @@ Engine.Step(0.5)
 check("daily reward cannot be claimed twice", session.Data.Coins == coins)
 
 ---------------------------------------------------------------------------
+section("shop: passes and products (simulated in Studio)")
+---------------------------------------------------------------------------
+mark = #Engine.Errors
+coins = session.Data.Coins
+cd:Fire("Buy", "Pass", "VIP")
+Engine.Step(0.5)
+cd:Fire("Buy", "Pass", "Cosmetics")
+Engine.Step(0.5)
+local hrp = alicePlayer.Character:FindFirstChild("HumanoidRootPart")
+check("VIP marked on the player (chat tag)", alicePlayer:GetAttribute("VIP") == true)
+check("VIP / cosmetic trail on the character", hrp:FindFirstChild("SurvivorTrail") ~= nil)
+check("cosmetic sparkle aura on the character", hrp:FindFirstChild("SurvivorAura") ~= nil)
+check("client sees owned passes", cd.Data.Passes.VIP == true and cd.Data.Passes.Cosmetics == true)
+cd:Fire("Buy", "Product", "CoinsSmall")
+Engine.Step(0.5)
+check("coin pack delivered", session.Data.Coins == coins + 1000, session.Data.Coins - coins)
+cd:Fire("Buy", "Product", "CoinRush")
+Engine.Step(0.5)
+check("coin rush active", session.Data.CoinRushUntil > Engine.BaseTime + Engine.Now + 25 * 60)
+check("no errors while buying", errorsSince(mark) == 0, Engine.Errors[mark + 1])
+
+---------------------------------------------------------------------------
 section("exploits are ignored")
 ---------------------------------------------------------------------------
 mark = #Engine.Errors
