@@ -122,6 +122,7 @@ Brain Blast 🧠 (снаряды в ближайшего) · 67 Orb 🔮 (орб
 ## Мета-прогрессия и удержание
 * **BRAIN COINS** за забег: собранные монеты + время + убийства + уровень + боссы + победа (+ бонус первого забега дня)
 * **Постоянные улучшения** (13): урон, HP, скорость, XP, монеты, магнит, броня, реген, удача, reroll, revive, +1 стартовое оружие, +слоты оружия (до 10)
+* **Скины** (головные уборы для любого персонажа): Traffic Cone, Exposed Brain, Sigma Shades, Propeller Cap — за монеты; 67 Headband, Untouchable Halo, Golden Antenna, **Survivor Crown** — только за достижения (корона на голове в лобби = человек реально прошёл игру)
 * **Brain Level** (уровень аккаунта) с титулами · **Ежедневная награда** (серия 7 дней) · **3 ежедневных квеста**
 * **27 достижений** (6 секретных) · **Коллекция** врагов и боссов · **Статистика** · **Лидерборды** (OrderedDataStore): уровень, время, убийства, боссы, монеты + доска рекордов в лобби
 
@@ -137,7 +138,7 @@ Game Passes: **VIP** (+20% монет, золотой ник, трейл), **2x 
 default.project.json
 src/shared → ReplicatedStorage.Modules
   GameConfig          все числа: симуляция, арена, игрок, XP-кривая, награды, сохранения
-  EnemyData WeaponData UpgradeData CharacterData MetaData AchievementData WaveData MonetizationData
+  EnemyData WeaponData UpgradeData CharacterData SkinData MetaData AchievementData WaveData MonetizationData
   Stats               бонусы → итоговые статы игрока и оружия (общие для сервера и UI)
   Protocol            бинарный формат кадра забега (buffer)
   Net                 список RemoteEvents (создаются в ReplicatedStorage.Remotes)
@@ -157,7 +158,7 @@ src/server → ServerScriptService.Server
     DataManager       DataStore: pcall + retry + backoff + session lock + autosave + BindToClose
     PlayerManager     сессии, снапшот профиля для UI, настройки, ежедневные награды и квесты
     RewardManager     монеты, Brain XP, статистика, коллекция, квесты, достижения, анлоки, секреты
-    ShopManager       мета-улучшения, персонажи, оружие
+    ShopManager       мета-улучшения, персонажи, оружие, скины
     MapBuilder        строит лобби и арену кодом (если в Workspace нет своей Map), коллайдеры
     CharacterManager  спавн, collision groups, внешний вид персонажа, ник, трейлы
     LeaderboardManager  OrderedDataStore + доска в лобби
@@ -177,7 +178,7 @@ src/client → StarterPlayerScripts.Client
     HudController LevelUpController BannerController ResultsController LobbyController
     SoundController InputController WorldController DebugController ClientData
   Render/             EnemyModels (модели из частей), Pool
-  UI/                 Kit, Theme, Widgets, Panels/* (9 панелей лобби)
+  UI/                 Kit, Theme, Widgets, Panels/* (10 панелей лобби)
 tests/                офлайн-тесты (Lune)
 ```
 

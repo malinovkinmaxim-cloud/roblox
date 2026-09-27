@@ -136,7 +136,7 @@ check("no errors on join", #Engine.Errors == 0, Engine.Errors[1])
 
 -- every lobby panel opens and renders
 local mark = #Engine.Errors
-for _, key in { "Characters", "Weapons", "Upgrades", "Achievements", "Daily", "Collection", "Leaderboard", "Shop", "Settings" } do
+for _, key in { "Characters", "Skins", "Weapons", "Upgrades", "Achievements", "Daily", "Collection", "Leaderboard", "Shop", "Settings" } do
 	lobby:OpenPanel(key)
 	Engine.Step(0.2)
 	check("panel opens: " .. key, lobby.Open and lobby.Open.Key == key)
@@ -310,6 +310,22 @@ local coins = session.Data.Coins
 cd:Fire("ClaimDaily")
 Engine.Step(0.5)
 check("daily reward cannot be claimed twice", session.Data.Coins == coins)
+
+-- hats
+coins = session.Data.Coins
+cd:Fire("BuySkin", "Cone")
+Engine.Step(0.5)
+check("hat bought with coins and worn", session.Data.Skins.Cone == true and session.Data.EquippedSkin == "Cone" and session.Data.Coins == coins - 400)
+check("hat visible on the character", alicePlayer.Character:FindFirstChild("SurvivorHat") ~= nil)
+cd:Fire("BuySkin", "Crown")
+Engine.Step(0.5)
+check("achievement hats cannot be bought", session.Data.Skins.Crown == false)
+cd:Fire("EquipSkin", "Crown")
+Engine.Step(0.5)
+check("locked hats cannot be worn", session.Data.EquippedSkin == "Cone")
+cd:Fire("EquipSkin", "None")
+Engine.Step(0.5)
+check("hat taken off", session.Data.EquippedSkin == "None" and alicePlayer.Character:FindFirstChild("SurvivorHat") == nil)
 
 ---------------------------------------------------------------------------
 section("shop: passes and products (simulated in Studio)")

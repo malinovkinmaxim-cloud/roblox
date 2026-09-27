@@ -16,6 +16,7 @@ local CharacterData = require(Shared.CharacterData)
 local EnemyData = require(Shared.EnemyData)
 local MetaData = require(Shared.MetaData)
 local MonetizationData = require(Shared.MonetizationData)
+local SkinData = require(Shared.SkinData)
 
 local RewardManager = {}
 
@@ -61,6 +62,12 @@ local function unlockByAchievement(data, key: string, out: { string })
 		if def.Unlock.Achievement == key and not data.Characters[def.Key] then
 			data.Characters[def.Key] = true
 			table.insert(out, def.Icon .. " " .. def.Name)
+		end
+	end
+	for _, def in SkinData.List do
+		if def.Achievement == key and not data.Skins[def.Key] then
+			data.Skins[def.Key] = true
+			table.insert(out, def.Icon .. " " .. def.Name .. " (hat)")
 		end
 	end
 end

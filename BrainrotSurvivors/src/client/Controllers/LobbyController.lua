@@ -1,6 +1,6 @@
 --[[
 	LobbyController - the lobby screen: player card (Brain Level, coins), the menu
-	(CHARACTERS, WEAPONS, UPGRADES, ACHIEVEMENTS, SHOP, LEADERBOARD, COLLECTION, DAILY,
+	(CHARACTERS, SKINS, WEAPONS, UPGRADES, ACHIEVEMENTS, DAILY, COLLECTION, LEADERBOARD, SHOP,
 	SETTINGS) and the big PLAY button. Panels (UI/Panels/*) are built on first open and
 	refreshed whenever new data arrives.
 ]]
@@ -23,6 +23,7 @@ local C = Theme.Colors
 
 local MENU = {
 	{ Key = "Characters", Text = "CHARACTERS", Icon = "🙂", Color = C.Lime },
+	{ Key = "Skins", Text = "SKINS", Icon = "👑", Color = C.Pink },
 	{ Key = "Weapons", Text = "WEAPONS", Icon = "🔨", Color = C.Orange },
 	{ Key = "Upgrades", Text = "UPGRADES", Icon = "💪", Color = C.Blue },
 	{ Key = "Achievements", Text = "ACHIEVEMENTS", Icon = "🏆", Color = C.Gold },
@@ -97,16 +98,16 @@ function LobbyController:Init(controllers)
 		Name = "Menu",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(230, 440),
-		Position = UDim2.fromOffset(12, 160),
+		Position = UDim2.fromOffset(12, 156),
 		Parent = root,
 	})
-	Kit.New("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = menu })
+	Kit.New("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder, Parent = menu })
 	self.MenuButtons = {}
 	for i, entry in MENU do
 		local button = Kit.Button({
 			Name = entry.Key,
 			Text = entry.Icon .. " " .. entry.Text,
-			Size = UDim2.fromOffset(220, 42),
+			Size = UDim2.fromOffset(220, 38),
 			Color = entry.Color,
 			LayoutOrder = i,
 			OnClick = function()

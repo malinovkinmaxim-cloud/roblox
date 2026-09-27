@@ -157,6 +157,16 @@ T("achievements and quests are well formed", function()
 	end
 end)
 
+T("skins: unlock paths exist", function()
+	local SkinData = R("ReplicatedStorage.Modules.SkinData")
+	for _, def in SkinData.List do
+		Expect(def.Default or def.Cost or def.Achievement, def.Key)
+		if def.Achievement then
+			Expect(AchievementData.ByKey[def.Achievement], def.Key .. " achievement")
+		end
+	end
+end)
+
 T("monetization: no pay-to-win items", function()
 	for _, def in MonetizationData.Passes do
 		Expect(not string.find(string.lower(def.Desc), "damage"), def.Key)

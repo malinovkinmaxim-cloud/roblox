@@ -1045,6 +1045,8 @@ Net.ClientToServer = {
 	"SelectCharacter", -- (key)
 	"UnlockWeapon", -- (key)
 	"SetStartWeapon", -- (key | "")
+	"BuySkin", -- (key)
+	"EquipSkin", -- (key)
 	"ClaimDaily", -- ()
 	"ClaimQuest", -- (index)
 	"SetSetting", -- (key, value)
@@ -1353,6 +1355,50 @@ return Protocol
       </Item>
       <Item class="ModuleScript" referent="12">
         <Properties>
+          <string name="Name">SkinData</string>
+          <string name="Source"><![CDATA[--[[
+	SkinData - cosmetic hats, worn with any character. Pure looks: no stats.
+	Some are bought with BRAIN COINS, the best ones are only earned through achievements
+	(so a crown on someone's head in the lobby means they actually beat the game).
+]]
+
+export type SkinDef = {
+	Key: string,
+	Name: string,
+	Icon: string,
+	Desc: string,
+	Default: boolean?,
+	Cost: number?,
+	Achievement: string?,
+}
+
+local SkinData = {}
+
+SkinData.List = {
+	{ Key = "None", Name = "No Hat", Icon = "🚫", Desc = "Just your head.", Default = true },
+	{ Key = "Cone", Name = "Traffic Cone", Icon = "🚧", Desc = "Caution: brainrot ahead.", Cost = 400 },
+	{ Key = "BrainHat", Name = "Exposed Brain", Icon = "🧠", Desc = "Big thoughts, no skull.", Cost = 800 },
+	{ Key = "Shades", Name = "Sigma Shades", Icon = "🕶️", Desc = "Never blink again.", Cost = 1200 },
+	{ Key = "Propeller", Name = "Propeller Cap", Icon = "🧢", Desc = "It spins. Obviously.", Cost = 2500 },
+	{ Key = "Headband67", Name = "67 Headband", Icon = "6️⃣", Desc = "Witness a 67 EVENT.", Achievement = "SixSeven" },
+	{ Key = "Halo", Name = "Untouchable Halo", Icon = "😇", Desc = "3 minutes without a scratch.", Achievement = "Untouchable" },
+	{ Key = "GoldAntenna", Name = "Golden Antenna", Icon = "🥇", Desc = "Defeat a Golden Goober.", Achievement = "GoldenGoober" },
+	{ Key = "Crown", Name = "Survivor Crown", Icon = "👑", Desc = "Defeat THE FINAL GOOBER.", Achievement = "Victory" },
+} :: { SkinDef }
+
+SkinData.ByKey = {} :: { [string]: SkinDef }
+for _, def in SkinData.List do
+	SkinData.ByKey[def.Key] = def
+end
+
+SkinData.Default = "None"
+
+return SkinData
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
+        <Properties>
           <string name="Name">Stats</string>
           <string name="Source"><![CDATA[--[[
 	Stats - turns bonus sources (character, permanent upgrades, run passives, buffs) into the
@@ -1493,7 +1539,7 @@ return Stats
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">UpgradeData</string>
           <string name="Source"><![CDATA[--[[
@@ -1639,11 +1685,11 @@ return UpgradeData
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="14">
+      <Item class="Folder" referent="15">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="15">
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">Format</string>
             <string name="Source"><![CDATA[--[[
@@ -1704,7 +1750,7 @@ return Format
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="16">
+        <Item class="ModuleScript" referent="17">
           <Properties>
             <string name="Name">Signal</string>
             <string name="Source"><![CDATA[--[[
@@ -1752,7 +1798,7 @@ return Signal
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">WaveData</string>
           <string name="Source"><![CDATA[--[[
@@ -1903,7 +1949,7 @@ return WaveData
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">WeaponData</string>
           <string name="Source"><![CDATA[--[[
@@ -2231,19 +2277,19 @@ return WeaponData
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="19">
+  <Item class="ServerScriptService" referent="20">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="20">
+    <Item class="Folder" referent="21">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="Folder" referent="21">
+      <Item class="Folder" referent="22">
         <Properties>
           <string name="Name">Data</string>
         </Properties>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">Defaults</string>
             <string name="Source"><![CDATA[--[[
@@ -2264,6 +2310,7 @@ local MetaData = require(Shared.MetaData)
 local AchievementData = require(Shared.AchievementData)
 local EnemyData = require(Shared.EnemyData)
 local MonetizationData = require(Shared.MonetizationData)
+local SkinData = require(Shared.SkinData)
 
 local Defaults = {}
 
@@ -2338,6 +2385,16 @@ function Defaults.Reconcile(raw: any)
 	out.StartWeapon = str(r.StartWeapon, "")
 	if out.StartWeapon ~= "" and not out.Weapons[out.StartWeapon] then
 		out.StartWeapon = ""
+	end
+
+	out.Skins = {}
+	local rsk = if type(r.Skins) == "table" then r.Skins else {}
+	for _, def in SkinData.List do
+		out.Skins[def.Key] = (def.Default == true) or rsk[def.Key] == true
+	end
+	out.EquippedSkin = str(r.EquippedSkin, SkinData.Default)
+	if not out.Skins[out.EquippedSkin] then
+		out.EquippedSkin = SkinData.Default
 	end
 
 	out.Meta = {}
@@ -2440,7 +2497,7 @@ return Defaults
           </Properties>
         </Item>
       </Item>
-      <Item class="Script" referent="23">
+      <Item class="Script" referent="24">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -2497,11 +2554,11 @@ print("[BRAINROT SURVIVORS] server ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="24">
+      <Item class="Folder" referent="25">
         <Properties>
           <string name="Name">Services</string>
         </Properties>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">AdminManager</string>
             <string name="Source"><![CDATA[--[[
@@ -2647,7 +2704,7 @@ return AdminManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">CharacterManager</string>
             <string name="Source"><![CDATA[--[[
@@ -2752,6 +2809,97 @@ function CharacterManager:ApplyLook(character: Model, key: string)
 		add(deco("Antenna", Vector3.new(0.15, 0.8, 0.15), rgb(60, 60, 70), head, CFrame.new(0, 0.9, 0)))
 		add(deco("AntennaBall", Vector3.new(0.45, 0.45, 0.45), rgb(120, 220, 90), head, CFrame.new(0, 1.35, 0), Enum.PartType.Ball))
 	end
+end
+
+-- cosmetic hats (shared/SkinData.lua)
+local HATS = {}
+
+function HATS.Cone(head: BasePart, add)
+	for i = 0, 2 do
+		local r = 1.3 - i * 0.35
+		add(deco("Cone" .. i, Vector3.new(0.55, r, r), if i % 2 == 0 then rgb(255, 120, 30) else rgb(255, 255, 255), head, CFrame.new(0, 0.85 + i * 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.PartType.Cylinder))
+	end
+end
+
+function HATS.BrainHat(head: BasePart, add)
+	add(deco("HatBrain", Vector3.new(1.5, 1, 1.4), rgb(255, 150, 190), head, CFrame.new(0, 0.8, 0), Enum.PartType.Ball))
+	add(deco("HatLobe", Vector3.new(0.9, 0.8, 1), rgb(255, 125, 170), head, CFrame.new(0.3, 1.05, 0.1), Enum.PartType.Ball))
+end
+
+function HATS.Shades(head: BasePart, add)
+	add(deco("HatShades", Vector3.new(1.35, 0.32, 0.2), rgb(10, 10, 15), head, CFrame.new(0, 0.15, -0.62)))
+	add(deco("HatShadesBridge", Vector3.new(1.45, 0.08, 0.1), rgb(255, 205, 60), head, CFrame.new(0, 0.3, -0.66)))
+end
+
+function HATS.Propeller(head: BasePart, add)
+	add(deco("CapTop", Vector3.new(0.5, 1.35, 1.35), rgb(60, 140, 255), head, CFrame.new(0, 0.72, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.PartType.Cylinder))
+	add(deco("CapStick", Vector3.new(0.1, 0.4, 0.1), rgb(40, 40, 40), head, CFrame.new(0, 1.15, 0)))
+	add(deco("Blade", Vector3.new(1.6, 0.06, 0.25), rgb(255, 60, 70), head, CFrame.new(0, 1.35, 0)))
+	add(deco("Blade2", Vector3.new(0.25, 0.06, 1.6), rgb(255, 215, 60), head, CFrame.new(0, 1.35, 0)))
+end
+
+function HATS.Headband67(head: BasePart, add)
+	local band = deco("Headband", Vector3.new(1.3, 0.3, 1.3), rgb(255, 205, 50), head, CFrame.new(0, 0.35, 0), nil)
+	band.Material = Enum.Material.Neon
+	add(band)
+	local tag = deco("Tag67", Vector3.new(0.6, 0.3, 0.05), rgb(40, 20, 60), head, CFrame.new(0, 0.35, -0.68))
+	add(tag)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.LightInfluence = 0
+	gui.CanvasSize = Vector2.new(120, 60)
+	gui.Parent = tag
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "67"
+	label.TextScaled = true
+	label.Font = Enum.Font.LuckiestGuy
+	label.TextColor3 = rgb(255, 215, 50)
+	label.Parent = gui
+end
+
+function HATS.Halo(head: BasePart, add)
+	local halo = deco("Halo", Vector3.new(0.15, 1.5, 1.5), rgb(255, 245, 170), head, CFrame.new(0, 1.2, 0) * CFrame.Angles(0, 0, math.rad(90)), Enum.PartType.Cylinder)
+	halo.Material = Enum.Material.Neon
+	add(halo)
+end
+
+function HATS.GoldAntenna(head: BasePart, add)
+	add(deco("GoldStick", Vector3.new(0.15, 0.9, 0.15), rgb(220, 170, 30), head, CFrame.new(0, 0.95, 0)))
+	local ball = deco("GoldBall", Vector3.new(0.55, 0.55, 0.55), rgb(255, 215, 50), head, CFrame.new(0, 1.45, 0), Enum.PartType.Ball)
+	ball.Material = Enum.Material.Neon
+	add(ball)
+end
+
+function HATS.Crown(head: BasePart, add)
+	local band = deco("CrownBand", Vector3.new(1.3, 0.35, 1.3), rgb(255, 205, 50), head, CFrame.new(0, 0.8, 0))
+	band.Material = Enum.Material.Neon
+	add(band)
+	for i = -1, 1 do
+		local spike = deco("CrownSpike", Vector3.new(0.3, 0.45, 0.3), rgb(255, 215, 60), head, CFrame.new(i * 0.45, 1.15, -0.5))
+		spike.Material = Enum.Material.Neon
+		add(spike)
+	end
+	add(deco("CrownGem", Vector3.new(0.25, 0.25, 0.1), rgb(255, 60, 120), head, CFrame.new(0, 0.8, -0.68), Enum.PartType.Ball))
+end
+
+function CharacterManager:ApplyHat(character: Model, key: string)
+	local old = character:FindFirstChild("SurvivorHat")
+	if old then
+		old:Destroy()
+	end
+	local builder = HATS[key]
+	local head = character:FindFirstChild("Head") :: BasePart?
+	if not builder or not head then
+		return
+	end
+	local hat = Instance.new("Model")
+	hat.Name = "SurvivorHat"
+	hat.Parent = character
+	builder(head, function(p: BasePart)
+		p.Parent = hat
+	end)
 end
 
 function CharacterManager:ApplyNameTag(player: Player, character: Model)
@@ -2868,6 +3016,7 @@ function CharacterManager:Refresh(player: Player)
 		return
 	end
 	self:ApplyLook(character, session.Data.Selected)
+	self:ApplyHat(character, session.Data.EquippedSkin)
 	self:ApplyNameTag(player, character)
 	self:ApplyTrail(player, character)
 end
@@ -2953,7 +3102,7 @@ return CharacterManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">DataManager</string>
             <string name="Source"><![CDATA[--[[
@@ -3211,7 +3360,7 @@ return DataManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">GameManager</string>
             <string name="Source"><![CDATA[--[[
@@ -3622,7 +3771,7 @@ return GameManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="30">
           <Properties>
             <string name="Name">LeaderboardManager</string>
             <string name="Source"><![CDATA[--[[
@@ -3831,7 +3980,7 @@ return LeaderboardManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">MapBuilder</string>
             <string name="Source"><![CDATA[--[[
@@ -4429,7 +4578,7 @@ return MapBuilder
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="32">
           <Properties>
             <string name="Name">MonetizationManager</string>
             <string name="Source"><![CDATA[--[[
@@ -4636,7 +4785,7 @@ return MonetizationManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">PlayerManager</string>
             <string name="Source"><![CDATA[--[[
@@ -4762,6 +4911,8 @@ function PlayerManager:Snapshot(session)
 		Selected = d.Selected,
 		Weapons = d.Weapons,
 		StartWeapon = d.StartWeapon,
+		Skins = d.Skins,
+		EquippedSkin = d.EquippedSkin,
 		Meta = d.Meta,
 		Achievements = d.Achievements,
 		Stats = d.Stats,
@@ -4942,7 +5093,7 @@ return PlayerManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">RewardManager</string>
             <string name="Source"><![CDATA[--[[
@@ -4963,6 +5114,7 @@ local CharacterData = require(Shared.CharacterData)
 local EnemyData = require(Shared.EnemyData)
 local MetaData = require(Shared.MetaData)
 local MonetizationData = require(Shared.MonetizationData)
+local SkinData = require(Shared.SkinData)
 
 local RewardManager = {}
 
@@ -5008,6 +5160,12 @@ local function unlockByAchievement(data, key: string, out: { string })
 		if def.Unlock.Achievement == key and not data.Characters[def.Key] then
 			data.Characters[def.Key] = true
 			table.insert(out, def.Icon .. " " .. def.Name)
+		end
+	end
+	for _, def in SkinData.List do
+		if def.Achievement == key and not data.Skins[def.Key] then
+			data.Skins[def.Key] = true
+			table.insert(out, def.Icon .. " " .. def.Name .. " (hat)")
 		end
 	end
 end
@@ -5195,7 +5353,7 @@ return RewardManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">ShopManager</string>
             <string name="Source"><![CDATA[--[[
@@ -5211,6 +5369,7 @@ local Net = require(Shared.Net)
 local MetaData = require(Shared.MetaData)
 local CharacterData = require(Shared.CharacterData)
 local WeaponData = require(Shared.WeaponData)
+local SkinData = require(Shared.SkinData)
 
 local Guard = require(script.Parent.Parent.Util.Guard)
 
@@ -5328,6 +5487,38 @@ function ShopManager:SetStartWeapon(player: Player, key: string)
 	self.Services.PlayerManager:Sync(player)
 end
 
+function ShopManager:BuySkin(player: Player, key: string)
+	local session = self:Session(player)
+	local def = SkinData.ByKey[key]
+	local PM = self.Services.PlayerManager
+	if not session or not def or session.Data.Skins[key] then
+		return
+	end
+	if not def.Cost then
+		PM:Notify(player, "Earn it with its achievement", "Error")
+		return
+	end
+	if not spend(session, def.Cost) then
+		PM:Notify(player, "Not enough coins", "Error")
+		return
+	end
+	session.Data.Skins[key] = true
+	session.Data.EquippedSkin = key
+	PM:Notify(player, "UNLOCKED: " .. def.Icon .. " " .. def.Name, "Unlock")
+	PM:Sync(player)
+	self.Services.CharacterManager:Refresh(player)
+end
+
+function ShopManager:EquipSkin(player: Player, key: string)
+	local session = self.Services.PlayerManager:Get(player)
+	if not session or not session.Data.Skins[key] then
+		return
+	end
+	session.Data.EquippedSkin = key
+	self.Services.PlayerManager:Sync(player)
+	self.Services.CharacterManager:Refresh(player)
+end
+
 function ShopManager:Start()
 	Guard.Connect(Net.Event("BuyMeta"), { Rate = 4, Burst = 6 }, function(player, key)
 		if Guard.Str(key, 32) then
@@ -5349,6 +5540,16 @@ function ShopManager:Start()
 			self:UnlockWeapon(player, key)
 		end
 	end)
+	Guard.Connect(Net.Event("BuySkin"), { Rate = 2, Burst = 3 }, function(player, key)
+		if Guard.Str(key, 32) then
+			self:BuySkin(player, key)
+		end
+	end)
+	Guard.Connect(Net.Event("EquipSkin"), { Rate = 4, Burst = 6 }, function(player, key)
+		if Guard.Str(key, 32) then
+			self:EquipSkin(player, key)
+		end
+	end)
 	Guard.Connect(Net.Event("SetStartWeapon"), { Rate = 2, Burst = 4 }, function(player, key)
 		if Guard.Str(key, 32) then
 			self:SetStartWeapon(player, key)
@@ -5361,11 +5562,11 @@ return ShopManager
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="35">
+      <Item class="Folder" referent="36">
         <Properties>
           <string name="Name">Sim</string>
         </Properties>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">Bosses</string>
             <string name="Source"><![CDATA[--[[
@@ -5624,7 +5825,7 @@ return Bosses
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">CombatManager</string>
             <string name="Source"><![CDATA[--[[
@@ -6250,7 +6451,7 @@ return CombatManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">EnemyManager</string>
             <string name="Source"><![CDATA[--[[
@@ -6957,7 +7158,7 @@ return EnemyManager
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">LevelUp</string>
             <string name="Source"><![CDATA[--[[
@@ -7273,7 +7474,7 @@ return LevelUp
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">Pickups</string>
             <string name="Source"><![CDATA[--[[
@@ -7454,7 +7655,7 @@ return Pickups
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">Run</string>
             <string name="Source"><![CDATA[--[[
@@ -8102,7 +8303,7 @@ return Run
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">SpatialGrid</string>
             <string name="Source"><![CDATA[--[[
@@ -8185,7 +8386,7 @@ return SpatialGrid
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">WaveManager</string>
             <string name="Source"><![CDATA[--[[
@@ -8602,11 +8803,11 @@ return WaveManager
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="44">
+      <Item class="Folder" referent="45">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">Guard</string>
             <string name="Source"><![CDATA[--[[
@@ -8703,12 +8904,12 @@ return Guard
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="46">
+  <Item class="SoundService" referent="47">
     <Properties>
       <string name="Name">SoundService</string>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="47">
+  <Item class="StarterPlayer" referent="48">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">120</float>
@@ -8720,19 +8921,19 @@ return Guard
       <token name="DevTouchMovementMode">1</token>
       <bool name="LoadCharacterAppearance">true</bool>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="48">
+    <Item class="StarterPlayerScripts" referent="49">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="49">
+      <Item class="Folder" referent="50">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="Folder" referent="50">
+        <Item class="Folder" referent="51">
           <Properties>
             <string name="Name">Controllers</string>
           </Properties>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="52">
             <Properties>
               <string name="Name">BannerController</string>
               <string name="Source"><![CDATA[--[[
@@ -9030,7 +9231,7 @@ return BannerController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">CameraController</string>
               <string name="Source"><![CDATA[--[[
@@ -9189,7 +9390,7 @@ return CameraController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="53">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">ClientData</string>
               <string name="Source"><![CDATA[--[[
@@ -9262,7 +9463,7 @@ return ClientData
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="54">
+          <Item class="ModuleScript" referent="55">
             <Properties>
               <string name="Name">DebugController</string>
               <string name="Source"><![CDATA[--[[
@@ -9364,7 +9565,7 @@ return DebugController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="56">
             <Properties>
               <string name="Name">EffectsController</string>
               <string name="Source"><![CDATA[--[[
@@ -9831,7 +10032,7 @@ return EffectsController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">EnemyRenderer</string>
               <string name="Source"><![CDATA[--[[
@@ -10098,7 +10299,7 @@ return EnemyRenderer
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">HudController</string>
               <string name="Source"><![CDATA[--[[
@@ -10475,7 +10676,7 @@ return HudController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="59">
             <Properties>
               <string name="Name">InputController</string>
               <string name="Source"><![CDATA[--[[
@@ -10545,7 +10746,7 @@ return InputController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">LevelUpController</string>
               <string name="Source"><![CDATA[--[[
@@ -10822,12 +11023,12 @@ return LevelUpController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">LobbyController</string>
               <string name="Source"><![CDATA[--[[
 	LobbyController - the lobby screen: player card (Brain Level, coins), the menu
-	(CHARACTERS, WEAPONS, UPGRADES, ACHIEVEMENTS, SHOP, LEADERBOARD, COLLECTION, DAILY,
+	(CHARACTERS, SKINS, WEAPONS, UPGRADES, ACHIEVEMENTS, DAILY, COLLECTION, LEADERBOARD, SHOP,
 	SETTINGS) and the big PLAY button. Panels (UI/Panels/*) are built on first open and
 	refreshed whenever new data arrives.
 ]]
@@ -10850,6 +11051,7 @@ local C = Theme.Colors
 
 local MENU = {
 	{ Key = "Characters", Text = "CHARACTERS", Icon = "🙂", Color = C.Lime },
+	{ Key = "Skins", Text = "SKINS", Icon = "👑", Color = C.Pink },
 	{ Key = "Weapons", Text = "WEAPONS", Icon = "🔨", Color = C.Orange },
 	{ Key = "Upgrades", Text = "UPGRADES", Icon = "💪", Color = C.Blue },
 	{ Key = "Achievements", Text = "ACHIEVEMENTS", Icon = "🏆", Color = C.Gold },
@@ -10924,16 +11126,16 @@ function LobbyController:Init(controllers)
 		Name = "Menu",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(230, 440),
-		Position = UDim2.fromOffset(12, 160),
+		Position = UDim2.fromOffset(12, 156),
 		Parent = root,
 	})
-	Kit.New("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = menu })
+	Kit.New("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder, Parent = menu })
 	self.MenuButtons = {}
 	for i, entry in MENU do
 		local button = Kit.Button({
 			Name = entry.Key,
 			Text = entry.Icon .. " " .. entry.Text,
-			Size = UDim2.fromOffset(220, 42),
+			Size = UDim2.fromOffset(220, 38),
 			Color = entry.Color,
 			LayoutOrder = i,
 			OnClick = function()
@@ -11118,7 +11320,7 @@ return LobbyController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">PickupRenderer</string>
               <string name="Source"><![CDATA[--[[
@@ -11454,7 +11656,7 @@ return PickupRenderer
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">PointerController</string>
               <string name="Source"><![CDATA[--[[
@@ -11624,7 +11826,7 @@ return PointerController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">ResultsController</string>
               <string name="Source"><![CDATA[--[[
@@ -11909,7 +12111,7 @@ return ResultsController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">RunClient</string>
               <string name="Source"><![CDATA[--[[
@@ -12359,7 +12561,7 @@ return RunClient
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">SoundController</string>
               <string name="Source"><![CDATA[--[[
@@ -12518,7 +12720,7 @@ return SoundController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">WeaponFx</string>
               <string name="Source"><![CDATA[--[[
@@ -13184,7 +13386,7 @@ return WeaponFx
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">WorldController</string>
               <string name="Source"><![CDATA[--[[
@@ -13290,7 +13492,7 @@ return WorldController
             </Properties>
           </Item>
         </Item>
-        <Item class="LocalScript" referent="68">
+        <Item class="LocalScript" referent="69">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -13345,11 +13547,11 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="69">
+        <Item class="Folder" referent="70">
           <Properties>
             <string name="Name">Render</string>
           </Properties>
-          <Item class="ModuleScript" referent="70">
+          <Item class="ModuleScript" referent="71">
             <Properties>
               <string name="Name">EnemyModels</string>
               <string name="Source"><![CDATA[--[[
@@ -13611,7 +13813,7 @@ return EnemyModels
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="71">
+          <Item class="ModuleScript" referent="72">
             <Properties>
               <string name="Name">Pool</string>
               <string name="Source"><![CDATA[--[[
@@ -13678,11 +13880,11 @@ return Pool
             </Properties>
           </Item>
         </Item>
-        <Item class="Folder" referent="72">
+        <Item class="Folder" referent="73">
           <Properties>
             <string name="Name">UI</string>
           </Properties>
-          <Item class="ModuleScript" referent="73">
+          <Item class="ModuleScript" referent="74">
             <Properties>
               <string name="Name">Kit</string>
               <string name="Source"><![CDATA[--[[
@@ -13953,11 +14155,11 @@ return Kit
 ]]></string>
             </Properties>
           </Item>
-          <Item class="Folder" referent="74">
+          <Item class="Folder" referent="75">
             <Properties>
               <string name="Name">Panels</string>
             </Properties>
-            <Item class="ModuleScript" referent="75">
+            <Item class="ModuleScript" referent="76">
               <Properties>
                 <string name="Name">AchievementsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14038,7 +14240,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="76">
+            <Item class="ModuleScript" referent="77">
               <Properties>
                 <string name="Name">CharactersPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14160,7 +14362,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="77">
+            <Item class="ModuleScript" referent="78">
               <Properties>
                 <string name="Name">CollectionPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14242,7 +14444,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="78">
+            <Item class="ModuleScript" referent="79">
               <Properties>
                 <string name="Name">DailyPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14335,7 +14537,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="79">
+            <Item class="ModuleScript" referent="80">
               <Properties>
                 <string name="Name">LeaderboardPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14441,7 +14643,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="80">
+            <Item class="ModuleScript" referent="81">
               <Properties>
                 <string name="Name">SettingsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14508,7 +14710,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="81">
+            <Item class="ModuleScript" referent="82">
               <Properties>
                 <string name="Name">ShopPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14598,7 +14800,95 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="82">
+            <Item class="ModuleScript" referent="83">
+              <Properties>
+                <string name="Name">SkinsPanel</string>
+                <string name="Source"><![CDATA[--[[
+	SkinsPanel - cosmetic hats for any character. Bought with coins or earned through
+	achievements (the crown means you beat THE FINAL GOOBER).
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Modules")
+local SkinData = require(Shared.SkinData)
+local AchievementData = require(Shared.AchievementData)
+local Format = require(Shared.Util.Format)
+
+local Kit = require(script.Parent.Parent.Kit)
+local Theme = require(script.Parent.Parent.Theme)
+local Widgets = require(script.Parent.Parent.Widgets)
+
+local C = Theme.Colors
+
+local Panel = {}
+Panel.Title = "SKINS"
+Panel.Size = Vector2.new(900, 520)
+
+function Panel.Build(body: Frame, controllers)
+	local scroll = Widgets.Scroll(body, Vector2.new(200, 210), 10)
+	local state = { Cards = {}, C = controllers }
+	for i, def in SkinData.List do
+		local card = Kit.Panel({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.PanelLight, LayoutOrder = i, Radius = 14, Parent = scroll })
+		Kit.Label({ Text = def.Icon, Size = UDim2.fromOffset(70, 70), Position = UDim2.new(0.5, 0, 0, 8), AnchorPoint = Vector2.new(0.5, 0), StrokeThickness = 0, Parent = card })
+		Kit.Label({ Text = def.Name, Size = UDim2.new(1, -12, 0, 26), Position = UDim2.fromOffset(6, 80), Font = Theme.Fonts.Title, Parent = card })
+		Kit.Label({
+			Text = def.Desc,
+			Size = UDim2.new(1, -12, 0, 40),
+			Position = UDim2.fromOffset(6, 108),
+			TextWrapped = true,
+			Font = Theme.Fonts.Body,
+			TextColor3 = C.TextDim,
+			StrokeThickness = 0,
+			Parent = card,
+		})
+		local button, label = Kit.Button({
+			Text = "",
+			Size = UDim2.new(1, -16, 0, 42),
+			Position = UDim2.new(0, 8, 1, -50),
+			Color = C.Gray,
+			OnClick = function()
+				local data = controllers.ClientData.Data
+				if not data then
+					return
+				end
+				if data.Skins and data.Skins[def.Key] then
+					controllers.ClientData:Fire("EquipSkin", def.Key)
+				elseif def.Cost then
+					controllers.ClientData:Fire("BuySkin", def.Key)
+				end
+			end,
+			Parent = card,
+		})
+		state.Cards[def.Key] = { Button = button, Label = label }
+	end
+	return state
+end
+
+function Panel.Refresh(state, data)
+	local owned = data.Skins or {}
+	for _, def in SkinData.List do
+		local ui = state.Cards[def.Key]
+		if owned[def.Key] then
+			local equipped = data.EquippedSkin == def.Key
+			ui.Label.Text = if equipped then "✔ WEARING" else "WEAR"
+			Kit.SetButtonColor(ui.Button, if equipped then C.Gold else C.Lime)
+		elseif def.Cost then
+			ui.Label.Text = "🪙 " .. Format.Commas(def.Cost)
+			Kit.SetButtonColor(ui.Button, if data.Coins >= def.Cost then C.Blue else C.Gray)
+		else
+			local ach = def.Achievement and AchievementData.ByKey[def.Achievement]
+			ui.Label.Text = "🏆 " .. (if ach then ach.Name else "?")
+			Kit.SetButtonColor(ui.Button, C.Gray)
+		end
+	end
+end
+
+return Panel
+]]></string>
+              </Properties>
+            </Item>
+            <Item class="ModuleScript" referent="84">
               <Properties>
                 <string name="Name">UpgradesPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14667,7 +14957,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="83">
+            <Item class="ModuleScript" referent="85">
               <Properties>
                 <string name="Name">WeaponsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -14780,7 +15070,7 @@ return Panel
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="84">
+          <Item class="ModuleScript" referent="86">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -14861,7 +15151,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="85">
+          <Item class="ModuleScript" referent="87">
             <Properties>
               <string name="Name">Widgets</string>
               <string name="Source"><![CDATA[--[[
@@ -15088,13 +15378,13 @@ return Widgets
       </Item>
     </Item>
   </Item>
-  <Item class="TextChatService" referent="86">
+  <Item class="TextChatService" referent="88">
     <Properties>
       <string name="Name">TextChatService</string>
       <token name="ChatVersion">1</token>
     </Properties>
   </Item>
-  <Item class="Workspace" referent="87">
+  <Item class="Workspace" referent="89">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-500</float>

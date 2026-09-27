@@ -121,6 +121,8 @@ function PlayerManager:Snapshot(session)
 		Selected = d.Selected,
 		Weapons = d.Weapons,
 		StartWeapon = d.StartWeapon,
+		Skins = d.Skins,
+		EquippedSkin = d.EquippedSkin,
 		Meta = d.Meta,
 		Achievements = d.Achievements,
 		Stats = d.Stats,

@@ -16,6 +16,7 @@ local MetaData = require(Shared.MetaData)
 local AchievementData = require(Shared.AchievementData)
 local EnemyData = require(Shared.EnemyData)
 local MonetizationData = require(Shared.MonetizationData)
+local SkinData = require(Shared.SkinData)
 
 local Defaults = {}
 
@@ -90,6 +91,16 @@ function Defaults.Reconcile(raw: any)
 	out.StartWeapon = str(r.StartWeapon, "")
 	if out.StartWeapon ~= "" and not out.Weapons[out.StartWeapon] then
 		out.StartWeapon = ""
+	end
+
+	out.Skins = {}
+	local rsk = if type(r.Skins) == "table" then r.Skins else {}
+	for _, def in SkinData.List do
+		out.Skins[def.Key] = (def.Default == true) or rsk[def.Key] == true
+	end
+	out.EquippedSkin = str(r.EquippedSkin, SkinData.Default)
+	if not out.Skins[out.EquippedSkin] then
+		out.EquippedSkin = SkinData.Default
 	end
 
 	out.Meta = {}

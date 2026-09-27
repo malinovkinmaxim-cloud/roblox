@@ -11,6 +11,7 @@ local Net = require(Shared.Net)
 local MetaData = require(Shared.MetaData)
 local CharacterData = require(Shared.CharacterData)
 local WeaponData = require(Shared.WeaponData)
+local SkinData = require(Shared.SkinData)
 
 local Guard = require(script.Parent.Parent.Util.Guard)
 
@@ -128,6 +129,38 @@ function ShopManager:SetStartWeapon(player: Player, key: string)
 	self.Services.PlayerManager:Sync(player)
 end
 
+function ShopManager:BuySkin(player: Player, key: string)
+	local session = self:Session(player)
+	local def = SkinData.ByKey[key]
+	local PM = self.Services.PlayerManager
+	if not session or not def or session.Data.Skins[key] then
+		return
+	end
+	if not def.Cost then
+		PM:Notify(player, "Earn it with its achievement", "Error")
+		return
+	end
+	if not spend(session, def.Cost) then
+		PM:Notify(player, "Not enough coins", "Error")
+		return
+	end
+	session.Data.Skins[key] = true
+	session.Data.EquippedSkin = key
+	PM:Notify(player, "UNLOCKED: " .. def.Icon .. " " .. def.Name, "Unlock")
+	PM:Sync(player)
+	self.Services.CharacterManager:Refresh(player)
+end
+
+function ShopManager:EquipSkin(player: Player, key: string)
+	local session = self.Services.PlayerManager:Get(player)
+	if not session or not session.Data.Skins[key] then
+		return
+	end
+	session.Data.EquippedSkin = key
+	self.Services.PlayerManager:Sync(player)
+	self.Services.CharacterManager:Refresh(player)
+end
+
 function ShopManager:Start()
 	Guard.Connect(Net.Event("BuyMeta"), { Rate = 4, Burst = 6 }, function(player, key)
 		if Guard.Str(key, 32) then
@@ -147,6 +180,16 @@ function ShopManager:Start()
 	Guard.Connect(Net.Event("UnlockWeapon"), { Rate = 2, Burst = 3 }, function(player, key)
 		if Guard.Str(key, 32) then
 			self:UnlockWeapon(player, key)
+		end
+	end)
+	Guard.Connect(Net.Event("BuySkin"), { Rate = 2, Burst = 3 }, function(player, key)
+		if Guard.Str(key, 32) then
+			self:BuySkin(player, key)
+		end
+	end)
+	Guard.Connect(Net.Event("EquipSkin"), { Rate = 4, Burst = 6 }, function(player, key)
+		if Guard.Str(key, 32) then
+			self:EquipSkin(player, key)
 		end
 	end)
 	Guard.Connect(Net.Event("SetStartWeapon"), { Rate = 2, Burst = 4 }, function(player, key)
