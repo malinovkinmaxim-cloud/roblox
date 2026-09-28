@@ -19,6 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local CosmeticData = require(ReplicatedStorage:WaitForChild("Modules").CosmeticData)
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules").GameConfig)
 
 local EffectsController = {}
 
@@ -180,8 +181,20 @@ end
 ---------------------------------------------------------------------------
 -- primitives
 ---------------------------------------------------------------------------
+-- full effects unless "Low quality" or "Fewer effects" is on
 function EffectsController:Quality(): boolean
-	return not self.C.ClientData:Setting("LowQuality")
+	return not self.C.ClientData:Setting("LowQuality") and self.C.ClientData:Setting("FewerEffects") ~= true
+end
+
+-- how many particles to emit (x count): a third with Low quality, the configured share with
+-- Fewer effects
+function EffectsController:ParticleScale(): number
+	if self.C.ClientData:Setting("LowQuality") then
+		return 1 / 3
+	elseif self.C.ClientData:Setting("FewerEffects") == true then
+		return GameConfig.Visuals.FewerEffectsParticles
+	end
+	return 1
 end
 
 function EffectsController:Emit(kind: string, pos: Vector3, color: Color3, count: number)
@@ -192,7 +205,7 @@ function EffectsController:Emit(kind: string, pos: Vector3, color: Color3, count
 	local att = e.Parent :: Attachment
 	att.Position = pos
 	e.Color = ColorSequence.new(color)
-	e:Emit(if self:Quality() then count else math.ceil(count / 3))
+	e:Emit(math.ceil(count * self:ParticleScale()))
 end
 
 function EffectsController:Poof(x: number, z: number, color: Color3, count: number?)

@@ -451,6 +451,21 @@ function Run:SetPlayer(x: number, z: number, fx: number?, fz: number?)
 	self.PX, self.PZ = x, z
 end
 
+-- true when (x, z) is inside a pond (the map's water circles)
+function Run:InWater(x: number, z: number): boolean
+	local water = self.Colliders and self.Colliders.Water
+	if not water then
+		return false
+	end
+	for _, w in water do
+		local dx, dz = x - w.X, z - w.Z
+		if dx * dx + dz * dz < w.R * w.R then
+			return true
+		end
+	end
+	return false
+end
+
 function Run:AddXP(amount: number)
 	local mult = self.Stats.Growth * self.Diff.XP
 	if self:Buff("P67") then

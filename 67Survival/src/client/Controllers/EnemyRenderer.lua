@@ -117,7 +117,7 @@ function EnemyRenderer:Remove(e, cause: number)
 		item.Root.Color = item.Info.BodyColor
 	end
 	fade(item, 0)
-	if cause == 0 and #self.Dying < MAX_DYING and not self.C.ClientData:Setting("LowQuality") then
+	if cause == 0 and #self.Dying < MAX_DYING and self.C.EffectsController:Quality() then
 		-- launched off screen, spinning: goofy death
 		local away = Vector3.new(e.RX - (self.PX or e.RX), 0, e.RZ - (self.PZ or e.RZ))
 		if away.Magnitude < 0.01 then

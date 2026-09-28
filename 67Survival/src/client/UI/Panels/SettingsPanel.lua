@@ -1,6 +1,7 @@
 --[[
-	SettingsPanel - sound, music, screen shake, damage numbers, low quality mode (fewer
-	particles, no death flips: for older phones). Saved in the profile.
+	SettingsPanel - sound, music, screen shake, damage numbers, hero outline (find your hero
+	in a crowd), fewer effects (fewer particles, fainter ability areas), low quality mode
+	(fewer particles, no death flips: for older phones). Saved in the profile.
 ]]
 
 local Kit = require(script.Parent.Parent.Kit)
@@ -13,13 +14,15 @@ local F = Theme.Fonts
 local Panel = {}
 Panel.Kind = "Window"
 Panel.Title = "SETTINGS"
-Panel.Size = Vector2.new(520, 400)
+Panel.Size = Vector2.new(520, 510)
 
 local OPTIONS = {
 	{ Key = "Sfx", Text = "Sound effects" },
 	{ Key = "Music", Text = "Boss music" },
 	{ Key = "Shake", Text = "Screen shake" },
 	{ Key = "DamageNumbers", Text = "Damage numbers" },
+	{ Key = "HeroOutline", Text = "Hero outline (find yourself in a crowd)" },
+	{ Key = "FewerEffects", Text = "Fewer effects" },
 	{ Key = "LowQuality", Text = "Low quality (faster on phones)" },
 }
 
@@ -41,6 +44,9 @@ function Panel.Build(body: Frame, controllers)
 		state.Rows[opt.Key] = Widgets.Toggle(body, UDim2.new(1, -4, 0, y + ROW / 2), function(value)
 			controllers.ClientData:SetSetting(opt.Key, value)
 			state.Rows[opt.Key].Set(value)
+			if opt.Key == "HeroOutline" then
+				controllers.RunClient:ApplyOutline()
+			end
 		end)
 		if i < #OPTIONS then
 			Kit.New("Frame", {

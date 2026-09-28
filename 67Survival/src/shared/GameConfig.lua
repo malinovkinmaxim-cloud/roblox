@@ -67,6 +67,22 @@ GameConfig.Player = {
 	MaxPassives = 8,
 }
 
+-- seeing your hero in a crowd (Settings: "Hero outline", "Fewer effects")
+GameConfig.Visuals = {
+	OutlineColor = Color3.fromRGB(255, 255, 255), -- the outline around your own hero in a run
+	OutlineTransparency = 0.05,
+	FillColor = Color3.fromRGB(120, 220, 255), -- a faint glow over the hero
+	FillTransparency = 0.85,
+	FewerEffectsParticles = 1 / 3, -- particle count with "Fewer effects" on
+	FewerEffectsFade = 0.25, -- ability areas and auras get this much more see-through
+}
+
+-- ponds in the arena: water slows everyone who wades through (bosses and flyers do not)
+GameConfig.Water = {
+	PlayerSpeed = 0.75, -- walk speed multiplier in water
+	EnemySpeed = 0.75,
+}
+
 GameConfig.Run = {
 	Length = 13 * 60, -- soft end; the final boss spawns at FinalBossAt
 	FinalBossAt = 12 * 60,

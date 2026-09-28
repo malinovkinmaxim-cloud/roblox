@@ -26,6 +26,7 @@ local WeaponData = require(Shared.WeaponData)
 local Protocol = require(Shared.Protocol)
 local CosmeticData = require(Shared.CosmeticData)
 local HeroModels = require(Shared.HeroModels)
+local GameConfig = require(Shared.GameConfig)
 
 local WeaponFx = {}
 
@@ -151,6 +152,15 @@ function WeaponFx:Init(controllers)
 	self.CloneModel = nil
 end
 
+-- "Fewer effects": ability areas and auras are more see-through (your hero stays visible);
+-- enemy telegraphs are never faded (they warn you)
+function WeaponFx:Fade(transparency: number): number
+	if transparency < 1 and self.C.ClientData:Setting("FewerEffects") == true then
+		return math.min(0.97, transparency + GameConfig.Visuals.FewerEffectsFade)
+	end
+	return transparency
+end
+
 function WeaponFx:Take(style: string): BasePart
 	local free = self.Free[style]
 	local p = free and table.remove(free)
@@ -252,7 +262,7 @@ function WeaponFx:SetLoadout(loadout)
 					local r = w.Radius
 					p.Size = Vector3.new(r * 2, r * 2, r * 2)
 				elseif def.Kind == "Aura" or def.Kind == "FireRing" or def.Kind == "Field" then
-					p.Transparency = if i == 1 then (if def.Kind == "Field" then 0.75 else 0.82) else 0.45
+					p.Transparency = self:Fade(if i == 1 then (if def.Kind == "Field" then 0.75 else 0.82) else 0.45)
 				end
 			end
 		end
@@ -865,7 +875,7 @@ function WeaponFx:Update(dt: number)
 				disc.CFrame = base * FLAT
 				edge.Size = Vector3.new(0.12, r * 2, r * 2)
 				edge.CFrame = (base + Vector3.new(0, 0.02, 0)) * FLAT
-				edge.Transparency = 0.55 + math.sin(clock * (if a.Kind == "FireRing" then 14 else 5)) * 0.15
+				edge.Transparency = self:Fade(0.55 + math.sin(clock * (if a.Kind == "FireRing" then 14 else 5)) * 0.15)
 				if color then
 					disc.Color = color
 					edge.Color = color
@@ -884,11 +894,11 @@ function WeaponFx:Update(dt: number)
 			local r = zone.R * (1 + math.sin(clock * 3) * 0.04)
 			zone.Disc.Size = Vector3.new(0.15, r * 2, r * 2)
 			zone.Disc.CFrame = CFrame.new(zone.Pos) * CFrame.Angles(0, zone.Spin, 0) * FLAT
-			zone.Disc.Transparency = if left < 0 then 1 else (if zone.Vortex then 0.35 else 0.55)
+			zone.Disc.Transparency = if left < 0 then 1 else self:Fade(if zone.Vortex then 0.35 else 0.55)
 			local cr = if zone.Vortex then r * 0.35 else r * 0.9
 			zone.Core.Size = Vector3.new(cr * 2, if zone.Vortex then cr * 2 else cr * 0.8, cr * 2)
 			zone.Core.CFrame = CFrame.new(zone.Pos + Vector3.new(0, if zone.Vortex then 2 else 1, 0))
-			zone.Core.Transparency = if left < 0 then 1 else (if zone.Vortex then 0.1 else 0.7)
+			zone.Core.Transparency = if left < 0 then 1 else self:Fade(if zone.Vortex then 0.1 else 0.7)
 		end
 	end
 

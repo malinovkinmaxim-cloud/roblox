@@ -154,6 +154,7 @@ check("hub: logo says 67 SURVIVAL", findGui(alice, "Mark").Text == "67" and find
 check("hub: daily quest card filled", lobby.QuestText.Text ~= "", lobby.QuestText.Text)
 check("hub: hero card shows the selected hero", lobby.CharacterName.Text == "THE ROOKIE", lobby.CharacterName.Text)
 check("admin tools offered in Studio", cd.Data.Admin == true and findGui(alice, "S67Debug") ~= nil)
+check("Studio test players (negative ids) get no DEBUG", PM:IsAdmin({ UserId = -1 } :: any) == false)
 check("snapshot has the new systems", cd.Data.Afk ~= nil and cd.Data.Weekly and #cd.Data.Weekly.List == 3 and cd.Data.CollectionTotal >= 100, cd.Data.CollectionTotal)
 check("new players start on CALM (only tier I open)", cd.Data.Difficulty and cd.Data.Difficulty.Selected == 1 and cd.Data.Difficulty.Unlocked == 1)
 check("hub: difficulty pill above PLAY shows CALM", lobby.DiffName.Text == "CALM" and lobby.DiffNumeral.Text == "I", lobby.DiffName.Text)
@@ -236,6 +237,30 @@ check("walk speed set from stats", alicePlayer.Character:FindFirstChildOfClass("
 check("jumping disabled in the arena", alicePlayer.Character:FindFirstChildOfClass("Humanoid").JumpHeight == 0)
 check("hero + its starting ability", run.Hero == "Rookie" and #run.Weapons == 1 and run.Weapons[1].Key == "BasicBlaster")
 check("the run is on the selected difficulty (CALM)", run.Difficulty == 1 and hud.DiffLabel.Text == "I  CALM", hud.DiffLabel.Text)
+check("your hero has an outline in the run", alice.LocalPlayer.Character:FindFirstChild("HeroOutline") ~= nil)
+do
+	-- ponds are water: they slow you down (and the horde)
+	local MB = Engine.Module(server, "ServerScriptService.Server.Services.MapBuilder")
+	local GameConfig = Engine.Module(server, "ReplicatedStorage.Modules.GameConfig")
+	local ponds = MB.Colliders.Water
+	local pond = ponds[1]
+	check("the arena ponds are water in the simulation", #ponds == 2 and run:InWater(pond.X, pond.Z) and not run:InWater(pond.X + pond.R + 1, pond.Z))
+	local humanoid = alicePlayer.Character:FindFirstChildOfClass("Humanoid")
+	local backX, backZ = entry.LastX, entry.LastZ
+	entry.LastX, entry.LastZ = pond.X, pond.Z
+	Engine.MoveCharacter("Alice", roblox.Vector3.new(pond.X, 3, pond.Z))
+	Engine.Step(0.2)
+	local wet = humanoid.WalkSpeed
+	entry.LastX, entry.LastZ = backX, backZ
+	Engine.MoveCharacter("Alice", roblox.Vector3.new(backX, 3, backZ))
+	Engine.Step(0.2)
+	check("walking through water is slower", math.abs(wet - run.Stats.WalkSpeed * GameConfig.Water.PlayerSpeed) < 0.01 and GameConfig.Water.PlayerSpeed < 1 and humanoid.WalkSpeed == run.Stats.WalkSpeed, wet)
+end
+cd:SetSetting("HeroOutline", false)
+runClient:ApplyOutline()
+check("the outline can be switched off", alice.LocalPlayer.Character:FindFirstChild("HeroOutline") == nil)
+cd:SetSetting("HeroOutline", true)
+runClient:ApplyOutline()
 
 ---------------------------------------------------------------------------
 section("first 30 seconds: move, enemies, auto attack, XP, level up")
@@ -267,6 +292,11 @@ check("no errors while picking with keys", errorsSince(mark) == 0, Engine.Errors
 ---------------------------------------------------------------------------
 section("pause menu freezes the run")
 ---------------------------------------------------------------------------
+-- (a level-up choice that is still open also pauses the run: answer it first)
+if run.Offer then
+	cd:Fire("Choose", 1)
+	Engine.Step(0.3)
+end
 local t0 = run.Time
 hud:TogglePause(true)
 Engine.Step(2)

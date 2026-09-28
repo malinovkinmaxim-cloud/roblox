@@ -38,7 +38,7 @@ function ClientData:Setting(key: string): any
 	if data and data.Settings and data.Settings[key] ~= nil then
 		return data.Settings[key]
 	end
-	if key == "LowQuality" then
+	if key == "LowQuality" or key == "FewerEffects" then
 		return false
 	end
 	return true

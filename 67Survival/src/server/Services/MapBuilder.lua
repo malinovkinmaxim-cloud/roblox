@@ -266,7 +266,8 @@ local function secretRoom(parent: Instance)
 	trigger:SetAttribute("SecretRegion", "Backrooms")
 end
 
--- flat colour (flower beds, ponds): purely visual, enemies and players walk over them.
+-- flower beds are flat colour; ponds are WATER (attribute Water): everyone wades through
+-- slower (GameConfig.Water), except bosses and flyers.
 -- spot(radius, margin) returns a free position (or nil) and marks it as taken.
 local function decorations(arena: Instance, spot: (number, number) -> (number?, number?))
 	local deco = folder("Decorations", arena)
@@ -277,7 +278,8 @@ local function decorations(arena: Instance, spot: (number, number) -> (number?, 
 		if x and z then
 			current = deco
 			block("PondRim", Vector3.new(0.3, r * 2 + 4, r * 2 + 4), at(x, 0.15, z) * flat, rgb(200, 190, 160), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Pebble })
-			block("Pond", Vector3.new(0.35, r * 2, r * 2), at(x, 0.2, z) * flat, rgb(80, 170, 255), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Glass, Transparency = 0.15 })
+			local pond = block("Pond", Vector3.new(0.35, r * 2, r * 2), at(x, 0.2, z) * flat, rgb(80, 170, 255), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Glass, Transparency = 0.15 })
+			pond:SetAttribute("Water", true)
 			block("LilyPad", Vector3.new(0.4, 4, 4), at(x + r * 0.3, 0.25, z - r * 0.2) * flat, rgb(90, 200, 90), { Shape = Enum.PartType.Cylinder })
 			block("LilyPad", Vector3.new(0.4, 3, 3), at(x - r * 0.4, 0.25, z + r * 0.3) * flat, rgb(90, 200, 90), { Shape = Enum.PartType.Cylinder })
 		end
@@ -668,7 +670,13 @@ local COLLIDER_CELL = 32
 function MapBuilder.ExtractColliders(arena: Instance)
 	local cells = {}
 	local count = 0
+	local water = {}
 	for _, d in arena:GetDescendants() do
+		if d:IsA("BasePart") and d:GetAttribute("Water") then
+			-- a flat cylinder: its radius is half the size across (arena coordinates)
+			local p = d.CFrame.Position - CENTER
+			table.insert(water, { X = p.X, Z = p.Z, R = math.max(d.Size.Y, d.Size.Z) / 2 })
+		end
 		if d:IsA("BasePart") and d:GetAttribute("EnemyBlocker") then
 			-- XZ bounding box of the (possibly rotated) part, in arena coordinates
 			local cf, size = d.CFrame, d.Size
@@ -688,7 +696,7 @@ function MapBuilder.ExtractColliders(arena: Instance)
 			end
 		end
 	end
-	return { Cell = COLLIDER_CELL, Cells = cells, Count = count }
+	return { Cell = COLLIDER_CELL, Cells = cells, Count = count, Water = water }
 end
 
 function MapBuilder.ExtractRegions(map: Instance)

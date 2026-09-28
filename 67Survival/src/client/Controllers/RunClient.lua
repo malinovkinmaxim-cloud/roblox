@@ -9,6 +9,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
@@ -437,7 +438,41 @@ function RunClient:Begin(p)
 	C.SoundController:Play("Banner")
 	C.EffectsController:SpawnEffect(p.SpawnEffect or "Beam")
 	setReset(false)
+	self:ApplyOutline()
 	self.Started:Fire(p)
+end
+
+--[[
+	Your hero stands out from the horde: an outline (drawn on top of everything, so it shows
+	through enemies) and a faint glow, only in a run and only if the "Hero outline" setting
+	is on. Colours in GameConfig.Visuals.
+]]
+function RunClient:ApplyOutline()
+	local character = Players.LocalPlayer.Character
+	if not character then
+		return
+	end
+	local old = character:FindFirstChild("HeroOutline")
+	local want = self.Active and self.C.ClientData:Setting("HeroOutline") ~= false
+	if not want then
+		if old then
+			old:Destroy()
+		end
+		return
+	end
+	if old then
+		return
+	end
+	local v = GameConfig.Visuals
+	local outline = Instance.new("Highlight")
+	outline.Name = "HeroOutline"
+	outline.Adornee = character
+	outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	outline.OutlineColor = v.OutlineColor
+	outline.OutlineTransparency = v.OutlineTransparency
+	outline.FillColor = v.FillColor
+	outline.FillTransparency = v.FillTransparency
+	outline.Parent = character
 end
 
 function RunClient:Finish(p)
@@ -459,6 +494,7 @@ function RunClient:Leave()
 	C.CameraController:SetMode("Lobby")
 	C.LobbyController:Show()
 	C.BannerController:PlaceToasts()
+	self:ApplyOutline()
 	setReset(true)
 end
 

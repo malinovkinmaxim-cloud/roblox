@@ -5,7 +5,7 @@
 	Movement: runs away from nearby enemies (bosses count more), steps out of telegraphs
 	(boss circles, laser lines, void zones, lit bombers, leaper landings, sniper lines),
 	dodges enemy projectiles, collects gems and pickups, chases loot crates and runaway
-	goblins, stays away from the arena walls.
+	goblins, stays away from the arena walls and walks around ponds (water slows you).
 	Cards: evolution > weapon level > new weapon > damage/speed passives > the rest.
 ]]
 
@@ -140,6 +140,21 @@ function Bot.Direction(run, skill: number?): (number, number)
 			local len = math.sqrt(p.VX * p.VX + p.VZ * p.VZ) + 0.01
 			mx += -p.VZ / len * 1.5 * skill
 			mz += p.VX / len * 1.5 * skill
+		end
+	end
+
+	-- ponds slow you down: steer around them like a player would
+	local water = run.Colliders and run.Colliders.Water
+	if water then
+		for _, w in water do
+			local dx, dz = px - w.X, pz - w.Z
+			local d = math.sqrt(dx * dx + dz * dz) + 0.01
+			local edge = w.R + 6
+			if d < edge then
+				local push = (edge - d) / edge * 2.5
+				mx += dx / d * push
+				mz += dz / d * push
+			end
 		end
 	end
 

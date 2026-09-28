@@ -307,8 +307,9 @@ function GameManager:StepEntry(entry)
 		self.Services.CharacterManager:Teleport(entry.Player, CFrame.new(CENTER + Vector3.new(tp.X, 0.5, tp.Z)))
 	end
 
-	-- walk speed follows stats; frozen while choosing / dead / paused
-	local speed = if run:IsPaused() then 0 else run.Stats.WalkSpeed
+	-- walk speed follows stats (slower in water); frozen while choosing / dead / paused
+	local wade = if run:InWater(run.PX, run.PZ) then GameConfig.Water.PlayerSpeed else 1
+	local speed = if run:IsPaused() then 0 else run.Stats.WalkSpeed * wade
 	if speed ~= entry.WalkSpeed then
 		entry.WalkSpeed = speed
 		self.Services.CharacterManager:SetWalkSpeed(entry.Player, speed)

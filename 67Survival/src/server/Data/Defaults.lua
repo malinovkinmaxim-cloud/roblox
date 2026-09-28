@@ -39,6 +39,8 @@ Defaults.SettingKeys = {
 	Shake = true,
 	DamageNumbers = true,
 	LowQuality = false,
+	HeroOutline = true, -- an outline around your hero in a run (easy to find in a crowd)
+	FewerEffects = false, -- fewer particles, fainter ability areas
 }
 
 Defaults.MaxLoadouts = 3

@@ -928,7 +928,9 @@ function EnemyManager.Step(run, dt: number)
 		if e.SlowUntil <= now then
 			e.SlowFactor = 1
 		end
-		local speed = e.Speed * mult * slow * turbo
+		-- ponds: the horde wades slower (not bosses, not flyers)
+		local wade = if not e.IsBoss and not e.Air and run:InWater(e.X, e.Z) then GameConfig.Water.EnemySpeed else 1
+		local speed = e.Speed * mult * slow * turbo * wade
 
 		-- crowd separation (a few neighbours are enough to spread a horde)
 		local sepX, sepZ = 0, 0
