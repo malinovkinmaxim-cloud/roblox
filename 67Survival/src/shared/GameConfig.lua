@@ -83,6 +83,11 @@ GameConfig.Water = {
 	EnemySpeed = 0.75,
 }
 
+-- new players: the "how to survive" card in the first run (never shown after that)
+GameConfig.Tutorial = {
+	HintSeconds = 10, -- seconds of run time (pauses and level-up choices do not count)
+}
+
 GameConfig.Run = {
 	Length = 13 * 60, -- soft end; the final boss spawns at FinalBossAt
 	FinalBossAt = 12 * 60,

@@ -425,6 +425,7 @@ for _, scene in {
 	{ "Statistics" },
 	{ "Leaderboard" },
 	{ "Difficulty" },
+	{ "HowToPlay" },
 } do
 	lobby:OpenPanel(scene[1], false, scene[2])
 	Engine.Step(1)

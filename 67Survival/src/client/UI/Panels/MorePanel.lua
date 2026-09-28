@@ -1,5 +1,5 @@
 --[[
-	MorePanel - everything secondary, in one compact 3x3 grid:
+	MorePanel - HOW TO PLAY (a wide button on top), then everything secondary in a 3x3 grid:
 	  ACHIEVEMENTS  COLLECTION   CHALLENGES
 	  AFK CAMP      PARTY        LEADERBOARD
 	  STATISTICS    CODES        CREDITS
@@ -18,7 +18,7 @@ local F = Theme.Fonts
 local Panel = {}
 Panel.Kind = "Window"
 Panel.Title = "MORE"
-Panel.Size = Vector2.new(520, 530)
+Panel.Size = Vector2.new(520, 600)
 
 local TILES = {
 	{ Key = "Achievements", Text = "ACHIEVEMENTS" },
@@ -33,7 +33,32 @@ local TILES = {
 }
 
 function Panel.Build(body: Frame, controllers)
-	local grid = Kit.New("Frame", { Name = "Grid", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 372), Parent = body })
+	-- HOW TO PLAY: first, wide, easy to find for new players
+	local howTo = Widgets.Card(body, UDim2.new(1, -8, 0, 56), 0, "HowToPlay")
+	howTo.Position = UDim2.fromOffset(4, 0)
+	howTo.BackgroundColor3 = C.Accent
+	howTo.BackgroundTransparency = 0.72
+	Icons.Make(howTo, "Menu", "HowToPlay", 36, { Position = UDim2.new(0, 14, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
+	Kit.Label({
+		Name = "Label",
+		Text = "HOW TO PLAY",
+		Size = UDim2.new(1, -80, 0, 22),
+		Position = UDim2.new(0, 62, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Font = F.Title,
+		TextScaled = false,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = howTo,
+	})
+	howTo.Activated:Connect(function()
+		if Kit.ClickSound then
+			Kit.ClickSound()
+		end
+		controllers.LobbyController:OpenPanel("HowToPlay")
+	end)
+
+	local grid = Kit.New("Frame", { Name = "Grid", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 372), Position = UDim2.fromOffset(0, 70), Parent = body })
 	Kit.New("UIGridLayout", {
 		CellSize = UDim2.fromOffset(148, 116),
 		CellPadding = UDim2.fromOffset(12, 12),

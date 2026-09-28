@@ -754,7 +754,7 @@ end
 --[[
 	key: panel module name without "Panel" (Heroes, Abilities, Shop, More, Achievements,
 	Collection, Challenges, AfkCamp, Party, Leaderboard, Statistics, Codes, Settings,
-	Profile, Daily, Credits, Difficulty)
+	Profile, Daily, Credits, Difficulty, HowToPlay)
 	overlay: show above the run HUD (settings from the pause menu); arg: passed to OnOpen
 ]]
 function LobbyController:OpenPanel(key: string, overlay: boolean?, arg: any?)

@@ -12,6 +12,7 @@ local Workspace = game:GetService("Workspace")
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Widgets = require(script.Parent.Parent.UI.Widgets)
+local GameConfig = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules").GameConfig)
 
 local PointerController = {}
 
@@ -53,22 +54,50 @@ function PointerController:Init(controllers)
 		self.Arrows[i] = { Frame = holder, Arrow = arrow, Icon = icon, IconText = icon:FindFirstChild("Text") :: TextLabel, IconStroke = icon:FindFirstChildOfClass("UIStroke") :: UIStroke }
 	end
 
-	self.Hint = Kit.Label({
+	-- first run: a short "how to play" card (GameConfig.Tutorial)
+	local hint = Kit.Panel({
 		Name = "Hint",
-		Text = "",
-		Size = UDim2.fromOffset(520, 44),
-		Position = UDim2.new(0.5, 0, 0.72, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Font = Theme.Fonts.Bold,
-		MaxTextSize = 18,
-		BackgroundColor3 = C.Surface,
-		BackgroundTransparency = Theme.Glass,
+		Size = UDim2.fromOffset(460, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Position = UDim2.new(0.5, 0, 0.2, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundTransparency = Theme.GlassStrong,
 		Visible = false,
+		Radius = 18,
 		Parent = root,
 	})
-	Kit.Corner(self.Hint, 22)
-	Kit.Stroke(self.Hint)
-	Kit.Padding(self.Hint, 18, 10)
+	Kit.Padding(hint, 20, 14)
+	Kit.New("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = hint })
+	Kit.Label({
+		Name = "Title",
+		Text = "HOW TO SURVIVE",
+		Size = UDim2.new(1, 0, 0, 20),
+		Font = Theme.Fonts.Title,
+		TextScaled = false,
+		TextSize = 17,
+		TextColor3 = C.Gold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LayoutOrder = 0,
+		Parent = hint,
+	})
+	self.HintLines = {}
+	for i = 1, 4 do
+		self.HintLines[i] = Kit.Label({
+			Name = "Line" .. i,
+			Text = "",
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Font = Theme.Fonts.Bold,
+			TextScaled = false,
+			TextSize = 16,
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			LayoutOrder = i,
+			Parent = hint,
+		})
+	end
+	self.Hint = hint
+	self.HintUntil = -1
 end
 
 -- targets: { Pos: Vector3, Icon: string, Color: Color3 }
@@ -143,23 +172,51 @@ function PointerController:Update()
 	end
 end
 
+-- the lines of the first-run card: keyboard or touch
+function PointerController.HintText(touch: boolean): { string }
+	if touch then
+		return {
+			"Move with the joystick (left thumb)",
+			"Your weapons attack on their own",
+			"Grab the XP crystals to level up",
+			"Level up: tap a card to pick an upgrade",
+		}
+	end
+	return {
+		"WASD - move",
+		"Your weapons attack on their own",
+		"Grab the XP crystals to level up",
+		"Level up: pick an upgrade with keys 1-3",
+	}
+end
+
+-- shown in the first seconds of your very first run only (never to players who have played)
 function PointerController:ShowFirstRunHint()
 	local data = self.C.ClientData.Data
 	if not data or not data.Stats or data.Stats.Runs > 0 then
 		return
 	end
-	local hint = self.Hint
-	hint.Text = if Kit.IsTouch() then "Move with the joystick. Attacks are automatic." else "Move with WASD. Attacks are automatic."
-	hint.Visible = true
-	hint.TextTransparency = 0
-	hint.BackgroundTransparency = Theme.Glass
-	Kit.Appear(hint)
-	task.delay(6, function()
-		Kit.Tween(hint, 0.6, { TextTransparency = 1, BackgroundTransparency = 1 })
-		task.delay(0.6, function()
-			hint.Visible = false
-		end)
-	end)
+	for i, text in PointerController.HintText(Kit.IsTouch()) do
+		self.HintLines[i].Text = text
+	end
+	-- run time, so pauses and level-up choices do not eat it
+	self.HintUntil = GameConfig.Tutorial.HintSeconds
+	self.Hint.Visible = true
+	Kit.Appear(self.Hint)
+end
+
+-- the card hides while a level-up choice is open and goes away after HintSeconds of run time
+function PointerController:UpdateHint()
+	if self.HintUntil < 0 then
+		return
+	end
+	local run = self.C.RunClient
+	if not run.Active or run.Time >= self.HintUntil then
+		self.HintUntil = -1
+		self.Hint.Visible = false
+		return
+	end
+	self.Hint.Visible = not self.C.LevelUpController:IsOpen()
 end
 
 function PointerController:Start()
@@ -168,6 +225,7 @@ function PointerController:Start()
 	end)
 	RunService.RenderStepped:Connect(function()
 		self:Update()
+		self:UpdateHint()
 	end)
 end
 

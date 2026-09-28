@@ -185,6 +185,23 @@ def measure(node, pw, ph, k):
             pad = kid(node, "UIPadding")
             extra = (pad["pad"][0][1] + pad["pad"][1][1]) * k if pad else 0
             w = max(w, inner + extra)
+    if auto in ("Y", "XY") and node["c"] not in TEXT:
+        # a container with AutomaticSize Y grows to fit its children (+ its padding)
+        kids = [c for c in node.get("kids", []) if c["c"] in GUI and c.get("vis", True)]
+        if kids:
+            pad = kid(node, "UIPadding")
+            pl = pr = pt = pb = 0
+            if pad:
+                (ls, lo), (rs, ro), (ts, to), (bs, bo) = pad["pad"]
+                pl, pr, pt, pb = lo * k, ro * k, to * k, bo * k
+            inner = max(1, w - pl - pr)
+            lst = kid(node, "UIListLayout")
+            heights = [measure(c, inner, h, k)[1] for c in kids]
+            if lst and lst.get("dir") != "Horizontal":
+                content = sum(heights) + lst["padding"][1] * k * (len(heights) - 1)
+            else:
+                content = max(hh + c["pos"][3] * k for hh, c in zip(heights, kids))
+            h = max(h, content + pt + pb)
     con = kid(node, "UISizeConstraint")
     if con:
         w = min(max(w, con["min"][0] * k), con["max"][0] * k)

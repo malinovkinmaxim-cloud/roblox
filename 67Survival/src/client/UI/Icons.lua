@@ -108,7 +108,8 @@ Icons.Menu = {
 	Leaderboard = "Podium",
 	Statistics = "Chart",
 	Codes = "Ticket",
-	Credits = "Info",
+	Credits = "Star",
+	HowToPlay = "Info",
 	Settings = "Gear",
 }
 

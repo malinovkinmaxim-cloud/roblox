@@ -183,7 +183,7 @@ check("name tag with title", character:FindFirstChild("HumanoidRootPart"):FindFi
 
 -- every lobby panel opens and renders
 local mark = #Engine.Errors
-for _, key in { "Heroes", "Abilities", "Shop", "More", "Achievements", "Collection", "Challenges", "AfkCamp", "Party", "Leaderboard", "Statistics", "Codes", "Settings", "Credits", "Profile", "Daily", "Difficulty" } do
+for _, key in { "Heroes", "Abilities", "Shop", "More", "Achievements", "Collection", "Challenges", "AfkCamp", "Party", "Leaderboard", "Statistics", "Codes", "Settings", "Credits", "Profile", "Daily", "Difficulty", "HowToPlay" } do
 	lobby:OpenPanel(key)
 	Engine.Step(0.2)
 	check("panel opens: " .. key, lobby.Open and lobby.Open.Key == key and lobby.Open.Frame.Visible)
@@ -261,12 +261,16 @@ runClient:ApplyOutline()
 check("the outline can be switched off", alice.LocalPlayer.Character:FindFirstChild("HeroOutline") == nil)
 cd:SetSetting("HeroOutline", true)
 runClient:ApplyOutline()
+local pointer = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.PointerController")
+Engine.Step(0.2)
+check("first run: the how-to-survive card shows", pointer.Hint.Visible == true and pointer.HintLines[1].Text == "WASD - move" and string.find(pointer.HintLines[4].Text, "1-3", 1, true) ~= nil, pointer.HintLines[1].Text)
 
 ---------------------------------------------------------------------------
 section("first 30 seconds: move, enemies, auto attack, XP, level up")
 ---------------------------------------------------------------------------
 mark = #Engine.Errors
 local picks = play(alice, run, 30)
+check("the how-to card goes away by itself", pointer.Hint.Visible == false and pointer.HintUntil < 0)
 check("enemies spawned on the server", run.Kills + #run.Enemies > 10, run.Kills + #run.Enemies)
 check("client renders the enemies", enemyRenderer:Count() > 0 or run.Kills > 0, enemyRenderer:Count())
 check("client and server agree on enemy count", math.abs(enemyRenderer:Count() - #run.Enemies) <= 3, enemyRenderer:Count() .. " vs " .. #run.Enemies)
@@ -653,6 +657,9 @@ Engine.Step(0.5)
 local aliceRun = GM.Entries[alicePlayer] and GM.Entries[alicePlayer].Run
 local bobRun = GM.Entries[bobPlayer] and GM.Entries[bobPlayer].Run
 check("PLAY started the whole party", aliceRun ~= nil and bobRun ~= nil)
+check("players who have played get no how-to card", pointer.Hint.Visible == false)
+local bobPointer = Engine.Module(bob, "StarterPlayer.StarterPlayerScripts.Client.Controllers.PointerController")
+check("phone, first run: the card talks about the joystick", bobPointer.Hint.Visible == true and string.find(bobPointer.HintLines[1].Text, "joystick", 1, true) ~= nil, bobPointer.HintLines[1].Text)
 check("party members start next to each other", aliceRun and bobRun and math.abs(aliceRun.PX - bobRun.PX) + math.abs(aliceRun.PZ - bobRun.PZ) < 20)
 check("Bob's 67 events come from the leader", bobRun and bobRun.Follower == true)
 if aliceRun and bobRun then
@@ -754,6 +761,7 @@ section("shutdown")
 local ok = Engine.Shutdown()
 check("BindToClose finished saving", ok)
 check("no runtime errors at all", #Engine.Errors == 0, Engine.Errors[1])
+check("no errors inside event handlers (engine warnings)", #Engine.Warnings == 0, Engine.Warnings[1])
 
 print(string.format("\n%d passed, %d failed", passed, failed))
 for _, f in failures do
