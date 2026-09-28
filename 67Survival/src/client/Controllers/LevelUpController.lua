@@ -11,17 +11,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local GameConfig = require(Shared.GameConfig)
+local WeaponData = require(Shared.WeaponData)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Widgets = require(script.Parent.Parent.UI.Widgets)
 local Icons = require(script.Parent.Parent.UI.Icons)
+local Cards = require(script.Parent.Parent.UI.Cards)
 
 local LevelUpController = {}
 
 local C = Theme.Colors
 local F = Theme.Fonts
-local CARD_W, CARD_H = 220, 300
+local CARD_W, CARD_H = 220, 272
 
 function LevelUpController:Init(controllers)
 	self.C = controllers
@@ -186,11 +188,8 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 	end
 	local tagText, tagColor = tagFor(card)
 	if tagText ~= "" then
-		local tag = Widgets.Tag(button, tagText, tagColor, UDim2.new(1, -12, 0, 12), UDim2.fromOffset(0, 22))
+		local tag = Widgets.Tag(button, tagText, tagColor, UDim2.new(1, -12, 0, 12), UDim2.fromOffset(0, 22), 12)
 		tag.AnchorPoint = Vector2.new(1, 0)
-		tag.AutomaticSize = Enum.AutomaticSize.X
-		tag.TextScaled = false
-		tag.TextSize = 12
 	end
 	iconFor(button, card, 96)
 	-- rarity word under the icon (colour + word: readable for colour blind players too)
@@ -200,7 +199,8 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 		Size = UDim2.new(1, -24, 0, 14),
 		Position = UDim2.fromOffset(12, 142),
 		Font = F.Bold,
-		MaxTextSize = 11,
+		TextScaled = false,
+		TextSize = 12,
 		TextColor3 = rarity,
 		Parent = button,
 	})
@@ -222,18 +222,43 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 			Size = UDim2.new(1, -24, 0, 16),
 			Position = UDim2.new(0, 12, 1, -26),
 			Font = F.Bold,
-			MaxTextSize = 12,
+			TextScaled = false,
+			TextSize = 13,
 			TextColor3 = C.Mythic,
 			Parent = button,
 		})
 	end
+	-- one line of numbers under the text: the ability's stats, its level, the passive's stack
+	local info = ""
+	if card.Type == "Weapon" then
+		local def = WeaponData.ByKey[card.Key]
+		info = if def then Cards.WeaponStats(def) else ""
+	elseif (card.Type == "WeaponLevel" or card.Type == "Passive") and card.Level and card.MaxLevel then
+		info = string.format("%s %d / %d", if card.Type == "Passive" then "Stack" else "Level", card.Level, card.MaxLevel)
+	end
+	if info ~= "" and not hint then
+		Kit.Label({
+			Name = "Info",
+			Text = info,
+			Size = UDim2.new(1, -24, 0, 16),
+			Position = UDim2.new(0, 12, 1, -26),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 13,
+			TextColor3 = rarity:Lerp(Color3.new(1, 1, 1), 0.45),
+			Parent = button,
+		})
+	end
+	-- (the EVOLUTION tag already says it: the text starts with what it does)
+	local desc = if card.Type == "Evolution" then (string.gsub(card.Desc or "", "^Evolution%.%s*", "")) else card.Desc
 	Kit.Label({
 		Name = "Desc",
-		Text = card.Desc,
-		Size = UDim2.new(1, -32, 0, if hint then 70 else 88),
+		Text = desc,
+		Size = UDim2.new(1, -32, 0, if hint or info ~= "" then 46 else 64),
 		Position = UDim2.fromOffset(16, 194),
 		Font = F.Medium,
-		MaxTextSize = 15,
+		TextScaled = false, -- a fixed 15 px, never shrunk
+		TextSize = 15,
 		TextColor3 = C.TextDim,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,

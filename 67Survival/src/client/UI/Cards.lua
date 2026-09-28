@@ -32,6 +32,7 @@ export type ItemOptions = {
 	PictureHeight: number?,
 	Side: boolean?, -- picture on the left of the name (compact cards)
 	ButtonWidth: number?, -- small button bottom-right (the unlock hint sits on its left)
+	Width: number?, -- the grid cell width: a long unlock hint under a wide button gets 2 lines
 	OnClick: (() -> ())?,
 }
 
@@ -48,11 +49,8 @@ export type ItemCard = {
 }
 
 local function chip(parent: Instance, name: string, text: string, color: Color3, position: UDim2): TextLabel
-	local tag = Widgets.Tag(parent, text, color, position, UDim2.fromOffset(0, 20))
+	local tag = Widgets.Tag(parent, text, color, position, UDim2.fromOffset(0, 20), 12)
 	tag.Name = name
-	tag.AutomaticSize = Enum.AutomaticSize.X
-	tag.TextScaled = false
-	tag.TextSize = 12
 	return tag
 end
 
@@ -132,7 +130,8 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Size = UDim2.new(1, -pad * 2, 1, -(descY + bottom)),
 		Position = UDim2.fromOffset(pad, descY),
 		Font = F.Medium,
-		MaxTextSize = 14,
+		TextScaled = false, -- a fixed 14 px: descriptions never shrink below readable
+		TextSize = 14,
 		TextWrapped = true,
 		TextColor3 = C.TextDim,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -140,17 +139,19 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Parent = card,
 	})
 
-	-- one short line about unlocking ("or achievement: Boss Slayer"): above a wide button,
-	-- or beside a small one
+	-- one short line about unlocking ("or achievement: Boss Slayer"): its own line under a
+	-- wide button (the button moves up when there is one), or beside a small button
 	local need = Kit.Label({
 		Name = "Need",
 		Text = "",
-		Size = if small then UDim2.new(1, -(pad * 2 + small + 8), 0, 30) else UDim2.new(1, -pad * 2, 0, 16),
-		Position = if small then UDim2.new(0, pad, 1, -(pad + 1)) else UDim2.new(0, pad, 1, -(pad + buttonH + 4)),
+		Size = if small then UDim2.new(1, -(pad * 2 + small + 8), 0, 32) else UDim2.new(1, -pad * 2, 0, 32),
+		Position = if small then UDim2.new(0, pad, 1, -pad) else UDim2.new(0, pad, 1, -5),
 		AnchorPoint = Vector2.new(0, 1),
 		Font = F.Medium,
-		MaxTextSize = 12,
-		TextWrapped = small ~= nil,
+		TextScaled = false,
+		TextSize = 13,
+		TextWrapped = true,
+		TextYAlignment = if small then Enum.TextYAlignment.Center else Enum.TextYAlignment.Bottom,
 		TextColor3 = C.TextMuted,
 		TextXAlignment = if small then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center,
 		Parent = card,
@@ -168,6 +169,25 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Parent = card,
 	})
 
+	if not small then
+		-- the button makes room for the hint: one line, or two when it is long
+		local function place()
+			local lift = 0
+			if need.Text ~= "" then
+				local long = options.Width ~= nil and Widgets.TextWidth(need.Text, need.TextSize, need.Font) > options.Width - pad * 2 - 4
+				lift = if long then 30 else 16
+			end
+			button.Position = UDim2.new(0, pad, 1, -(pad + lift))
+			need.Size = UDim2.new(1, -pad * 2, 0, math.max(16, lift))
+			if lift > 16 then
+				-- the description gives up the extra line a 2-line hint takes
+				desc.Size = UDim2.new(1, -pad * 2, 1, -(descY + bottom + lift - 16))
+			end
+		end
+		need:GetPropertyChangedSignal("Text"):Connect(place)
+		place()
+	end
+
 	return {
 		Card = card,
 		Picture = picture,
@@ -179,6 +199,27 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Button = button,
 		ButtonLabel = label,
 	}
+end
+
+-- "12 damage x2 · every 0.85 s": what an ability does in numbers (its level 1 stats)
+local function seconds(t: number): string
+	local text = string.format("%.2f", t)
+	text = string.gsub(text, "0+$", "")
+	return (string.gsub(text, "%.$", ""))
+end
+
+function Cards.WeaponStats(def): string
+	local base = def.Base or {}
+	local parts = {}
+	if base.Damage and base.Damage > 0 then
+		local amount = if (base.Amount or 1) > 1 then string.format(" x%d", base.Amount) else ""
+		table.insert(parts, string.format("%d damage%s", base.Damage, amount))
+	end
+	local every = base.Cooldown or base.HitCooldown
+	if every and every > 0 then
+		table.insert(parts, "every " .. seconds(every) .. " s")
+	end
+	return table.concat(parts, " · ")
 end
 
 function Cards.Set(card: ItemCard, state: string, buttonText: string?, buttonColor: Color3?, price: number?, currency: string?)

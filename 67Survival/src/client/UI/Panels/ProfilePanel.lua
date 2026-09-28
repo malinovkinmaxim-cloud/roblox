@@ -55,10 +55,7 @@ function Panel.Build(body: Frame, _controllers)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = body,
 	})
-	state.Title = Widgets.Tag(body, "", C.Accent, UDim2.fromOffset(118, 64), UDim2.fromOffset(0, 24))
-	state.Title.AutomaticSize = Enum.AutomaticSize.X
-	state.Title.TextScaled = false
-	state.Title.TextSize = 13
+	state.Title = Widgets.Tag(body, "", C.Accent, UDim2.fromOffset(118, 64), UDim2.fromOffset(0, 24), 13)
 
 	Widgets.Caption(body, "ACCOUNT LEVEL", UDim2.fromOffset(0, 118))
 	state.Level = Kit.Label({

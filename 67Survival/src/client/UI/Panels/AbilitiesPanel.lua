@@ -21,6 +21,8 @@ local Previews = require(script.Parent.Parent.Previews)
 local Icons = require(script.Parent.Parent.Icons)
 
 local C = Theme.Colors
+local F = Theme.Fonts
+
 
 local Panel = {}
 Panel.Kind = "Screen"
@@ -77,6 +79,20 @@ function Panel.Build(body: Frame, controllers)
 				end,
 			})
 			ui.Preview = Previews.Weapon(ui.Picture, def.Key)
+			-- two lines of description, then the numbers (damage, cooldown, levels)
+			ui.Desc.Size = UDim2.new(1, -24, 0, 36)
+			ui.Stats = Kit.Label({
+				Name = "Stats",
+				Text = Cards.WeaponStats(def),
+				Size = UDim2.new(1, -24, 0, 16),
+				Position = UDim2.fromOffset(12, 132),
+				Font = F.Bold,
+				TextScaled = false,
+				TextSize = 13,
+				TextColor3 = (def.Color or C.Text):Lerp(Color3.new(1, 1, 1), 0.45),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Parent = ui.Card,
+			})
 			if def.Evolution then
 				local from = WeaponData.ByKey[def.Evolution.From]
 				local with = UpgradeData.PassiveByKey[def.Evolution.With]
@@ -148,6 +164,7 @@ function Panel.Refresh(state, data)
 				else
 					Cards.Set(ui, "OWNED", "SET START", C.Neutral)
 				end
+				ui.Need.Text = def.MaxLevel .. " levels"
 				ui.Name.Text = def.Name
 				ui.Preview.ImageColor3 = Color3.new(1, 1, 1)
 			elseif def.Unlock.Secret then

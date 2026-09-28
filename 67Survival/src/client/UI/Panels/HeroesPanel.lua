@@ -14,6 +14,7 @@ local HeroData = require(Shared.HeroData)
 local WeaponData = require(Shared.WeaponData)
 local AchievementData = require(Shared.AchievementData)
 local CosmeticData = require(Shared.CosmeticData)
+local GameConfig = require(Shared.GameConfig)
 
 local Kit = require(script.Parent.Parent.Kit)
 local Theme = require(script.Parent.Parent.Theme)
@@ -28,7 +29,7 @@ local Panel = {}
 Panel.Kind = "Screen"
 Panel.Title = "HEROES"
 
-local CARD = Vector2.new(206, 446)
+local CARD = Vector2.new(220, 446)
 
 function Panel.Build(body: Frame, controllers)
 	local state = { Cards = {}, C = controllers, Skin = "" }
@@ -75,27 +76,45 @@ function Panel.Build(body: Frame, controllers)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = top,
 	})
-	local fragments = Kit.Panel({
+	local fragments = Kit.New("TextButton", {
 		Name = "Fragments",
-		Size = UDim2.fromOffset(150, 34),
+		Text = "",
+		AutoButtonColor = false,
+		Size = UDim2.fromOffset(150, 38),
 		Position = UDim2.new(1, 0, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
-		Radius = 17,
+		BackgroundColor3 = C.Surface,
+		BackgroundTransparency = Theme.Glass,
 		Parent = top,
 	})
+	Kit.Corner(fragments, 19)
+	Kit.Stroke(fragments)
 	Widgets.Fragment(fragments, 20, { Position = UDim2.new(0, 10, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
 	state.Fragments = Kit.Label({
 		Name = "Amount",
 		Text = "0",
-		Size = UDim2.new(1, -44, 0, 20),
-		Position = UDim2.new(0, 36, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
+		Size = UDim2.new(1, -44, 0, 18),
+		Position = UDim2.fromOffset(36, 3),
 		Font = F.Bold,
-		MaxTextSize = 16,
+		TextScaled = false,
+		TextSize = 16,
+		TextColor3 = C.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = fragments,
+	})
+	Kit.Label({
+		Name = "Caption",
+		Text = "FRAGMENTS",
+		Size = UDim2.new(1, -44, 0, 12),
+		Position = UDim2.fromOffset(36, 22),
+		Font = F.Bold,
+		TextScaled = false,
+		TextSize = 11,
 		TextColor3 = C.Fragment,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = fragments,
 	})
+	Widgets.Tooltip(fragments, GameConfig.FragmentsHelp, 280)
 
 	local holder = Kit.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -52), Position = UDim2.fromOffset(0, 52), Parent = body })
 	local scroll = Widgets.Scroll(holder, CARD, 14)
@@ -105,7 +124,7 @@ function Panel.Build(body: Frame, controllers)
 			Desc = def.Desc,
 			Rarity = def.Rarity,
 			Order = i,
-			PictureHeight = 150,
+			PictureHeight = 112,
 			OnClick = function()
 				Panel.Click(state, def)
 			end,
@@ -113,15 +132,16 @@ function Panel.Build(body: Frame, controllers)
 		ui.Def = def
 		ui.PreviewHolder = Kit.New("Frame", { Name = "Model", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = ui.Picture })
 		ui.Preview = Previews.Hero(ui.PreviewHolder, def.Key)
-		ui.Desc.Size = UDim2.new(1, -24, 0, 34)
-		-- passive (stats) + the unique mechanic
+		ui.Desc.Size = UDim2.new(1, -24, 0, 36)
+		-- passive (stats) + the unique mechanic: fixed 14 px, never shrunk
 		ui.Passive = Kit.Label({
 			Name = "Passive",
 			Text = def.Passive,
-			Size = UDim2.new(1, -24, 0, 34),
-			Position = UDim2.fromOffset(12, 266),
+			Size = UDim2.new(1, -24, 0, 54),
+			Position = UDim2.fromOffset(12, 228),
 			Font = F.Bold,
-			MaxTextSize = 13,
+			TextScaled = false,
+			TextSize = 14,
 			TextWrapped = true,
 			TextColor3 = C.Text,
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -131,12 +151,13 @@ function Panel.Build(body: Frame, controllers)
 		ui.Mechanic = Kit.Label({
 			Name = "Mechanic",
 			Text = def.MechanicText,
-			Size = UDim2.new(1, -24, 0, 48),
-			Position = UDim2.fromOffset(12, 302),
+			Size = UDim2.new(1, -24, 0, 54),
+			Position = UDim2.fromOffset(12, 284),
 			Font = F.Body,
-			MaxTextSize = 13,
+			TextScaled = false,
+			TextSize = 14,
 			TextWrapped = true,
-			TextColor3 = C.TextMuted,
+			TextColor3 = C.TextDim,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Parent = ui.Card,
@@ -146,7 +167,7 @@ function Panel.Build(body: Frame, controllers)
 			Name = "StartWeapon",
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, -24, 0, 28),
-			Position = UDim2.fromOffset(12, 352),
+			Position = UDim2.fromOffset(12, 342),
 			Parent = ui.Card,
 		})
 		local icon = Kit.New("Frame", { Name = "WeaponIcon", Size = UDim2.fromOffset(28, 28), BackgroundColor3 = C.SurfaceLight, BackgroundTransparency = 0.3, Parent = start })
@@ -157,7 +178,8 @@ function Panel.Build(body: Frame, controllers)
 			Size = UDim2.new(1, -36, 1, 0),
 			Position = UDim2.fromOffset(36, 0),
 			Font = F.Medium,
-			MaxTextSize = 13,
+			TextScaled = false,
+			TextSize = 14,
 			TextColor3 = C.TextDim,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = start,

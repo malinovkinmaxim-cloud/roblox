@@ -474,18 +474,26 @@ local function buildStage(lobby: Instance, L: (number, number, number) -> CFrame
 	for i = -2, 2 do
 		ellipsoid("Hedge", Vector3.new(5.5, 2.4, 3), L(sx + i * 5.2, 0.9, sz + 12.5 - math.abs(i) * 0.8), rgb(78, 150, 110), { CanCollide = false })
 	end
-	-- a big glowing 67 far behind (soft through the depth of field)
-	local sixty = folder("Stage67", stage)
-	-- (read from the hub camera, which looks towards +Z: mirrored, 6 on the +X side)
-	digit("6", LOBBY + Vector3.new(sx - 4, 5, sz + 48), sixty, true)
-	digit("7", LOBBY + Vector3.new(sx - 16, 5, sz + 48), sixty, true)
-	for _, d in sixty:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.Transparency = 0.35
-			d.CanCollide = false
-			d.Color = rgb(255, 196, 80)
-		end
-	end
+	-- a big glowing "67" far behind, in the logo's font (soft through the depth of field).
+	-- Text on an invisible sign reads cleanly; neon blocks looked like glitchy rectangles.
+	local sign = block("Stage67", Vector3.new(26, 13, 0.2), L(sx, 8.5, sz + 46), rgb(255, 255, 255), { Transparency = 1, CanCollide = false, CanQuery = false })
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Sign"
+	gui.Face = Enum.NormalId.Front -- the hub camera looks towards +Z: it sees the front face
+	gui.LightInfluence = 0
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 20
+	gui.Parent = sign
+	local text = Instance.new("TextLabel")
+	text.Name = "Text"
+	text.BackgroundTransparency = 1
+	text.Size = UDim2.fromScale(1, 1)
+	text.Text = "67"
+	text.Font = Enum.Font.LuckiestGuy
+	text.TextScaled = true
+	text.TextColor3 = rgb(255, 204, 84)
+	text.TextTransparency = 0.3
+	text.Parent = gui
 	current = stage
 	-- a few slow floating orbs (WorldController bobs parts with a Bob attribute)
 	for i, spot in { Vector3.new(-7, 7.5, 10), Vector3.new(8.5, 9.5, 12), Vector3.new(-11, 11, 6) } do

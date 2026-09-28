@@ -66,6 +66,7 @@ local function productCard(state, scroll: Instance, order: number, kind: string,
 		Desc = def.Desc,
 		Order = order,
 		PictureHeight = 96,
+		Width = 300,
 		OnClick = function()
 			local data = state.C.ClientData.Data
 			if kind == "Pass" and data and data.Passes and data.Passes[key] then
@@ -80,7 +81,7 @@ local function productCard(state, scroll: Instance, order: number, kind: string,
 	state.Products[key] = ui
 end
 
--- the picture of a cosmetic: a real preview when there is one, else a coloured badge
+-- the picture of a cosmetic: a real preview when there is one, else an icon tile
 local function cosmeticPicture(ui, def, heroKey: string)
 	local picture = ui.Picture
 	if def.Category == "Hat" then
@@ -88,13 +89,11 @@ local function cosmeticPicture(ui, def, heroKey: string)
 	elseif def.Category == "HeroSkin" then
 		ui.SkinHolder = Kit.New("Frame", { Name = "Model", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = picture })
 		Previews.Hero(ui.SkinHolder, heroKey, { Skin = def.Style })
+	elseif def.Style == "Default" or def.Style == "None" then
+		Widgets.Mono(picture, "—", C.TextMuted, 64, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 	else
-		local color = def.Color or Theme.Rarity[def.Rarity] or C.Accent
-		local text = if def.Style == "Default" or def.Style == "None" then "—" else string.upper(string.sub(def.Name, 1, 4))
-		if string.find(def.Style, "67", 1, true) then
-			text = "67"
-		end
-		Widgets.Mono(picture, text, color, 64, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
+		-- no 3D preview: a tile in the cosmetic's colour (a real icon from UI/IconImages when set)
+		Icons.Cosmetic(picture, def, 64, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 	end
 end
 
@@ -122,11 +121,23 @@ function Panel.Build(body: Frame, controllers)
 	state.Wallet = Kit.Label({
 		Name = "Amount",
 		Text = "0",
-		Size = UDim2.new(1, -52, 0, 20),
-		Position = UDim2.new(0, 40, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
+		Size = UDim2.new(1, -52, 0, 18),
+		Position = UDim2.fromOffset(40, 4),
 		Font = F.Bold,
-		MaxTextSize = 17,
+		TextScaled = false,
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = wallet,
+	})
+	Kit.Label({
+		Name = "Caption",
+		Text = "COINS",
+		Size = UDim2.new(1, -52, 0, 12),
+		Position = UDim2.fromOffset(40, 23),
+		Font = F.Bold,
+		TextScaled = false,
+		TextSize = 11,
+		TextColor3 = C.Gold,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = wallet,
 	})
@@ -134,7 +145,7 @@ function Panel.Build(body: Frame, controllers)
 	local holder = Kit.New("Frame", { Name = "Pages", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -58), Position = UDim2.fromOffset(0, 58), Parent = body })
 
 	-- UPGRADES
-	local upgrades = page(holder, "Upgrades", Vector2.new(240, 140))
+	local upgrades = page(holder, "Upgrades", Vector2.new(240, 122))
 	state.Pages.Upgrades = upgrades
 	for i, def in MetaData.Upgrades do
 		local ui = Cards.Item(upgrades, {
@@ -150,7 +161,7 @@ function Panel.Build(body: Frame, controllers)
 		})
 		Icons.Make(ui.Picture, "Stat", def.Key, 40, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 		ui.Desc.Position = UDim2.fromOffset(70, 40)
-		ui.Desc.Size = UDim2.new(1, -82, 0, 32)
+		ui.Desc.Size = UDim2.new(1, -82, 0, 36)
 		-- level: pips + "2/5", bottom-left next to the buy button
 		local pips = Kit.New("Frame", {
 			Name = "Pips",
@@ -228,7 +239,7 @@ function Panel.Build(body: Frame, controllers)
 			Panel.ShowCategory(state, cat.Key)
 		end)
 		state.CatButtons[cat.Key] = button
-		local grid = page(grids, cat.Key, Vector2.new(188, 290))
+		local grid = page(grids, cat.Key, Vector2.new(188, 300))
 		state.CatPages[cat.Key] = grid
 		for j, def in CosmeticData.ByCategory[cat.Key] do
 			local ui = Cards.Item(grid, {
@@ -237,6 +248,7 @@ function Panel.Build(body: Frame, controllers)
 				Rarity = def.Rarity,
 				Order = j,
 				PictureHeight = 100,
+				Width = 188,
 				OnClick = function()
 					Panel.ClickCosmetic(state, def)
 				end,

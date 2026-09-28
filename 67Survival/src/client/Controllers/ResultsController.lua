@@ -206,14 +206,17 @@ function ResultsController:Init(controllers)
 		end,
 		Parent = panel,
 	})
+	-- news of the run (achievements, unlocks...): one per line, a fixed 15 px
 	self.Extra = Kit.Label({
 		Name = "Extra",
 		Text = "",
-		Size = UDim2.new(1, -60, 0, 54),
+		Size = UDim2.new(1, -60, 0, 100),
 		Position = UDim2.fromOffset(30, 372),
 		TextWrapped = true,
 		Font = F.Bold,
-		MaxTextSize = 16,
+		TextScaled = false,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = C.Gold,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Parent = panel,
@@ -385,10 +388,13 @@ function ResultsController:ShowResults(p)
 	if #lines > 4 then
 		table.insert(shown, string.format("+%d more", #lines - 4))
 	end
-	self.Extra.Text = table.concat(shown, "   ·   ")
-
-	Widgets.Fit(self.Fit, 540)
+	self.Extra.Text = table.concat(shown, "\n")
+	-- the panel is as tall as its content: no empty band when there is no news
+	local height = (if #shown > 0 then 372 + #shown * 20 + 14 else 364) + 60 + 28
+	self.Fit.Size = UDim2.fromOffset(660, height)
+	Widgets.Fit(self.Fit, height)
 	self.Panel.Visible = true
+	self.C.BannerController:PlaceToasts() -- toasts move above the results title
 	Kit.Appear(self.Panel)
 	Kit.Blur("results", 12)
 	self.C.HudController:SetCovered(true)
@@ -432,6 +438,7 @@ function ResultsController:Hide()
 	end
 	self.Panel.Visible = false
 	self:HideDeath()
+	self.C.BannerController:PlaceToasts()
 end
 
 function ResultsController:IsOpen(): boolean

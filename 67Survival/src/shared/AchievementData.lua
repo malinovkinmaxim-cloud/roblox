@@ -96,7 +96,7 @@ AchievementData.Quests = {
 	{ Key = "Level15", Text = "Reach level 15 in one run", Kind = "Level", Goal = 15, Coins = 150, Single = true },
 	{ Key = "Level25", Text = "Reach level 25 in one run", Kind = "Level", Goal = 25, Coins = 250, Single = true },
 	{ Key = "Rare2", Text = "Pick 2 rare (or better) cards", Kind = "Rares", Goal = 2, Coins = 150 },
-	{ Key = "Gems500", Text = "Collect 500 XP gems", Kind = "Gems", Goal = 500, Coins = 120 },
+	{ Key = "Gems500", Text = "Collect 500 XP crystals", Kind = "Gems", Goal = 500, Coins = 120 },
 	{ Key = "Runs3", Text = "Play 3 runs", Kind = "Runs", Goal = 3, Coins = 120 },
 	{ Key = "Crates5", Text = "Break 5 loot boxes", Kind = "Crates", Goal = 5, Coins = 120 },
 	{ Key = "Event1", Text = "Witness a 67 event", Kind = "Events67", Goal = 1, Coins = 150 },

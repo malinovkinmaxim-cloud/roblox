@@ -9,6 +9,8 @@ local GameConfig = {}
 
 GameConfig.GameName = "67 SURVIVAL"
 GameConfig.Tagline = "Survive. Level up. Become unstoppable."
+-- what the purple FRAGMENT currency is for and where it comes from (tooltips, the heroes menu)
+GameConfig.FragmentsHelp = "FRAGMENTS unlock heroes and abilities. You get them for every run over a minute (more for long runs and bosses), from elites, daily quests, weekly challenges, achievements and the AFK Camp."
 GameConfig.Description = "Pick a hero, survive a huge horde, build your abilities, evolve them, beat the bosses. Short runs, rare 67 events, lots to collect."
 GameConfig.Version = 2
 
@@ -159,7 +161,9 @@ GameConfig.Leaderboard = {
 	Size = 10,
 }
 
--- Studio / admins get the DEBUG panel and chat commands
+-- the DEBUG panel and commands: the game's creator, plus these user ids (e.g. co-developers).
+-- For a group game: group members with at least this rank (255 = the group owner).
 GameConfig.AdminUserIds = {}
+GameConfig.AdminGroupRank = 254
 
 return GameConfig

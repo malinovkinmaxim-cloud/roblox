@@ -458,6 +458,7 @@ function RunClient:Leave()
 	C.HudController:Hide()
 	C.CameraController:SetMode("Lobby")
 	C.LobbyController:Show()
+	C.BannerController:PlaceToasts()
 	setReset(true)
 end
 

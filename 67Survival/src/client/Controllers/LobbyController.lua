@@ -121,7 +121,7 @@ function LobbyController:BuildTop(safe: Frame)
 	local logo = Kit.New("Frame", {
 		Name = "Logo",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(420, 84),
+		Size = UDim2.fromOffset(480, 84),
 		Position = UDim2.new(0.5, 0, 0, 30),
 		AnchorPoint = Vector2.new(0.5, 0),
 		Parent = safe,
@@ -134,12 +134,15 @@ function LobbyController:BuildTop(safe: Frame)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = logo,
 	})
+	-- both words size to their text (no TextScaled): the pair is centred as one group
 	Kit.Label({
 		Name = "Mark",
 		Text = "67",
-		Size = UDim2.fromOffset(100, 84),
+		Size = UDim2.fromOffset(0, 84),
+		AutomaticSize = Enum.AutomaticSize.X,
 		Font = F.Meme,
-		MaxTextSize = 78,
+		TextScaled = false,
+		TextSize = 76,
 		TextColor3 = C.Gold,
 		StrokeThickness = 2.5,
 		StrokeTransparency = 0.25,
@@ -149,9 +152,11 @@ function LobbyController:BuildTop(safe: Frame)
 	Kit.Label({
 		Name = "Word",
 		Text = "SURVIVAL",
-		Size = UDim2.fromOffset(250, 50),
+		Size = UDim2.fromOffset(0, 56),
+		AutomaticSize = Enum.AutomaticSize.X,
 		Font = F.Title,
-		MaxTextSize = 44,
+		TextScaled = false,
+		TextSize = 48,
 		StrokeThickness = 1.5,
 		StrokeTransparency = 0.6,
 		LayoutOrder = 2,
@@ -160,14 +165,15 @@ function LobbyController:BuildTop(safe: Frame)
 	self.Tagline = Kit.Label({
 		Name = "Tagline",
 		Text = LobbyController.Tagline,
-		Size = UDim2.fromOffset(440, 22),
+		Size = UDim2.fromOffset(560, 26),
 		Position = UDim2.new(0.5, 0, 0, 118),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Font = F.Medium,
-		MaxTextSize = 17,
+		Font = F.Bold,
+		TextScaled = false,
+		TextSize = 20,
 		TextColor3 = C.TextDim,
-		StrokeThickness = 1,
-		StrokeTransparency = 0.7,
+		StrokeThickness = 1.5,
+		StrokeTransparency = 0.45,
 		Parent = safe,
 	})
 
@@ -175,7 +181,7 @@ function LobbyController:BuildTop(safe: Frame)
 	local bar = Kit.New("Frame", {
 		Name = "TopRight",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(360, 44),
+		Size = UDim2.fromOffset(420, 44),
 		Position = UDim2.fromScale(1, 0),
 		AnchorPoint = Vector2.new(1, 0),
 		Parent = safe,
@@ -188,20 +194,36 @@ function LobbyController:BuildTop(safe: Frame)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = bar,
 	})
+	-- a currency pill: icon, the amount, and the name of the currency under it
+	local function amount(parent: Instance, x: number, right: number, caption: string, color: Color3): TextLabel
+		Kit.Label({
+			Name = "Caption",
+			Text = caption,
+			Size = UDim2.new(1, -(x + right), 0, 12),
+			Position = UDim2.fromOffset(x, 23),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 11,
+			TextColor3 = color,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = parent,
+		})
+		return Kit.Label({
+			Name = "Amount",
+			Text = "0",
+			Size = UDim2.new(1, -(x + right), 0, 18),
+			Position = UDim2.fromOffset(x, 4),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 17,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = parent,
+		})
+	end
 
-	local coins = pill("Coins", 132, 1, bar)
+	local coins = pill("Coins", 138, 1, bar)
 	Widgets.Coin(coins, 20, { Position = UDim2.new(0, 11, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
-	self.CoinsLabel = Kit.Label({
-		Name = "Amount",
-		Text = "0",
-		Size = UDim2.new(1, -72, 0, 20),
-		Position = UDim2.new(0, 38, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
-		Font = F.Bold,
-		MaxTextSize = 17,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = coins,
-	})
+	self.CoinsLabel = amount(coins, 38, 36, "COINS", C.Gold)
 	local plus = Kit.Label({
 		Text = "+",
 		Size = UDim2.fromOffset(24, 24),
@@ -218,24 +240,16 @@ function LobbyController:BuildTop(safe: Frame)
 		self:OpenPanel("Shop", false, "Upgrades")
 	end)
 
-	-- fragments: unlock heroes and abilities
-	local fragments = pill("Fragments", 92, 2, bar)
+	-- fragments: unlock heroes and abilities (the tooltip says where they come from)
+	local fragments = pill("Fragments", 124, 2, bar)
 	Widgets.Fragment(fragments, 18, { Position = UDim2.new(0, 11, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
-	self.FragmentsLabel = Kit.Label({
-		Name = "Amount",
-		Text = "0",
-		Size = UDim2.new(1, -44, 0, 20),
-		Position = UDim2.new(0, 36, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
-		Font = F.Bold,
-		MaxTextSize = 17,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = fragments,
-	})
+	self.FragmentsLabel = amount(fragments, 36, 10, "FRAGMENTS", C.Fragment)
+	self.FragmentsTip = Widgets.Tooltip(fragments, GameConfig.FragmentsHelp, 280)
 	fragments.Activated:Connect(function()
 		self:OpenPanel("Heroes")
 	end)
 
+	-- profile: your avatar + your account level ("LV 3")
 	local profile = Kit.New("TextButton", {
 		Name = "Profile",
 		Text = "",
@@ -246,30 +260,61 @@ function LobbyController:BuildTop(safe: Frame)
 		Parent = bar,
 	})
 	Kit.Corner(profile, 20)
-	Kit.Stroke(profile, 2, C.Accent, 0.25)
+	Kit.Stroke(profile, 2, C.Gold, 0.35)
 	Kit.Interactive(profile)
+	local initial = Kit.Label({
+		Name = "Initial",
+		Text = string.upper(string.sub(Players.LocalPlayer.DisplayName ~= "" and Players.LocalPlayer.DisplayName or Players.LocalPlayer.Name, 1, 1)),
+		Size = UDim2.fromScale(0.6, 0.6),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Font = F.Title,
+		TextColor3 = C.TextDim,
+		Parent = profile,
+	})
 	local avatar = Kit.New("ImageLabel", {
 		Name = "Avatar",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", Players.LocalPlayer.UserId),
+		Image = "",
 		Parent = profile,
 	})
 	Kit.Corner(avatar, 20)
+	-- the head shot loads in the background; until then (or if it can't load, e.g. test
+	-- players in Studio) the first letter of your name shows
+	task.spawn(function()
+		local userId = Players.LocalPlayer.UserId
+		if userId <= 0 then
+			return
+		end
+		local ok, content = pcall(function()
+			return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+		end)
+		if ok and type(content) == "string" and content ~= "" then
+			avatar.Image = content
+			initial.Visible = false
+		end
+	end)
 	self.LevelChip = Kit.Label({
 		Name = "Level",
-		Text = "1",
-		Size = UDim2.fromOffset(24, 18),
-		Position = UDim2.new(1, 4, 1, 4),
-		AnchorPoint = Vector2.new(1, 1),
+		Text = "LV 1",
+		Size = UDim2.fromOffset(34, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Position = UDim2.new(0.5, 0, 1, 7),
+		AnchorPoint = Vector2.new(0.5, 1),
 		BackgroundTransparency = 0,
-		BackgroundColor3 = C.Accent,
+		BackgroundColor3 = C.SurfaceDark,
 		Font = F.Title,
-		MaxTextSize = 12,
+		TextScaled = false,
+		TextSize = 11,
+		TextColor3 = C.Gold,
 		ZIndex = 3,
 		Parent = profile,
 	})
-	Kit.Corner(self.LevelChip, 9)
+	Kit.Corner(self.LevelChip, 8)
+	Kit.Stroke(self.LevelChip, 1, C.Gold, 0.4)
+	Kit.New("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = self.LevelChip })
+	Widgets.Tooltip(profile, "Your profile. LV = your account level (it grows with every run).", 230)
 	profile.Activated:Connect(function()
 		self:OpenPanel("Profile")
 	end)
@@ -297,30 +342,33 @@ function LobbyController:BuildCentre(safe: Frame)
 	-- DIFFICULTY (above PLAY): ‹  III  HORDE  ›
 	local diff = Kit.New("Frame", {
 		Name = "Difficulty",
-		Size = UDim2.fromOffset(300, 40),
+		Size = UDim2.fromOffset(340, 48),
 		Position = UDim2.new(0.5, 0, PLAY_Y, -80),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = C.Surface,
 		BackgroundTransparency = Theme.Glass,
 		Parent = safe,
 	})
-	Kit.Corner(diff, 20)
+	Kit.Corner(diff, 24)
 	self.DiffStroke = Kit.Stroke(diff, 1.5, C.TextDim, 0.3)
 	local function arrow(name: string, text: string, x: number, anchor: number, step: number)
+		-- big round arrows (easy to hit with a mouse or a thumb)
 		local b = Kit.New("TextButton", {
 			Name = name,
 			Text = text,
 			AutoButtonColor = false,
 			Font = F.Title,
-			TextSize = 24,
-			TextColor3 = C.TextDim,
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(44, 40),
-			Position = UDim2.new(x, 0, 0.5, 0),
+			TextSize = 32,
+			TextColor3 = C.Text,
+			BackgroundColor3 = C.SurfaceLight,
+			BackgroundTransparency = 0.35,
+			Size = UDim2.fromOffset(40, 40),
+			Position = UDim2.new(x, if anchor == 0 then 4 else -4, 0.5, 0),
 			AnchorPoint = Vector2.new(anchor, 0.5),
 			Parent = diff,
 		})
-		Kit.Interactive(b, 1.15)
+		Kit.Corner(b, 20)
+		Kit.Interactive(b, 1.1)
 		b.Activated:Connect(function()
 			if Kit.ClickSound then
 				Kit.ClickSound()
@@ -336,7 +384,7 @@ function LobbyController:BuildCentre(safe: Frame)
 		Text = "",
 		AutoButtonColor = false,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -88, 1, 0),
+		Size = UDim2.new(1, -96, 1, 0),
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Parent = diff,
@@ -371,9 +419,9 @@ function LobbyController:BuildCentre(safe: Frame)
 			Parent = row,
 		})
 	end
-	self.DiffNumeral = part("Numeral", 1, F.Title, 18, C.TextDim)
-	self.DiffName = part("Name", 2, F.Title, 17, C.Text)
-	self.DiffReward = part("Reward", 3, F.Bold, 12, C.Gold)
+	self.DiffNumeral = part("Numeral", 1, F.Title, 20, C.TextDim)
+	self.DiffName = part("Name", 2, F.Title, 19, C.Text)
+	self.DiffReward = part("Reward", 3, F.Bold, 13, C.Gold)
 	self.DiffPill = diff
 
 	-- PLAY: big, clean, a soft halo and a lift under the mouse
@@ -922,7 +970,7 @@ end
 function LobbyController:Refresh(data)
 	self.CoinsLabel.Text = Widgets.Commas(data.Coins)
 	self.FragmentsLabel.Text = Widgets.Commas(data.Fragments or 0)
-	self.LevelChip.Text = tostring(data.Level)
+	self.LevelChip.Text = "LV " .. tostring(data.Level)
 	self:ApplyTheme(data)
 	self:RefreshQuest(data)
 	self:RefreshHero(data)

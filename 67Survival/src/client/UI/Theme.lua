@@ -35,8 +35,8 @@ local Neutral = rgb(52, 49, 76) -- secondary buttons
 Theme.Colors = {
 	-- semantic
 	Text = rgb(255, 255, 255),
-	TextDim = rgb(172, 168, 198),
-	TextMuted = rgb(118, 114, 146),
+	TextDim = rgb(206, 202, 228), -- secondary text (descriptions): ~11:1 on the dark glass
+	TextMuted = rgb(164, 160, 192), -- captions and hints: ~6.5:1 (readable, still quieter)
 	Surface = Surface,
 	SurfaceLight = SurfaceLight,
 	SurfaceDark = SurfaceDark,
@@ -127,7 +127,8 @@ Theme.Text = {
 	Heading = 22,
 	Button = 20,
 	Body = 16,
-	Small = 13,
+	Small = 14, -- the smallest text for descriptions
+	Caption = 12, -- only for short uppercase captions (COINS, LEVEL 2/5)
 }
 
 -- screen margin kept free on every side (design units)

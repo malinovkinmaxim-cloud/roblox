@@ -5,6 +5,8 @@
 	  Screen (full-screen menu: one screen = one purpose), Window (compact modal).
 ]]
 
+local TextService = game:GetService("TextService")
+
 local Kit = require(script.Parent.Kit)
 local Theme = require(script.Parent.Theme)
 
@@ -90,7 +92,7 @@ function Widgets.Scroll(parent: Instance, grid: Vector2?, padding: number?): Scr
 			CellSize = UDim2.fromOffset(grid.X, grid.Y),
 			CellPadding = UDim2.fromOffset(pad, pad),
 			SortOrder = Enum.SortOrder.LayoutOrder,
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			HorizontalAlignment = Enum.HorizontalAlignment.Left, -- lines up with the tabs above
 			Parent = scroll,
 		})
 	else
@@ -130,24 +132,62 @@ function Widgets.Row(parent: Instance, height: number, order: number?, color: Co
 	})
 end
 
--- Small rounded chip ("NEW", "LV 3", "RARE", "OWNED")
-function Widgets.Tag(parent: Instance, text: string, color: Color3, position: UDim2, size: UDim2?): TextLabel
-	local tag = Kit.Label({
+-- width of one line of text in pixels (TextService; a close estimate where it is missing)
+function Widgets.TextWidth(text: string, size: number, font: Enum.Font): number
+	local ok, bounds = pcall(function()
+		return TextService:GetTextSize(text, size, font, Vector2.new(4096, 1024))
+	end)
+	if ok and typeof(bounds) == "Vector2" then
+		return bounds.X
+	end
+	return (utf8.len(text) or #text) * size * 0.62
+end
+
+local TAG_PAD = 9
+
+-- a chip is as wide as its text + padding (never narrower than its minimum width)
+local function fitTag(tag: TextLabel)
+	local width = Widgets.TextWidth(tag.Text, tag.TextSize, tag.Font) + TAG_PAD * 2 + 4
+	local minWidth = tonumber(tag:GetAttribute("MinWidth")) or 0
+	tag.Size = UDim2.fromOffset(math.max(minWidth, math.ceil(width)), tag.Size.Y.Offset)
+end
+
+--[[
+	Small rounded chip ("NEW", "LV 3", "RARE", "OWNED"): one line that is never cut or wrapped.
+	Fixed text size (no TextScaled), no wrapping, the width follows the text (re-fitted when
+	the text changes); AutomaticSize X stays on as a safety net.
+	size: minimum width + height (default 0 x 22); textSize: default 12 (13 when taller).
+]]
+function Widgets.Tag(parent: Instance, text: string, color: Color3, position: UDim2, size: UDim2?, textSize: number?): TextLabel
+	local height = if size then size.Y.Offset else 22
+	local tag = Kit.New("TextLabel", {
 		Name = "Tag",
 		Text = text,
-		Size = size or UDim2.fromOffset(64, 22),
+		Size = UDim2.fromOffset(0, height),
 		Position = position,
+		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 0.8,
 		BackgroundColor3 = color,
 		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.35),
 		Font = F.Bold,
-		MaxTextSize = 13,
+		TextSize = textSize or (if height >= 22 then 13 else 12),
+		TextScaled = false,
+		TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.None,
 		ZIndex = 5,
 		Parent = parent,
 	})
-	Kit.Corner(tag, 11)
+	tag:SetAttribute("MinWidth", if size then size.X.Offset else 0)
+	Kit.Corner(tag, math.floor(height / 2))
 	Kit.Stroke(tag, 1, color, 0.4)
-	Kit.Padding(tag, 8, 2)
+	Kit.New("UIPadding", { PaddingLeft = UDim.new(0, TAG_PAD), PaddingRight = UDim.new(0, TAG_PAD), Parent = tag })
+	fitTag(tag)
+	tag:GetPropertyChangedSignal("Text"):Connect(function()
+		fitTag(tag)
+	end)
+	tag:GetPropertyChangedSignal("TextSize"):Connect(function()
+		fitTag(tag)
+	end)
 	return tag
 end
 
@@ -530,7 +570,14 @@ function Widgets.Card(parent: Instance, size: UDim2, order: number?, name: strin
 	})
 	Kit.Corner(card, 16)
 	Kit.Stroke(card)
-	Kit.Interactive(card, 1.03)
+	-- a small lift (3%), no bounce, and the hovered card is drawn above its neighbours
+	Kit.Interactive(card, 1.03, true)
+	card.MouseEnter:Connect(function()
+		card.ZIndex = 3
+	end)
+	card.MouseLeave:Connect(function()
+		card.ZIndex = 1
+	end)
 	return card
 end
 
@@ -727,6 +774,45 @@ function Widgets.Fit(fit: Frame, height: number)
 	if scale then
 		scale.Scale = Kit.FitScale(height)
 	end
+end
+
+-- A small hint box under `target` while the mouse is over it (right-aligned to the target, so
+-- it stays on screen near the right edge). Returns the box.
+function Widgets.Tooltip(target: GuiObject, text: string, width: number?): Frame
+	local box = Kit.Panel({
+		Name = "Tooltip",
+		Size = UDim2.fromOffset(width or 260, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Position = UDim2.new(1, 0, 1, 8),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundTransparency = Theme.GlassStrong,
+		Visible = false,
+		ZIndex = 20,
+		Radius = 12,
+		Parent = target,
+	})
+	Kit.Padding(box, 12, 10)
+	Kit.Label({
+		Name = "Text",
+		Text = text,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextScaled = false,
+		TextSize = 14,
+		TextWrapped = true,
+		Font = F.Medium,
+		TextColor3 = C.TextDim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 21,
+		Parent = box,
+	})
+	target.MouseEnter:Connect(function()
+		box.Visible = true
+	end)
+	target.MouseLeave:Connect(function()
+		box.Visible = false
+	end)
+	return box
 end
 
 -- Small grey caps caption ("DAILY QUEST", "PERK")

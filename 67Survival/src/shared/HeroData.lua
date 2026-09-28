@@ -91,7 +91,7 @@ local LIST: { HeroDef } = ({
 		Desc = "Carries everything. Drops nothing.",
 		Passive = "+60% pickup range, +25% coins",
 		Mechanic = "Hoarder",
-		MechanicText = "Hoarder: XP gems are worth 15% more, coins drop 50% more often.",
+		MechanicText = "Hoarder: XP crystals are worth 15% more, coins drop 50% more often.",
 		StartWeapon = "SigmaAura",
 		Stats = { Magnet = 0.6, Greed = 0.25 },
 		Color = rgb(40, 170, 170),

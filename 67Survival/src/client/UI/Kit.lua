@@ -144,9 +144,9 @@ end
 
 --[[
 	Hover / press feedback on any GuiButton: grows a little under the mouse, dips when
-	pressed. Uses one UIScale named "PressScale".
+	pressed. Uses one UIScale named "PressScale". calm = no bounce when released.
 ]]
-function Kit.Interactive(button: GuiButton, hoverScale: number?)
+function Kit.Interactive(button: GuiButton, hoverScale: number?, calm: boolean?)
 	local scale = button:FindFirstChild("PressScale") :: UIScale?
 	if not scale then
 		scale = Kit.New("UIScale", { Name = "PressScale", Parent = button })
@@ -169,7 +169,8 @@ function Kit.Interactive(button: GuiButton, hoverScale: number?)
 		Kit.Tween(scale, 0.07, { Scale = 0.96 })
 	end)
 	button.MouseButton1Up:Connect(function()
-		Kit.Tween(scale, 0.15, { Scale = if hovered then up else 1 }, Enum.EasingStyle.Back)
+		-- calm: no bounce past the hover size (big cards in a grid must not touch their neighbours)
+		Kit.Tween(scale, 0.15, { Scale = if hovered then up else 1 }, if calm then Enum.EasingStyle.Quad else Enum.EasingStyle.Back)
 	end)
 	return scale
 end

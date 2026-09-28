@@ -117,9 +117,12 @@ end
 -- in a run (and on its results) toasts sit at the top centre (under the timer); in the hub
 -- the logo is there, so they stack on the right under the coins bar
 function BannerController:PlaceToasts()
-	local inRun = (self.C.RunClient and self.C.RunClient.Active) or self.C.ResultsController:IsOpen()
+	local results = self.C.ResultsController:IsOpen()
+	local inRun = (self.C.RunClient and self.C.RunClient.Active) or results
+	self.ToastWidth = if inRun then 400 else 330 -- narrower in the hub: clear of the logo
 	if inRun then
-		self.Toasts.Position = UDim2.new(0.5, 0, 0, 90)
+		-- (over the results panel: at the very top, above its title)
+		self.Toasts.Position = UDim2.new(0.5, 0, 0, if results then 6 else 90)
 		self.Toasts.AnchorPoint = Vector2.new(0.5, 0)
 		self.ToastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	else
@@ -303,7 +306,7 @@ function BannerController:Toast(text: string, kind: string?)
 	self:PlaceToasts()
 	self.ToastOrder += 1
 	local frame = Kit.Panel({
-		Size = UDim2.fromOffset(400, 40),
+		Size = UDim2.fromOffset(self.ToastWidth or 400, 40),
 		BackgroundTransparency = Theme.GlassStrong,
 		LayoutOrder = self.ToastOrder,
 		Radius = 12,

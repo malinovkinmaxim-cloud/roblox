@@ -61,14 +61,27 @@ function PlayerManager.WeekLeft(): number
 	return (PlayerManager.Week() + 1) * WEEK + MONDAY - now
 end
 
+-- who gets the DEBUG panel: the game's creator (the owner, or a group owner/admin for a group
+-- game) and GameConfig.AdminUserIds. Everyone else never gets it, in Studio too: "Local
+-- Server" test players (negative ids) are regular players. Only an unpublished place (no
+-- creator yet) lets the person testing in Studio in.
 function PlayerManager:IsAdmin(player: Player): boolean
-	if RunService:IsStudio() then
-		return true
-	end
 	if table.find(GameConfig.AdminUserIds, player.UserId) then
 		return true
 	end
-	return game.CreatorType == Enum.CreatorType.User and player.UserId == game.CreatorId
+	if game.CreatorType == Enum.CreatorType.User then
+		if game.CreatorId ~= 0 and player.UserId == game.CreatorId then
+			return true
+		end
+	elseif game.CreatorType == Enum.CreatorType.Group and game.CreatorId ~= 0 then
+		local ok, rank = pcall(function()
+			return player:GetRankInGroup(game.CreatorId)
+		end)
+		if ok and type(rank) == "number" and rank >= GameConfig.AdminGroupRank then
+			return true
+		end
+	end
+	return RunService:IsStudio() and game.CreatorId == 0 and player.UserId > 0
 end
 
 ---------------------------------------------------------------------------
