@@ -321,6 +321,18 @@ function PickupRenderer:Clear()
 		a.Model:Destroy()
 	end
 	table.clear(self.Allies)
+	-- keep a few parked items / gems for the next run, free the rest
+	for _, free in self.ItemFree do
+		for i = #free, 7, -1 do
+			free[i].Model:Destroy()
+			free[i] = nil
+		end
+	end
+	local gems = self.GemFree
+	for i = #gems, 121, -1 do
+		gems[i]:Destroy()
+		gems[i] = nil
+	end
 end
 
 function PickupRenderer:Update(dt: number)

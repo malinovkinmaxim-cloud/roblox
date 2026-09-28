@@ -2,7 +2,7 @@
 	HudController - the in-run HUD. Minimal: the arena is the show.
 
 	  top centre   level chip + thin XP bar, timer under it
-	  top left     HP
+	  top left     HP, the run's difficulty under it
 	  top right    coins (small) + pause
 	  right        boss HP - only while a boss is alive
 	  bottom       small ability icons (level, MAX, EVO) + active buffs above them
@@ -19,6 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local WeaponData = require(Shared.WeaponData)
 local UpgradeData = require(Shared.UpgradeData)
+local DifficultyData = require(Shared.DifficultyData)
 local Format = require(Shared.Util.Format)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
@@ -107,6 +108,32 @@ function HudController:Init(controllers)
 	self.HPBar = Widgets.Bar(hp, UDim2.new(1, -32, 0, 22), UDim2.fromOffset(32, 0), C.HP)
 	self.HPBar.Label.TextXAlignment = Enum.TextXAlignment.Right
 	self.HPOrigin = self.HPBar.Frame.Position
+
+	-- under the HP: the difficulty of this run (tier numeral + name in the tier's colour)
+	local diff = Kit.New("Frame", {
+		Name = "Difficulty",
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 22),
+		Position = UDim2.fromOffset(0, 30),
+		BackgroundColor3 = C.Surface,
+		BackgroundTransparency = Theme.Glass,
+		Parent = safe,
+	})
+	Kit.Corner(diff, 11)
+	self.DiffStroke = Kit.Stroke(diff, 1.5, C.TextDim, 0.35)
+	Kit.Padding(diff, 10, 0)
+	self.DiffLabel = Kit.New("TextLabel", {
+		Name = "Text",
+		Text = "",
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromScale(0, 1),
+		BackgroundTransparency = 1,
+		Font = F.Bold,
+		TextSize = 12,
+		TextColor3 = C.TextDim,
+		Parent = diff,
+	})
+	self.DiffChip = diff
 
 	-- top right: coins + pause
 	local right = Kit.New("Frame", {
@@ -510,6 +537,14 @@ end
 
 function HudController:CoinPop(_n: number)
 	Kit.Pop(self.CoinsPill, 0.08)
+end
+
+-- the difficulty chip of this run
+function HudController:SetDifficulty(index: number)
+	local tier = DifficultyData.Get(index)
+	self.DiffLabel.Text = tier.Numeral .. "  " .. tier.Name
+	self.DiffLabel.TextColor3 = tier.Color
+	self.DiffStroke.Color = tier.Color
 end
 
 -- an evolution became available: the pill pops (the level-up screen offers it first)

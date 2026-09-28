@@ -155,6 +155,9 @@ check("hub: daily quest card filled", lobby.QuestText.Text ~= "", lobby.QuestTex
 check("hub: hero card shows the selected hero", lobby.CharacterName.Text == "THE ROOKIE", lobby.CharacterName.Text)
 check("admin tools offered in Studio", cd.Data.Admin == true and findGui(alice, "S67Debug") ~= nil)
 check("snapshot has the new systems", cd.Data.Afk ~= nil and cd.Data.Weekly and #cd.Data.Weekly.List == 3 and cd.Data.CollectionTotal >= 100, cd.Data.CollectionTotal)
+check("new players start on CALM (only tier I open)", cd.Data.Difficulty and cd.Data.Difficulty.Selected == 1 and cd.Data.Difficulty.Unlocked == 1)
+check("hub: difficulty pill above PLAY shows CALM", lobby.DiffName.Text == "CALM" and lobby.DiffNumeral.Text == "I", lobby.DiffName.Text)
+check("hub: the camera frames the hero stage", ws:FindFirstChild("Map"):FindFirstChild("Lobby"):FindFirstChild("HubStage") ~= nil)
 check("no errors on join", #Engine.Errors == 0, Engine.Errors[1])
 
 -- the hero model replaces the Roblox look
@@ -162,12 +165,24 @@ local character = alicePlayer.Character
 local heroModel = character:FindFirstChild("HeroModel")
 check("hero model built on the character", heroModel ~= nil and Engine.Count(heroModel, "BasePart") >= 8)
 check("hero joint for client animation", character:FindFirstChild("HumanoidRootPart"):FindFirstChild("HeroJoint") ~= nil)
+do
+	local heroRoot = heroModel and heroModel:FindFirstChild("HeroRoot")
+	local limbs = 0
+	for _, name in { "LimbArmL", "LimbArmR", "LimbLegL", "LimbLegR" } do
+		if heroRoot and heroRoot:FindFirstChild(name) then
+			limbs += 1
+		end
+	end
+	check("arms and legs have joints (walk / emote animation)", limbs == 4, limbs)
+	local meshes = heroModel and Engine.Count(heroModel, "SpecialMesh") or 0
+	check("hero is built from smooth shapes (ellipsoid meshes)", meshes >= 8, meshes)
+end
 check("roblox rig is invisible", character:FindFirstChild("Head") == nil or character:FindFirstChild("Head").Transparency == 1)
 check("name tag with title", character:FindFirstChild("HumanoidRootPart"):FindFirstChild("HeroTag") ~= nil)
 
 -- every lobby panel opens and renders
 local mark = #Engine.Errors
-for _, key in { "Heroes", "Abilities", "Shop", "More", "Achievements", "Collection", "Challenges", "AfkCamp", "Party", "Leaderboard", "Statistics", "Codes", "Settings", "Credits", "Profile", "Daily" } do
+for _, key in { "Heroes", "Abilities", "Shop", "More", "Achievements", "Collection", "Challenges", "AfkCamp", "Party", "Leaderboard", "Statistics", "Codes", "Settings", "Credits", "Profile", "Daily", "Difficulty" } do
 	lobby:OpenPanel(key)
 	Engine.Step(0.2)
 	check("panel opens: " .. key, lobby.Open and lobby.Open.Key == key and lobby.Open.Frame.Visible)
@@ -220,6 +235,7 @@ check("character teleported into the arena", math.abs(root.Position.Z) < 100, ro
 check("walk speed set from stats", alicePlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed == run.Stats.WalkSpeed)
 check("jumping disabled in the arena", alicePlayer.Character:FindFirstChildOfClass("Humanoid").JumpHeight == 0)
 check("hero + its starting ability", run.Hero == "Rookie" and #run.Weapons == 1 and run.Weapons[1].Key == "BasicBlaster")
+check("the run is on the selected difficulty (CALM)", run.Difficulty == 1 and hud.DiffLabel.Text == "I  CALM", hud.DiffLabel.Text)
 
 ---------------------------------------------------------------------------
 section("first 30 seconds: move, enemies, auto attack, XP, level up")
@@ -375,6 +391,9 @@ check("achievement cosmetics granted", session.Data.Cosmetics.Owned["Hat.Headban
 check("weekly challenge progress recorded", session.Data.Weekly.List[1] ~= nil)
 check("client got the new coins", cd.Data.Coins == session.Data.Coins)
 check("results show fragments and collection", results.StatLabels.Fragments.Text ~= "+0" and results.StatLabels.Collection.Text ~= "")
+check("difficulty progress saved (a boss on CALM)", session.Data.Difficulty.Best[1].Bosses >= 1 and session.Data.Difficulty.Best[1].Time == math.floor(run.Time))
+check("defeating a boss on CALM opens HUNT", cd.Data.Difficulty.Unlocked >= 2, cd.Data.Difficulty.Unlocked)
+check("results name the difficulty", string.find(results.ResultSub.Text, "CALM") ~= nil, results.ResultSub.Text)
 check("no errors at run end", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 -- extra chest (developer product, simulated in Studio): once per run
@@ -395,6 +414,48 @@ check("back in the lobby", lobby.Gui.Enabled == true and hud.Gui.Enabled == fals
 check("enemy models released to the pool", enemyRenderer:Count() == 0 and #enemyRenderer.Dying == 0)
 local lobbyPos = alicePlayer.Character:FindFirstChild("HumanoidRootPart").Position
 check("character back in the lobby", lobbyPos.Z > 300, lobbyPos)
+
+---------------------------------------------------------------------------
+section("difficulty: select, locks, rewards")
+---------------------------------------------------------------------------
+mark = #Engine.Errors
+cd:Fire("SelectDifficulty", 5)
+Engine.Step(0.5)
+check("a locked tier cannot be selected", session.Data.Difficulty.Selected == 1, session.Data.Difficulty.Selected)
+Engine.Click(lobby.DiffNext)
+Engine.Step(0.5)
+check("the pill's arrow selects the next open tier", session.Data.Difficulty.Selected == 2 and lobby.DiffName.Text == "HUNT", lobby.DiffName.Text)
+Engine.Click(lobby.DiffNext)
+Engine.Step(0.5)
+check("past the last open tier the arrow opens the difficulty screen", lobby.Open and lobby.Open.Key == "Difficulty" and session.Data.Difficulty.Selected == 2)
+do
+	local st = lobby.Open and lobby.Open.State
+	check("difficulty screen: 7 tiers on the ladder", st and #st.Rows == 7)
+	if st then
+		st.Focus = 3
+		lobby.Open.Module.Refresh(st, cd.Data)
+		check("a locked tier shows its goal and progress", string.find(st.Goal.Text, "Survive 10:00 on HUNT") ~= nil, st.Goal.Text)
+		check("its new rules are listed", st.RuleList:FindFirstChild("FasterHorde") ~= nil)
+		check("PLAY is locked on a locked tier", st.PlayLabel.Text == "LOCKED")
+	end
+end
+lobby:ClosePanel()
+-- a short run on HUNT: the tier's numbers and its reward multiplier
+coinsBefore = session.Data.Coins
+Engine.Click(findGui(alice, "Play"))
+Engine.Step(0.5)
+local hunt = GM.Entries[alicePlayer] and GM.Entries[alicePlayer].Run
+check("HUNT run started", hunt ~= nil and hunt.Difficulty == 2)
+if hunt then
+	play(alice, hunt, 70)
+	cd:Fire("GiveUp")
+	Engine.Step(1)
+end
+check("HUNT pays x1.25", results.Panel.Visible and cd.Data and session.Data.Coins > coinsBefore)
+check("HUNT best time recorded", session.Data.Difficulty.Best[2].Time >= 60, session.Data.Difficulty.Best[2].Time)
+Engine.Click(findGui(alice, "Lobby"))
+Engine.Step(1)
+check("no errors with difficulties", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
 section("heroes, abilities, upgrades, codes")
@@ -445,13 +506,23 @@ coins = session.Data.Coins
 cd:Fire("BuyCosmetic", "Hat.Cone")
 Engine.Step(0.5)
 check("hat bought with coins and worn", session.Data.Cosmetics.Owned["Hat.Cone"] == true and session.Data.Cosmetics.Equipped.Hat == "Hat.Cone" and session.Data.Coins == coins - 400)
-check("hat visible on the hero", alicePlayer.Character:FindFirstChild("HeroModel"):FindFirstChild("Cone0") ~= nil)
+check("hat visible on the hero", alicePlayer.Character:FindFirstChild("HeroModel"):FindFirstChild("ConeBase") ~= nil)
 cd:Fire("BuyCosmetic", "Hat.Crown")
 Engine.Step(0.5)
 check("achievement hats cannot be bought", session.Data.Cosmetics.Owned["Hat.Crown"] == nil)
 cd:Fire("EquipCosmetic", "Hat.Crown")
 Engine.Step(0.5)
 check("locked hats cannot be worn", session.Data.Cosmetics.Equipped.Hat == "Hat.Cone")
+session.Data.Cosmetics.Owned["Hat.Propeller"] = true
+cd:Fire("EquipCosmetic", "Hat.Propeller")
+Engine.Step(0.5)
+do
+	local heroRoot = alicePlayer.Character:FindFirstChild("HeroModel"):FindFirstChild("HeroRoot")
+	local spin = heroRoot and heroRoot:FindFirstChild("SpinBladeA")
+	local blade = spin and spin.Part1
+	local posed = spin and blade and (spin.Part0.CFrame * spin.C0 * spin.C1:Inverse()).Position
+	check("propeller blades spin (a motor on the hat's axis, blade in place)", spin ~= nil and (spin:GetAttribute("Speed") or 0) > 0 and posed ~= nil and (posed - blade.CFrame.Position).Magnitude < 1e-3)
+end
 cd:Fire("BuyCosmetic", "Trail.Fire")
 Engine.Step(0.5)
 check("trail bought -> trail on the hero", alicePlayer.Character:FindFirstChild("HumanoidRootPart"):FindFirstChild("HeroTrail") ~= nil)

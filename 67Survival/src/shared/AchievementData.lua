@@ -55,6 +55,13 @@ AchievementData.List = {
 	{ Key = "Together", Name = "Better Together", Desc = "Finish a run in a party", Coins = 150, Stat = "PartyRuns", Goal = 1 },
 	{ Key = "Untouchable", Name = "Untouchable", Desc = "Survive the first 3 minutes without taking damage", Coins = 300, Flag = true, Unlocks = "Untouchable Halo" },
 	{ Key = "Dedicated", Name = "One More Run", Desc = "Play 25 runs", Coins = 300, Stat = "Runs", Goal = 25 },
+	-- difficulty: a win on each tier (HighestWin = the highest tier won)
+	{ Key = "WinHunt", Name = "The Real Horde", Desc = "Win on HUNT (II)", Coins = 400, Fragments = 2, Stat = "HighestWin", Goal = 2 },
+	{ Key = "WinHorde", Name = "Horde Master", Desc = "Win on HORDE (III)", Coins = 800, Fragments = 4, Stat = "HighestWin", Goal = 3, Unlocks = "Horde Ribbon trail" },
+	{ Key = "WinNightmare", Name = "Nightmare Walker", Desc = "Win on NIGHTMARE (IV)", Coins = 1200, Fragments = 6, Stat = "HighestWin", Goal = 4, Unlocks = "Nightmare Shatter, title" },
+	{ Key = "WinInferno", Name = "Inferno Walker", Desc = "Win on INFERNO (V)", Coins = 2000, Fragments = 8, Stat = "HighestWin", Goal = 5, Unlocks = "Inferno Crown aura, title" },
+	{ Key = "WinOblivion", Name = "Beyond Oblivion", Desc = "Win on OBLIVION (VI)", Coins = 3000, Fragments = 12, Stat = "HighestWin", Goal = 6, Unlocks = "Oblivion hero skin, title" },
+	{ Key = "WinThe67", Name = "THE 67", Desc = "Win on THE 67 (VII)", Coins = 6700, Fragments = 20, Stat = "HighestWin", Goal = 7, Unlocks = "Crown of 67, title" },
 	-- secrets (the collection shows them as ??? until found)
 	{ Key = "GoldenGoober", Name = "Golden Goober", Desc = "Defeat a Golden Goober", Coins = 250, Secret = true, Flag = true, Unlocks = "Golden Antenna" },
 	{ Key = "SigmaStare", Name = "Sigma Stare", Desc = "Stand perfectly still for 6.7 seconds in a horde", Coins = 167, Secret = true, Flag = true, Unlocks = "Secret ability Sigma Stare" },

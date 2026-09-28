@@ -15,6 +15,7 @@ local WeaponData = require(Shared.WeaponData)
 local AchievementData = require(Shared.AchievementData)
 local MonetizationData = require(Shared.MonetizationData)
 local CosmeticData = require(Shared.CosmeticData)
+local DifficultyData = require(Shared.DifficultyData)
 local RunService = game:GetService("RunService")
 
 local Kit = require(script.Parent.Parent.UI.Kit)
@@ -291,7 +292,8 @@ function ResultsController:ShowResults(p)
 	local victory = s.Victory
 	self.ResultTitle.Text = if victory then "VICTORY" elseif s.Reason == "Quit" then "RUN ENDED" else "RUN OVER"
 	self.ResultTitle.TextColor3 = if victory then C.Gold else C.Text
-	self.ResultSub.Text = if victory then "You survived the horde. Legend." else "The horde got you. One more run?"
+	local tier = DifficultyData.Get(r.Difficulty or s.Difficulty or 2)
+	self.ResultSub.Text = string.format("%s %s  ·  %s", tier.Numeral, tier.Name, if victory then "You survived the horde. Legend." else "The horde got you. One more run?")
 	if self.PanelStroke then
 		self.PanelStroke.Color = if victory then C.Gold else C.Border
 		self.PanelStroke.Transparency = if victory then 0.3 else Theme.BorderTransparency
@@ -348,6 +350,13 @@ function ResultsController:ShowResults(p)
 
 	-- the most important news first, at most 4 items (the rest as "+N more")
 	local lines = {}
+	if r.FirstClear then
+		table.insert(lines, string.format("FIRST CLEAR of %s: +%s coins, +%d fragments", tier.Name, Format.Commas(r.FirstClear.Coins), r.FirstClear.Fragments))
+	end
+	if r.NewTier then
+		local new = DifficultyData.Get(r.NewTier)
+		table.insert(lines, string.format("New difficulty: %s %s", new.Numeral, new.Name))
+	end
 	if r.LevelAfter > r.LevelBefore then
 		table.insert(lines, "Account level " .. r.LevelAfter .. "!")
 	end

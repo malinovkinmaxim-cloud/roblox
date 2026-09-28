@@ -56,6 +56,19 @@ function Bosses.Init(run, e)
 	end
 	e.Busy = 0
 	e.Enraged = false
+	e.EnrageAt = p.EnrageAt
+	if run.Mods and run.Mods.BossRage then
+		-- BOSS RAGE difficulty: the enraged attacks are there from the start, rage comes sooner
+		for i, pattern in p.EnragePatterns or {} do
+			if not e.Timers[pattern] then
+				table.insert(e.Patterns, pattern)
+				e.Timers[pattern] = (p[EVERY[pattern]] or 6) * (0.6 + 0.25 * i)
+			end
+		end
+		if e.EnrageAt then
+			e.EnrageAt = math.max(e.EnrageAt, 0.7)
+		end
+	end
 	run.Boss = e
 	run:Event("BossSpawn", { Id = e.Id, Key = e.Key, Title = p.Title, MaxHP = math.ceil(e.MaxHP), Final = p.Final == true })
 end
@@ -211,7 +224,8 @@ function Bosses.Step(run, e, dx: number, dz: number, d: number, dt: number, EM):
 	local p = e.Def.Params
 	local scale = e.DmgScale
 
-	if p.EnrageAt and not e.Enraged and e.HP < e.MaxHP * p.EnrageAt then
+	local enrageAt = e.EnrageAt or p.EnrageAt
+	if enrageAt and not e.Enraged and e.HP < e.MaxHP * enrageAt then
 		e.Enraged = true
 		e.Speed *= 1.3
 		for _, pattern in p.EnragePatterns or {} do

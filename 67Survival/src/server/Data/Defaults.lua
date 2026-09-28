@@ -19,6 +19,7 @@ local EnemyData = require(Shared.EnemyData)
 local WaveData = require(Shared.WaveData)
 local MonetizationData = require(Shared.MonetizationData)
 local CosmeticData = require(Shared.CosmeticData)
+local DifficultyData = require(Shared.DifficultyData)
 local GameConfig = require(Shared.GameConfig)
 
 local Defaults = {}
@@ -29,6 +30,7 @@ Defaults.StatKeys = {
 	"Runs", "Wins", "Kills", "Bosses", "BossKinds", "BestTime", "BestLevel", "BestKills", "Deaths",
 	"Events67", "EventKinds", "LifetimeCoins", "PlayTime", "Crates", "Rares", "Gems", "Evolutions",
 	"Collected", "HeroCount", "PartyRuns", "LifetimeFragments", "BestEvolutions",
+	"HighestWin", -- the highest difficulty tier won
 }
 
 Defaults.SettingKeys = {
@@ -247,6 +249,42 @@ function Defaults.Reconcile(raw: any)
 		Passives = keySet(rseen.Passives, passives),
 		Evolutions = keySet(rseen.Evolutions, evolutions),
 		Events = keySet(rseen.Events, events),
+	}
+
+	-- difficulty: the selected tier, the best result per tier (unlocks), first clears paid
+	local rdiff = r.Difficulty
+	local best = {}
+	local cleared = {}
+	if type(rdiff) == "table" then
+		local rbest = tbl(rdiff.Best)
+		for i = 1, DifficultyData.Count do
+			local b = tbl(rbest[i])
+			best[i] = { Time = int(b.Time, 0, 0, 1e6), Bosses = int(b.Bosses, 0, 0, 1e9), Wins = int(b.Wins, 0, 0, 1e9) }
+			cleared[i] = tbl(rdiff.Cleared)[i] == true
+		end
+	else
+		-- a profile from before difficulties: everything so far was played on the classic
+		-- balance (tier II). Nobody loses access to what they could already play.
+		local stats = out.Stats
+		for i = 1, DifficultyData.Count do
+			best[i] = { Time = 0, Bosses = 0, Wins = 0 }
+			cleared[i] = false
+		end
+		if stats.Bosses > 0 or stats.BestTime > 0 then
+			best[1] = { Time = stats.BestTime, Bosses = math.min(stats.Bosses, 1), Wins = 0 }
+			best[2] = { Time = stats.BestTime, Bosses = stats.Bosses, Wins = stats.Wins }
+			cleared[2] = stats.Wins > 0
+			if stats.Wins > 0 then
+				out.Stats.HighestWin = math.max(out.Stats.HighestWin, 2)
+			end
+		end
+	end
+	local open = DifficultyData.Unlocked(best)
+	local selected = if type(rdiff) == "table" then int(tbl(rdiff).Selected, 1, 1, DifficultyData.Count) else (if open >= 2 then 2 else 1)
+	out.Difficulty = {
+		Selected = math.min(selected, open),
+		Best = best,
+		Cleared = cleared,
 	}
 
 	-- daily reward

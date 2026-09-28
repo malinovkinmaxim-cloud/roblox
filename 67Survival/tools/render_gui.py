@@ -22,6 +22,9 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import render3d  # noqa: E402
+
 SS = 2  # supersampling
 DESIGN = (1100, 620)
 COMPACT = (1000, 520)  # phones (touch, short screens): Theme.CompactDesignSize
@@ -169,6 +172,19 @@ def measure(node, pw, ph, k):
     if node["c"] in TEXT and auto in ("Y", "XY"):
         style, size, lines, _ = text_size_for(node, w, 1e9, k)
         h = max(h, len(lines) * line_height(size))
+    if auto in ("X", "XY") and not node.get("text"):
+        # a container with AutomaticSize grows to fit its children (+ its padding)
+        kids = [c for c in node.get("kids", []) if c["c"] in GUI and c.get("vis", True)]
+        if kids:
+            lst = kid(node, "UIListLayout")
+            widths = [measure(c, w, h, k)[0] + (0 if lst else c["pos"][1] * k) for c in kids]
+            if lst and lst.get("dir") == "Horizontal":
+                inner = sum(widths) + lst["padding"][1] * k * (len(widths) - 1)
+            else:
+                inner = max(widths)
+            pad = kid(node, "UIPadding")
+            extra = (pad["pad"][0][1] + pad["pad"][1][1]) * k if pad else 0
+            w = max(w, inner + extra)
     con = kid(node, "UISizeConstraint")
     if con:
         w = min(max(w, con["min"][0] * k), con["max"][0] * k)
@@ -411,67 +427,12 @@ class Painter:
         iw, ih = int(math.ceil(w)), int(math.ceil(h))
         if iw < 2 or ih < 2:
             return
-        layer = Image.new("RGBA", (iw, ih), (0, 0, 0, 0))
-        d = ImageDraw.Draw(layer)
-        cp = cam["p"]
-        r = cam["r"]
-        # Lune 0.8's CFrame.lookAt faces AWAY from the target (Roblox faces towards it), and the
-        # previews build their cameras with lookAt: rebuild the Roblox camera basis from it
-        look = (r[2], r[5], r[8])
-        rx, rz = -look[2], look[0]
-        rl = math.hypot(rx, rz) or 1
-        right = (rx / rl, 0.0, rz / rl)
-        up = (right[1] * look[2] - right[2] * look[1], right[2] * look[0] - right[0] * look[2], right[0] * look[1] - right[1] * look[0])
-        back = (-look[0], -look[1], -look[2])
-        f = 1 / math.tan(math.radians(cam["fov"]) / 2)
-        aspect = iw / ih
-        tint = node.get("ic", [1, 1, 1])
-
-        def project(p):
-            dx, dy, dz = p[0] - cp[0], p[1] - cp[1], p[2] - cp[2]
-            z = -(dx * back[0] + dy * back[1] + dz * back[2])
-            if z <= 0.05:
-                return None
-            sx = (dx * right[0] + dy * right[1] + dz * right[2]) / z * f / aspect
-            sy = (dx * up[0] + dy * up[1] + dz * up[2]) / z * f
-            return ((sx * 0.5 + 0.5) * iw, (0.5 - sy * 0.5) * ih, z)
-
-        items = []
-        for part in node.get("parts", []):
-            if part["t"] >= 1:
-                continue
-            p, rr, s = part["p"], part["r"], part["s"]
-            center = project(p)
-            if not center:
-                continue
-            items.append((center[2], part, center))
-        items.sort(key=lambda t: -t[0])
-        for z, part, center in items:
-            col = [part["c"][i] * tint[i] for i in range(3)]
-            if part["neon"]:
-                col = [min(1, c * 1.15 + 0.08) for c in col]
-            fill = rgba(col, part["t"])
-            p, rr, s = part["p"], part["r"], part["s"]
-            if part["shape"] == "Ball":
-                rad = max(s) / 2 / z * f * ih / 2
-                d.ellipse((center[0] - rad, center[1] - rad, center[0] + rad, center[1] + rad), fill=fill)
-                continue
-            pts = []
-            for ix in (-0.5, 0.5):
-                for iy in (-0.5, 0.5):
-                    for iz in (-0.5, 0.5):
-                        lx, ly, lz = ix * s[0], iy * s[1], iz * s[2]
-                        wx = p[0] + rr[0] * lx + rr[1] * ly + rr[2] * lz
-                        wy = p[1] + rr[3] * lx + rr[4] * ly + rr[5] * lz
-                        wz = p[2] + rr[6] * lx + rr[7] * ly + rr[8] * lz
-                        q = project((wx, wy, wz))
-                        if q:
-                            pts.append((q[0], q[1]))
-            if len(pts) >= 3:
-                hull = convex_hull(pts)
-                d.polygon(hull, fill=fill)
-                shade = tuple(int(v * 0.8) for v in fill[:3]) + (fill[3],)
-                d.line(hull + [hull[0]], fill=shade, width=max(1, SS))
+        light = render3d.Light(
+            direction=tuple(node.get("ld", [-0.6, -1, -0.8])),
+            ambient=tuple(node.get("amb", [0.67, 0.66, 0.75])),
+            color=tuple(node.get("lc", [1, 1, 1])),
+        )
+        layer = render3d.render_viewport((iw, ih), cam, node.get("parts", []), light, tuple(node.get("ic", [1, 1, 1])))
         self.paste(layer, x, y, clip)
 
     def image(self, node, box, clip):
@@ -586,6 +547,7 @@ def check_overlaps(node, ctx, path=""):
             if (c.get("bgt", 1) < 0.95 or c["c"] in TEXT and (c.get("text") or "").strip())
             and c["n"] != "Fill"
             and not c["n"].startswith("Vignette")
+            and not c["n"].endswith(("Shadow", "Halo"))  # decorative layers behind a button
             and c["_box"][2] * c["_box"][3] < 0.9 * pw * ph
         ]
         for i in range(len(solid)):
@@ -656,7 +618,15 @@ def render(scene, size_name, size, out_dir):
     W, H = size[0] * SS, size[1] * SS
     ctx = Ctx((W, H))
     run = scene["scene"].startswith(("hud", "levelup", "pause", "death", "results", "phone_hud"))
-    painter = Painter((W, H), background((W, H), scene.get("blur", 0), run))
+    world = scene.get("world")
+    if world and world.get("parts"):
+        # the real 3D world from the scene's camera (hub stage, arena, heroes, enemies)
+        bg = render3d.render_world((W, H), world)
+        if scene.get("blur", 0) > 0:
+            bg = bg.filter(ImageFilter.GaussianBlur(scene["blur"] * SS * 0.6))
+    else:
+        bg = background((W, H), scene.get("blur", 0), run)
+    painter = Painter((W, H), bg)
     guis = [g for g in scene["guis"] if g.get("enabled")]
     guis.sort(key=lambda g: g.get("order", 0))
     design = COMPACT if size[1] < 500 else DESIGN  # a phone is always a touch screen

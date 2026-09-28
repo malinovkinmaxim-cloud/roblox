@@ -426,11 +426,14 @@ function RunClient:Begin(p)
 	self.Paused, self.Dead = false, false
 	self.Hero = p.Hero
 	self.Party = p.Party or {}
+	self.Difficulty = p.Difficulty or 2
 	C.ResultsController:Hide()
 	C.LevelUpController:Hide()
 	C.LobbyController:Hide()
 	C.HudController:Show()
+	C.HudController:SetDifficulty(self.Difficulty)
 	C.CameraController:SetMode("Run")
+	C.CameraController:SetMood("Run", self.Difficulty)
 	C.SoundController:Play("Banner")
 	C.EffectsController:SpawnEffect(p.SpawnEffect or "Beam")
 	setReset(false)

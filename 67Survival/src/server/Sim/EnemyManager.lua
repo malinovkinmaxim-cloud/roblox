@@ -34,6 +34,12 @@ local GFX = Protocol.Fx
 local PLAYER_R = GameConfig.Player.Radius
 local HALF = GameConfig.Arena.HalfSize
 local scratch = {}
+local NO_DIFF = { EnemyHP = 1, EnemyDamage = 1, EnemySpeed = 1, BossHP = 1, BossDamage = 1 }
+
+-- NO MERCY difficulty: shorter wind-ups (the telegraph is shortened too: always fair)
+local function windup(run, seconds: number): number
+	return seconds * (run.Windup or 1)
+end
 
 ---------------------------------------------------------------------------
 -- spawn
@@ -84,16 +90,25 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 	end
 	local def = EnemyData.Get(key)
 	local t = run.Time
+	local diff = run.Diff or NO_DIFF
 	local hpScale = if o.NoScale then 1 else WaveData.HPScale(t)
 	local dmgScale = if o.NoScale then 1 else WaveData.DamageScale(t)
 	local isBoss = def.Boss == true or def.MiniBoss == true
+	-- difficulty: the horde (and THE 67) gets tougher; loot boxes and the goblin do not
+	if not o.NoScale or key == "The67" then
+		hpScale *= diff.EnemyHP
+		dmgScale *= diff.EnemyDamage
+	end
 	if isBoss then
 		-- bosses scale with the player's level so a strong build still has a fight
-		hpScale = 1 + max(0, run.Level - 10) * 0.025
-		dmgScale = WaveData.DamageScale(t)
+		hpScale = (1 + max(0, run.Level - 10) * 0.025) * diff.BossHP
+		dmgScale = WaveData.DamageScale(t) * diff.BossDamage
 	end
 	local hp = def.HP * hpScale * (o.HPMult or 1)
 	local radius, speed = def.Radius, def.Speed
+	if not isBoss and not o.NoScale then
+		speed *= diff.EnemySpeed -- FASTER HORDE
+	end
 	local tiny = o.Tiny == true or (not isBoss and run:Buff("TinyMode"))
 	local giant = not isBoss and not tiny and run:Buff("GiantMode") and def.Behavior ~= "Static"
 	if tiny then
@@ -500,6 +515,8 @@ function EnemyManager.Shoot(run, x: number, z: number, vx: number, vz: number, r
 		return
 	end
 	run.NextEProj = (run.NextEProj or 0) % 65535 + 1
+	local k = run.ShotSpeed or 1 -- NO MERCY: faster shots (same reach)
+	vx, vz, life = vx * k, vz * k, life / k
 	local p = { Id = run.NextEProj, X = x, Z = z, VX = vx, VZ = vz, R = radius, Damage = damage, Life = life }
 	table.insert(run.EnemyProjectiles, p)
 	run:Write("EProj", p.Id, x, z, vx, vz, radius, life)
@@ -564,7 +581,7 @@ function Behaviors.Charge(run, e, dx, dz, d, dt)
 	if e.State == 0 then
 		if d < p.Trigger then
 			e.State = 1
-			e.T = p.Windup
+			e.T = windup(run, p.Windup)
 			setState(run, e, ES.Windup)
 			return 0, 0, 0
 		end
@@ -638,9 +655,9 @@ function Behaviors.Bomber(run, e, dx, dz, d, dt)
 	if not e.Lit then
 		if d < p.Trigger then
 			e.Lit = true
-			e.T = p.Fuse
+			e.T = windup(run, p.Fuse)
 			local r = p.BlastRadius * (if e.Giant then 1.4 else 1)
-			run:Write("Telegraph", 1, e.X, e.Z, 0, r, 0, p.Fuse)
+			run:Write("Telegraph", 1, e.X, e.Z, 0, r, 0, e.T)
 			setState(run, e, ES.Lit)
 			return 0, 0, 0
 		end
@@ -665,10 +682,10 @@ function Behaviors.Dive(run, e, dx, dz, d, dt)
 		local m = sqrt(tx * tx + tz * tz)
 		if e.T <= 0 and d < r + 10 then
 			e.State = 1
-			e.T = 0.45
+			e.T = windup(run, 0.45)
 			e.DirX, e.DirZ = dx / d, dz / d
 			local length = p.DiveSpeed * p.DiveTime
-			run:Write("Telegraph", 2, e.X, e.Z, atan2(e.DirZ, e.DirX), length, e.Radius * 2, 0.45)
+			run:Write("Telegraph", 2, e.X, e.Z, atan2(e.DirZ, e.DirX), length, e.Radius * 2, e.T)
 			setState(run, e, ES.Windup)
 			return 0, 0, 0
 		end
@@ -730,10 +747,10 @@ function Behaviors.Leap(run, e, dx, dz, d, dt)
 	if e.State == 0 then
 		if d < p.Trigger then
 			e.State = 1
-			e.T = p.Windup
+			e.T = windup(run, p.Windup)
 			-- aim where the player stands now (a moving player dodges)
 			e.TX, e.TZ = e.X + dx, e.Z + dz
-			run:Write("Telegraph", 1, e.TX, e.TZ, 0, p.LandRadius, 0, p.Windup + p.JumpTime)
+			run:Write("Telegraph", 1, e.TX, e.TZ, 0, p.LandRadius, 0, e.T + p.JumpTime)
 			setState(run, e, ES.Windup)
 			return 0, 0, 0
 		end
@@ -799,9 +816,9 @@ function Behaviors.Sniper(run, e, dx, dz, d, dt)
 	end
 	if e.T <= 0 and d < p.Keep + 20 then
 		e.State = 1
-		e.T = p.Aim
+		e.T = windup(run, p.Aim)
 		e.DirX, e.DirZ = dx / d, dz / d
-		run:Write("Telegraph", 4, e.X, e.Z, atan2(e.DirZ, e.DirX), 80, p.ProjRadius * 2, p.Aim)
+		run:Write("Telegraph", 4, e.X, e.Z, atan2(e.DirZ, e.DirX), 80, p.ProjRadius * 2, e.T)
 		setState(run, e, ES.Windup)
 		return 0, 0, 0
 	end

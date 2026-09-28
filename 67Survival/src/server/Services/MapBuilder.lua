@@ -11,6 +11,8 @@
 	The arena is flat and open in the middle (hordes need space), with readable ground tiles
 	(so movement is visible from the top-down camera), roads, small buildings, trees and a few
 	landmarks near the edges, plus a hidden room.
+	The lobby spawn is the HUB STAGE: the player's hero on a pedestal, framed by the hub
+	camera (client CameraController). Also sets the base lighting (haze, soft bloom).
 ]]
 
 local Workspace = game:GetService("Workspace")
@@ -18,8 +20,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local GameConfig = require(Shared.GameConfig)
-local HeroData = require(Shared.HeroData)
-local HeroModels = require(Shared.HeroModels)
 
 local MapBuilder = {}
 
@@ -156,16 +156,17 @@ local SEGMENTS = {
 	["6"] = { "a", "c", "d", "e", "f", "g" },
 	["7"] = { "a", "b", "c" },
 }
-local function digit(ch: string, origin: Vector3, parent: Instance)
+local function digit(ch: string, origin: Vector3, parent: Instance, mirror: boolean?)
 	current = parent
 	local L, T = 6, 1.8
+	local m = if mirror then -1 else 1 -- mirrored: reads right for a viewer looking towards +Z
 	local spots = {
 		a = { Vector3.new(0, 2 * L, 0), true },
-		b = { Vector3.new(L / 2, 1.5 * L, 0), false },
-		c = { Vector3.new(L / 2, 0.5 * L, 0), false },
+		b = { Vector3.new(m * L / 2, 1.5 * L, 0), false },
+		c = { Vector3.new(m * L / 2, 0.5 * L, 0), false },
 		d = { Vector3.new(0, 0, 0), true },
-		e = { Vector3.new(-L / 2, 0.5 * L, 0), false },
-		f = { Vector3.new(-L / 2, 1.5 * L, 0), false },
+		e = { Vector3.new(-m * L / 2, 0.5 * L, 0), false },
+		f = { Vector3.new(-m * L / 2, 1.5 * L, 0), false },
 		g = { Vector3.new(0, L, 0), true },
 	}
 	for _, seg in SEGMENTS[ch] do
@@ -406,6 +407,139 @@ end
 ---------------------------------------------------------------------------
 -- lobby
 ---------------------------------------------------------------------------
+local function ellipsoid(name: string, size: Vector3, cf: CFrame, color: Color3, extra: { [string]: any }?): BasePart
+	local p = block(name, size, cf, color, extra)
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	return p
+end
+
+local function light(parent: BasePart, range: number, brightness: number, color: Color3)
+	local l = Instance.new("PointLight")
+	l.Range = range
+	l.Brightness = brightness
+	l.Color = color
+	l.Shadows = false
+	l.Parent = parent
+	return l
+end
+
+--[[
+	The hub stage (what the hub camera sees): a clean pedestal for the hero, a soft arc of
+	rounded pillars behind it, a big glowing 67 far away (blurred by the camera's depth of
+	field), a few slow floating orbs and two lights (warm key, cool rim). Few shapes, calm
+	colours: the UI stays the focus.
+]]
+local STAGE = Vector3.new(0, 0, 15) -- lobby offset of the hero spot (= the lobby spawn)
+MapBuilder.StageOffset = STAGE
+
+local function buildStage(lobby: Instance, L: (number, number, number) -> CFrame)
+	local stage = folder("HubStage", lobby)
+	current = stage
+	local sx, sz = STAGE.X, STAGE.Z
+	local CYL = Enum.PartType.Cylinder
+	local up = CFrame.Angles(0, 0, math.rad(90))
+	-- the floor around the stage
+	block("StageRug", Vector3.new(0.06, 30, 30), L(sx, 0.03, sz + 3) * up, rgb(58, 50, 104), { Shape = CYL, CanCollide = false })
+	-- pedestal: two soft steps and a thin light line around the top edge (a glowing disc
+	-- inside the pedestal: only its rim shows)
+	block("PedestalBase", Vector3.new(0.3, 10, 10), L(sx, 0.15, sz) * up, rgb(76, 66, 132), { Shape = CYL })
+	block("Pedestal", Vector3.new(0.5, 7.6, 7.6), L(sx, 0.4, sz) * up, rgb(112, 100, 178), { Shape = CYL })
+	local top = block("PedestalTop", Vector3.new(0.08, 7.84, 7.84), L(sx, 0.56, sz) * up, rgb(255, 150, 210), { Shape = CYL, Material = Enum.Material.Neon, Transparency = 0.1, CanCollide = false })
+	-- a few slow sparkles rising from the pedestal (subtle: 3 per second)
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Name = "StageSparkles"
+	sparkles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkles.Rate = 3
+	sparkles.Lifetime = NumberRange.new(2.5, 3.5)
+	sparkles.Speed = NumberRange.new(0.6, 1.2)
+	sparkles.EmissionDirection = Enum.NormalId.Right -- the cylinder's axis points up
+	sparkles.SpreadAngle = Vector2.new(15, 15)
+	sparkles.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.22), NumberSequenceKeypoint.new(1, 0) })
+	sparkles.Transparency = NumberSequence.new(0.3, 1)
+	sparkles.LightEmission = 1
+	sparkles.Color = ColorSequence.new(rgb(255, 170, 220), rgb(255, 214, 120))
+	sparkles.Parent = top
+	-- the backdrop: an arc of rounded pillars (tallest in the middle), soft lavender
+	for i = -3, 3 do
+		local a = math.rad(i * 19)
+		local r = 17
+		local h = 15 - math.abs(i) * 1.6
+		local shade = 1 - math.abs(i) * 0.04
+		local col = Color3.fromRGB(math.floor(134 * shade), math.floor(120 * shade), math.floor(206 * shade))
+		ellipsoid("Pillar", Vector3.new(3.4, h, 2.6), L(sx + math.sin(a) * r, h / 2 - 0.6, sz + math.cos(a) * r), col, { CanCollide = false, CastShadow = true })
+	end
+	-- a low hedge line in front of the pillars (depth)
+	for i = -2, 2 do
+		ellipsoid("Hedge", Vector3.new(5.5, 2.4, 3), L(sx + i * 5.2, 0.9, sz + 12.5 - math.abs(i) * 0.8), rgb(78, 150, 110), { CanCollide = false })
+	end
+	-- a big glowing 67 far behind (soft through the depth of field)
+	local sixty = folder("Stage67", stage)
+	-- (read from the hub camera, which looks towards +Z: mirrored, 6 on the +X side)
+	digit("6", LOBBY + Vector3.new(sx - 4, 5, sz + 48), sixty, true)
+	digit("7", LOBBY + Vector3.new(sx - 16, 5, sz + 48), sixty, true)
+	for _, d in sixty:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Transparency = 0.35
+			d.CanCollide = false
+			d.Color = rgb(255, 196, 80)
+		end
+	end
+	current = stage
+	-- a few slow floating orbs (WorldController bobs parts with a Bob attribute)
+	for i, spot in { Vector3.new(-7, 7.5, 10), Vector3.new(8.5, 9.5, 12), Vector3.new(-11, 11, 6) } do
+		local orb = block("StageOrb", Vector3.new(0.9, 0.9, 0.9), L(sx + spot.X, spot.Y, sz + spot.Z), if i == 2 then rgb(255, 196, 80) else rgb(255, 130, 200), {
+			Shape = Enum.PartType.Ball,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Transparency = 0.15,
+		})
+		orb:SetAttribute("Bob", 0.6 + i * 0.15)
+	end
+	-- lights: a warm key light from the camera side, a cool rim light behind the hero
+	local key = block("KeyLight", Vector3.new(0.5, 0.5, 0.5), L(sx + 5, 9, sz - 8), rgb(255, 255, 255), { Transparency = 1, CanCollide = false })
+	light(key, 26, 1.1, rgb(255, 236, 214))
+	local rim = block("RimLight", Vector3.new(0.5, 0.5, 0.5), L(sx - 1, 6, sz + 5), rgb(255, 255, 255), { Transparency = 1, CanCollide = false })
+	light(rim, 14, 2.2, rgb(176, 128, 255))
+	current = lobby
+end
+
+-- the look of the whole place: soft daylight, a light haze, a little bloom for the neon
+local function applyLighting()
+	local Lighting = game:GetService("Lighting")
+	if Lighting:FindFirstChild("S67Atmosphere") then
+		return
+	end
+	Lighting.ClockTime = 14.5
+	Lighting.Brightness = 2.2
+	Lighting.Ambient = rgb(72, 66, 98)
+	Lighting.OutdoorAmbient = rgb(132, 126, 156)
+	Lighting.EnvironmentDiffuseScale = 0.5
+	Lighting.EnvironmentSpecularScale = 0.6
+	Lighting.ShadowSoftness = 0.3
+	local atmosphere = Instance.new("Atmosphere")
+	atmosphere.Name = "S67Atmosphere"
+	atmosphere.Density = 0.28
+	atmosphere.Offset = 0.1
+	atmosphere.Color = rgb(206, 214, 240)
+	atmosphere.Decay = rgb(110, 112, 156)
+	atmosphere.Glare = 0.1
+	atmosphere.Haze = 1.2
+	atmosphere.Parent = Lighting
+	local bloom = Instance.new("BloomEffect")
+	bloom.Name = "S67Bloom"
+	bloom.Intensity = 0.35
+	bloom.Size = 24
+	bloom.Threshold = 1.6
+	bloom.Parent = Lighting
+	local grade = Instance.new("ColorCorrectionEffect")
+	grade.Name = "S67Grade"
+	grade.Saturation = 0.08
+	grade.Contrast = 0.06
+	grade.Parent = Lighting
+end
+
 local function buildLobby(map: Model)
 	local lobby = Instance.new("Model")
 	lobby.Name = "Lobby"
@@ -420,13 +554,12 @@ local function buildLobby(map: Model)
 		block("Stripe", Vector3.new(size, 0.1, 1.2), L(0, 0.05, i * 20), rgb(90, 80, 150))
 		block("Stripe", Vector3.new(1.2, 0.1, size), L(i * 20, 0.06, 0), rgb(90, 80, 150))
 	end
-	block("CenterPad", Vector3.new(0.4, 30, 30), L(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)), rgb(255, 150, 200), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Neon, Transparency = 0.3 })
 	for _, side in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
 		local sx, sz = side[1], side[2]
 		local wsize = if sx ~= 0 then Vector3.new(2, 40, size) else Vector3.new(size, 40, 2)
 		block("Wall", wsize, L(sx * size / 2, 20, sz * size / 2), rgb(255, 255, 255), { Transparency = 1 })
 		local rsize = if sx ~= 0 then Vector3.new(2, 3, size) else Vector3.new(size, 3, 2)
-		block("Rail", rsize, L(sx * size / 2, 1.5, sz * size / 2), rgb(255, 205, 60), { Material = Enum.Material.Neon })
+		block("Rail", rsize, L(sx * size / 2, 1.5, sz * size / 2), rgb(120, 106, 190)) -- calm lavender (a neon band would cut through the hub picture)
 	end
 
 	-- title
@@ -451,21 +584,9 @@ local function buildLobby(map: Model)
 	board:SetAttribute("Leaderboard", "BestTime")
 	block("BoardLegs", Vector3.new(2, 2, 30), L(-50, 1, 0), rgb(60, 50, 90))
 
-	-- hero showcase: four heroes on pedestals (real hero models, anchored)
-	local showcase = { "Rookie", "Tank", "Samurai", "SixSeven" }
-	for i, heroKey in showcase do
-		local x = 15 + (i - 1) * 11
-		block("Pedestal", Vector3.new(0.6, 8, 8), L(x, 0.3, 40) * CFrame.Angles(0, 0, math.rad(90)), rgb(60, 50, 90), { Shape = Enum.PartType.Cylinder })
-		local hero = Instance.new("Model")
-		hero.Name = "Showcase" .. heroKey
-		hero:SetAttribute("Showcase", heroKey)
-		hero.Parent = current
-		-- origin = where a HumanoidRootPart would be (feet 3 studs below), facing the portal side
-		HeroModels.Build(heroKey, L(x, 3.6, 40) * CFrame.Angles(0, math.pi, 0), hero, { Ring = false })
-		local def = HeroData.ByKey[heroKey]
-		local nameplate = block("Name", Vector3.new(9, 2, 0.5), L(x, 4.2 + HeroModels.Top(heroKey), 40), rgb(30, 25, 50), { Transparency = 1, CanCollide = false })
-		sign(nameplate, Enum.NormalId.Back, def.Name, rgb(255, 255, 255))
-	end
+	-- HUB STAGE: your own hero stands on a pedestal at the spawn; the hub camera
+	-- (client CameraController) frames it from the front with the backdrop behind
+	buildStage(lobby, L)
 
 	-- AFK CAMP: a campfire where resting heroes collect rewards (step on the pad to open it)
 	local cx, cz = 45, -8
@@ -523,7 +644,8 @@ local function buildSpawns(map: Model)
 	spawns.Name = "SpawnPoints"
 	spawns.Parent = Workspace
 	current = spawns
-	block("Lobby", Vector3.new(6, 1, 6), CFrame.new(LOBBY + Vector3.new(0, 0.5, 15)), rgb(255, 255, 255), { Transparency = 1, CanCollide = false, CanQuery = false })
+	-- the lobby spawn is the hub stage's pedestal (its top is 0.65 above the floor)
+	block("Lobby", Vector3.new(6, 1, 6), CFrame.new(LOBBY + STAGE + Vector3.new(0, 0.7, 0)), rgb(255, 255, 255), { Transparency = 1, CanCollide = false, CanQuery = false })
 	for i, offset in GameConfig.Arena.StartOffsets do
 		block("Arena" .. i, Vector3.new(6, 1, 6), CFrame.new(CENTER + offset + Vector3.new(0, 0.5, 0)), rgb(255, 255, 255), { Transparency = 1, CanCollide = false, CanQuery = false })
 	end
@@ -584,6 +706,7 @@ function MapBuilder:Init(services)
 	if not Workspace:FindFirstChild("SpawnPoints") then
 		buildSpawns(map)
 	end
+	applyLighting()
 	self.Map = map
 	local arena = map:FindFirstChild("Arena") or map
 	self.Colliders = MapBuilder.ExtractColliders(arena)
@@ -599,7 +722,7 @@ function MapBuilder:SpawnPoint(name: string): CFrame
 		return p.CFrame
 	end
 	if name == "Lobby" then
-		return CFrame.new(LOBBY + Vector3.new(0, 0.5, 15))
+		return CFrame.new(LOBBY + STAGE + Vector3.new(0, 0.7, 0))
 	end
 	return CFrame.new(CENTER + Vector3.new(0, 0.5, 0))
 end

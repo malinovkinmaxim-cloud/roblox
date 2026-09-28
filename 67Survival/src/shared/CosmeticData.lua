@@ -80,6 +80,7 @@ CosmeticData.List = {
 	c("Hat", "Halo", { Name = "Untouchable Halo", Desc = "3 minutes without a scratch.", Achievement = "Untouchable", Rarity = "Epic" }),
 	c("Hat", "GoldAntenna", { Name = "Golden Antenna", Desc = "Defeat a Golden Goober.", Achievement = "GoldenGoober", Rarity = "Epic" }),
 	c("Hat", "Crown", { Name = "Survivor Crown", Desc = "Defeat THE FINAL ONE.", Achievement = "Victory", Rarity = "Legendary" }),
+	c("Hat", "Crown67", { Name = "Crown of 67", Desc = "Win on THE 67 difficulty.", Achievement = "WinThe67", Rarity = "Secret" }),
 	-- hero skins
 	c("HeroSkin", "Default", { Name = "Original", Desc = "The hero's own colours.", Default = true }),
 	c("HeroSkin", "Midnight", { Name = "Midnight", Desc = "Deep blue for any hero.", Cost = 1500, Rarity = "Uncommon" }),
@@ -89,6 +90,7 @@ CosmeticData.List = {
 	c("HeroSkin", "Glitched", { Name = "Glitched", Desc = "Colours that should not exist.", Pass = "CosmeticPass", Rarity = "Epic" }),
 	c("HeroSkin", "Shadow67", { Name = "Shadow 67", Desc = "Collect 60 Collection Book entries.", Collection = 60, Rarity = "Legendary" }),
 	c("HeroSkin", "Gold", { Name = "Solid Gold", Desc = "Reach account level 50.", Level = 50, Rarity = "Legendary" }),
+	c("HeroSkin", "Oblivion", { Name = "Oblivion", Desc = "Win on OBLIVION difficulty.", Achievement = "WinOblivion", Rarity = "Mythic" }),
 	-- ability skins (effect colours)
 	c("WeaponSkin", "Default", { Name = "Original", Desc = "Every ability in its own colour.", Default = true }),
 	c("WeaponSkin", "Crimson", { Name = "Crimson", Desc = "Everything red.", Cost = 1000, Color = rgb(255, 60, 80), Rarity = "Uncommon" }),
@@ -103,6 +105,7 @@ CosmeticData.List = {
 	c("KillEffect", "Pixel", { Name = "Pixels", Desc = "Enemies break into pixels.", Cost = 1800, Rarity = "Rare" }),
 	c("KillEffect", "Coins", { Name = "Coin Burst", Desc = "Cha-ching (just looks).", Pass = "VIPCosmetics", Rarity = "Epic" }),
 	c("KillEffect", "Pop67", { Name = "67 Pop", Desc = "Enemies pop into sixes and sevens.", Achievement = "Witness67", Rarity = "Legendary" }),
+	c("KillEffect", "Shatter", { Name = "Nightmare Shatter", Desc = "Win on NIGHTMARE difficulty.", Achievement = "WinNightmare", Color = rgb(150, 90, 255), Rarity = "Epic" }),
 	-- spawn effects
 	c("SpawnEffect", "Beam", { Name = "Beam", Desc = "A beam of light.", Default = true }),
 	c("SpawnEffect", "Lightning", { Name = "Lightning", Desc = "Strike down into the arena.", Cost = 1000, Rarity = "Uncommon" }),
@@ -115,6 +118,7 @@ CosmeticData.List = {
 	c("Trail", "Fire", { Name = "Fire", Desc = "Leave a flame behind.", Cost = 1500, Color = rgb(255, 120, 40), Color2 = rgb(255, 220, 80), Rarity = "Uncommon" }),
 	c("Trail", "Rainbow", { Name = "Rainbow", Desc = "All the colours.", Pass = "VIPCosmetics", Rarity = "Epic" }),
 	c("Trail", "Trail67", { Name = "67 Trail", Desc = "Reach account level 35.", Level = 35, Color = rgb(255, 205, 50), Color2 = rgb(170, 90, 255), Rarity = "Legendary" }),
+	c("Trail", "Horde", { Name = "Horde Ribbon", Desc = "Win on HORDE difficulty.", Achievement = "WinHorde", Color = rgb(255, 214, 90), Color2 = rgb(255, 150, 60), Rarity = "Rare" }),
 	-- emotes
 	c("Emote", "Wave", { Name = "Wave", Desc = "Hi!", Default = true }),
 	c("Emote", "Jump", { Name = "Hype", Desc = "Jump for joy.", Default = true }),
@@ -150,6 +154,7 @@ CosmeticData.List = {
 	c("Aura", "Void", { Name = "Void Aura", Desc = "Defeat all 8 bosses.", Achievement = "BossCollector", Color = rgb(150, 80, 255), Rarity = "Legendary" }),
 	c("Aura", "Gold", { Name = "Gold Aura", Desc = "A soft golden glow.", Pass = "VIPCosmetics", Color = rgb(255, 205, 60), Rarity = "Epic" }),
 	c("Aura", "Aura67", { Name = "67 Aura", Desc = "Reach account level 67 (or a 67 Aura boost).", Level = 67, Color = rgb(255, 205, 50), Color2 = rgb(170, 90, 255), Rarity = "Mythic" }),
+	c("Aura", "Inferno", { Name = "Inferno Crown", Desc = "Win on INFERNO difficulty.", Achievement = "WinInferno", Color = rgb(255, 120, 50), Color2 = rgb(255, 214, 90), Rarity = "Legendary" }),
 } :: { CosmeticDef }
 
 CosmeticData.ById = {} :: { [string]: CosmeticDef }

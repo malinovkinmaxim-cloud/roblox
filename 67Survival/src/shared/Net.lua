@@ -52,6 +52,7 @@ Net.ClientToServer = {
 	"PartyLeave", -- ()
 	"PartyKick", -- (userId)
 	"SetSetting", -- (key, value)
+	"SelectDifficulty", -- (tier index)
 	"RequestLeaderboard", -- ()
 	"Buy", -- (kind: "Pass" | "Product", key) opens the Roblox purchase prompt
 	"StudioPurchase", -- (kind, key) Studio-only fake purchase for testing unconfigured ids

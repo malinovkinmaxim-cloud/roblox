@@ -29,6 +29,7 @@ local MetaData = R("ReplicatedStorage.Modules.MetaData")
 local AchievementData = R("ReplicatedStorage.Modules.AchievementData")
 local WaveData = R("ReplicatedStorage.Modules.WaveData")
 local MonetizationData = R("ReplicatedStorage.Modules.MonetizationData")
+local DifficultyData = R("ReplicatedStorage.Modules.DifficultyData")
 local Protocol = R("ReplicatedStorage.Modules.Protocol")
 local Stats = R("ReplicatedStorage.Modules.Stats")
 local Format = R("ReplicatedStorage.Modules.Util.Format")
@@ -154,6 +155,130 @@ T("15 heroes: models, start abilities, mechanics, unlocks", function()
 		end
 	end
 	Expect(HeroData.ByKey[HeroData.Default].Unlock.Default)
+end)
+
+T("hero models: smooth shapes, few parts, restrained neon, limbs, own colours", function()
+	local looks = {}
+	for _, def in HeroData.List do
+		local hero = HeroModels.Heroes[def.Key]
+		local rounded, neon, limbs = 0, 0, {}
+		for _, p in hero.Pieces do
+			if p.Mesh == "Sphere" or p.Shape ~= nil then
+				rounded += 1
+			end
+			if p.Role == "Glow" or (p.Material and p.Material.Name == "Neon") then
+				neon += 1
+			end
+			if p.Limb then
+				limbs[p.Limb] = true
+			end
+		end
+		local n = #hero.Pieces
+		Expect(rounded / n >= (if hero.Voxel then 0.4 else 0.6), string.format("%s rounded shapes %d/%d", def.Key, rounded, n))
+		Expect(n <= 34, def.Key .. " few shapes: " .. n)
+		Expect(neon <= 6, def.Key .. " neon only on energy parts: " .. neon)
+		Expect(limbs.ArmL and limbs.ArmR, def.Key .. " arms swing")
+		Expect(type(hero.Top) == "number" and hero.HatAt ~= nil, def.Key .. " top / hat spot")
+		local p = hero.Palette.Primary
+		local key = string.format("%d,%d,%d", p.R * 255, p.G * 255, p.B * 255)
+		Expect(not looks[key], def.Key .. " has its own main colour")
+		looks[key] = true
+	end
+	for name, hat in HeroModels.Hats do
+		Expect(#hat <= 10, "hat " .. name .. " stays simple")
+	end
+end)
+
+T("difficulty: 7 tiers, each harder and paying more, rules added step by step", function()
+	Eq(DifficultyData.Count, 7, "tiers")
+	for i, tier in DifficultyData.List do
+		Eq(tier.Index, i, tier.Key .. " index")
+		if i > 1 then
+			local before = DifficultyData.List[i - 1]
+			Expect(tier.EnemyHP > before.EnemyHP and tier.EnemyDamage > before.EnemyDamage and tier.BossHP > before.BossHP, tier.Key .. " harder")
+			Expect(tier.Reward > before.Reward and tier.FirstClear.Coins > before.FirstClear.Coins, tier.Key .. " pays more")
+			Expect(tier.Unlock and tier.Unlock.Tier == i - 1, tier.Key .. " opens from the tier before")
+			for _, m in before.Mods do
+				Expect(table.find(tier.Mods, m), tier.Key .. " keeps " .. m)
+			end
+		end
+		for _, m in tier.Mods do
+			Expect(DifficultyData.Modifiers[m], tier.Key .. " rule " .. m)
+		end
+	end
+	Eq(#DifficultyData.List[1].Mods + #DifficultyData.List[2].Mods, 0, "the first tiers have no special rules")
+	Eq(#DifficultyData.List[7].Mods, 8, "THE 67 has every rule")
+end)
+
+T("difficulty: the unlock chain and titles", function()
+	local best = {}
+	for i = 1, 7 do
+		best[i] = { Time = 0, Bosses = 0, Wins = 0 }
+	end
+	Eq(DifficultyData.Unlocked(best), 1, "new")
+	best[1].Bosses = 1
+	Eq(DifficultyData.Unlocked(best), 2, "a boss on CALM")
+	best[2].Time = 599
+	Eq(DifficultyData.Unlocked(best), 2, "almost 10 minutes")
+	best[2].Time = 600
+	Eq(DifficultyData.Unlocked(best), 3, "10 minutes on HUNT")
+	best[3].Wins = 1
+	Eq(DifficultyData.Unlocked(best), 4, "won HORDE")
+	best[5].Wins = 1
+	Eq(DifficultyData.Unlocked(best), 4, "tiers open in order")
+	Eq(DifficultyData.TitleFor(3), nil, "no title below NIGHTMARE")
+	Eq(DifficultyData.TitleFor(5), "Inferno Walker", "title")
+	Eq(DifficultyData.NewMods(5)[1], "Chaos", "new rules of INFERNO")
+end)
+
+T("difficulty: a run scales the horde, bosses and rules", function()
+	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
+	local calm = Run.new({ Seed = 5, Difficulty = 1 })
+	local top = Run.new({ Seed = 5, Difficulty = 7 })
+	local classic = Run.new({ Seed = 5 })
+	Eq(classic.Difficulty, 2, "the default is the classic tier")
+	local a = EM.Spawn(calm, "Husk", 30, 0)
+	local b = EM.Spawn(top, "Husk", 30, 0)
+	local c = EM.Spawn(classic, "Husk", 30, 0)
+	local tiers = DifficultyData.List
+	Expect(tiers[1].EnemyHP < 1 and tiers[7].EnemyHP > 2, "CALM softer, THE 67 much tougher")
+	Expect(math.abs(a.HP / c.HP - tiers[1].EnemyHP) < 1e-6, "CALM enemy health")
+	Expect(math.abs(b.HP / c.HP - tiers[7].EnemyHP) < 1e-6, "THE 67 enemy health")
+	Expect(b.Damage > c.Damage and a.Damage < c.Damage, "enemy damage")
+	Expect(b.Speed > c.Speed and a.Speed == c.Speed, "FASTER HORDE only with the rule")
+	Expect(top.Mods.Glitch and top.Mods.NoMercy and not calm.Mods.Glitch, "rules")
+	Expect(top.Windup < 1 and calm.Windup == 1, "NO MERCY wind-ups")
+	Expect(top.Stats.Luck > classic.Stats.Luck, "harder tiers: more luck")
+	local boss = EM.Spawn(top, "TheGiant", 40, 0, { Force = true })
+	local extra = boss.Def.Params.EnragePatterns and boss.Def.Params.EnragePatterns[1]
+	if extra then
+		Expect(table.find(boss.Patterns, extra), "BOSS RAGE adds " .. extra .. " from the start")
+	end
+	local calmBoss = EM.Spawn(calm, "TheGiant", 40, 0, { Force = true })
+	Expect(math.abs(boss.MaxHP / calmBoss.MaxHP - tiers[7].BossHP / tiers[1].BossHP) < 1e-6, "boss health scales")
+	Eq(tiers[2].Reward, 1, "HUNT pays like the classic game")
+	-- a few minutes on the top tier stay error free (glitch, chaos, no mercy)
+	top.Invulnerable = 1e9
+	for _ = 1, 20 * 150 do
+		top:Step(0.05)
+		if top.Offer then
+			top:Choose(1)
+		end
+	end
+	Expect(top.Kills > 0 and not top.Ended, "THE 67 simulates")
+end)
+
+T("difficulty: old profiles keep what they could play", function()
+	local old = Defaults.Reconcile({ Stats = { Bosses = 3, BestTime = 700, Wins = 1, Runs = 9 } })
+	Eq(DifficultyData.Unlocked(old.Difficulty.Best), 3, "HUNT (bosses) and HORDE (10 minutes) open")
+	Eq(old.Difficulty.Selected, 2, "they keep the classic tier selected")
+	Eq(old.Stats.HighestWin, 2, "their win counts as a HUNT win")
+	Eq(old.Difficulty.Cleared[2], true, "first clear already paid")
+	local fresh = Defaults.New()
+	Eq(fresh.Difficulty.Selected, 1, "new players start on CALM")
+	Eq(DifficultyData.Unlocked(fresh.Difficulty.Best), 1, "only CALM open")
+	local again = Defaults.Reconcile(fresh)
+	Eq(#again.Difficulty.Best, 7, "reconcile keeps the table")
 end)
 
 T("passives / meta upgrades use known stats", function()

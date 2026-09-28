@@ -1,13 +1,20 @@
 --[[
 	LobbyController - the hub. One screen, one purpose: PLAY.
 
-	  top-left      logo
-	  top-right     coins · fragments · profile · settings (small)
-	  centre        PLAY (the biggest thing on screen) + one line of tagline, and under it
-	                small chips only when they matter: AFK rewards ready, party, live event
+	The 3D hub stage fills the screen: your hero stands on a pedestal on the right (the hub
+	camera, CameraController). The UI keeps a calm central column and lots of free space:
+
+	  top centre    LOGO, the short subtitle under it
+	  top right     coins · fragments · profile · settings (small)
+	  centre        the DIFFICULTY pill, then PLAY (a little below the middle of the screen,
+	                the biggest and brightest thing), small chips under it only when they
+	                matter (AFK rewards, daily reward, party, live event)
 	  left          one small card: today's quest
-	  right         current hero (CHANGE) + daily reward
-	  bottom        HEROES · ABILITIES · SHOP · MORE
+	  right         your hero in 3D, a compact name plate under it (loadout, CHANGE)
+	  bottom        HEROES · ABILITIES · SHOP · MORE (quiet, secondary)
+
+	HERO -> DIFFICULTY -> PLAY: the pill's arrows switch between opened tiers, the pill itself
+	opens the difficulty screen (cards with rules, rewards and unlocks).
 
 	Everything else lives behind MORE (a 3x3 grid) or in its own full-screen menu. Panels
 	(UI/Panels/*) are built on first open: Kind = "Screen" (full screen, world blurred) or
@@ -23,12 +30,12 @@ local HeroData = require(Shared.HeroData)
 local WeaponData = require(Shared.WeaponData)
 local MetaData = require(Shared.MetaData)
 local CosmeticData = require(Shared.CosmeticData)
+local DifficultyData = require(Shared.DifficultyData)
 local GameConfig = require(Shared.GameConfig)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Widgets = require(script.Parent.Parent.UI.Widgets)
-local Previews = require(script.Parent.Parent.UI.Previews)
 local PanelsFolder = script.Parent.Parent.UI.Panels
 
 local LobbyController = {}
@@ -45,6 +52,9 @@ local NAV = {
 	{ Key = "Shop", Text = "SHOP" },
 	{ Key = "More", Text = "MORE" },
 }
+
+-- PLAY sits a little below the middle of the screen (fraction of the safe area height)
+local PLAY_Y = 0.62
 
 local function smallCaps(parent: Instance, text: string, position: UDim2, width: number?): TextLabel
 	return Kit.Label({
@@ -76,7 +86,7 @@ function LobbyController:Init(controllers)
 	self:BuildTop(safe)
 	self:BuildCentre(safe)
 	self:BuildQuestCard(safe)
-	self:BuildRightColumn(safe)
+	self:BuildHeroPlate(safe)
 	self:BuildNav(safe)
 
 	-- panels: modal layer inside the lobby gui; an overlay gui for panels opened from a run
@@ -89,38 +99,83 @@ end
 ---------------------------------------------------------------------------
 -- layout
 ---------------------------------------------------------------------------
+local function pill(name: string, width: number, order: number, parent: Instance): TextButton
+	local button = Kit.New("TextButton", {
+		Name = name,
+		Text = "",
+		AutoButtonColor = false,
+		Size = UDim2.fromOffset(width, 40),
+		BackgroundColor3 = C.Surface,
+		BackgroundTransparency = Theme.Glass,
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	Kit.Corner(button, 20)
+	Kit.Stroke(button)
+	Kit.Interactive(button)
+	return button
+end
+
 function LobbyController:BuildTop(safe: Frame)
-	-- logo (top-left)
-	local logo = Kit.New("Frame", { Name = "Logo", BackgroundTransparency = 1, Size = UDim2.fromOffset(300, 74), Parent = safe })
+	-- the logo, centred, with the subtitle under it
+	local logo = Kit.New("Frame", {
+		Name = "Logo",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(420, 84),
+		Position = UDim2.new(0.5, 0, 0, 30),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Parent = safe,
+	})
+	Kit.New("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		Padding = UDim.new(0, 12),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = logo,
+	})
 	Kit.Label({
 		Name = "Mark",
 		Text = "67",
-		Size = UDim2.fromOffset(84, 70),
+		Size = UDim2.fromOffset(100, 84),
 		Font = F.Meme,
-		MaxTextSize = 64,
+		MaxTextSize = 78,
 		TextColor3 = C.Gold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		StrokeThickness = 2,
-		StrokeTransparency = 0.3,
+		StrokeThickness = 2.5,
+		StrokeTransparency = 0.25,
+		LayoutOrder = 1,
 		Parent = logo,
 	})
 	Kit.Label({
 		Name = "Word",
 		Text = "SURVIVAL",
-		Size = UDim2.fromOffset(200, 34),
-		Position = UDim2.new(0, 86, 0.5, 2),
-		AnchorPoint = Vector2.new(0, 0.5),
+		Size = UDim2.fromOffset(250, 50),
 		Font = F.Title,
-		MaxTextSize = 32,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		MaxTextSize = 44,
+		StrokeThickness = 1.5,
+		StrokeTransparency = 0.6,
+		LayoutOrder = 2,
 		Parent = logo,
+	})
+	self.Tagline = Kit.Label({
+		Name = "Tagline",
+		Text = LobbyController.Tagline,
+		Size = UDim2.fromOffset(440, 22),
+		Position = UDim2.new(0.5, 0, 0, 118),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Font = F.Medium,
+		MaxTextSize = 17,
+		TextColor3 = C.TextDim,
+		StrokeThickness = 1,
+		StrokeTransparency = 0.7,
+		Parent = safe,
 	})
 
 	-- small items (top-right): coins · fragments · profile · settings
 	local bar = Kit.New("Frame", {
 		Name = "TopRight",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(470, 46),
+		Size = UDim2.fromOffset(360, 44),
 		Position = UDim2.fromScale(1, 0),
 		AnchorPoint = Vector2.new(1, 0),
 		Parent = safe,
@@ -129,75 +184,51 @@ function LobbyController:BuildTop(safe: Frame)
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Right,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 10),
+		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = bar,
 	})
 
-	local coins = Kit.New("TextButton", {
-		Name = "Coins",
-		Text = "",
-		AutoButtonColor = false,
-		Size = UDim2.fromOffset(150, 42),
-		BackgroundColor3 = C.Surface,
-		BackgroundTransparency = Theme.Glass,
-		LayoutOrder = 1,
-		Parent = bar,
-	})
-	Kit.Corner(coins, 21)
-	Kit.Stroke(coins)
-	Kit.Interactive(coins)
-	Widgets.Coin(coins, 22, { Position = UDim2.new(0, 12, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
+	local coins = pill("Coins", 132, 1, bar)
+	Widgets.Coin(coins, 20, { Position = UDim2.new(0, 11, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
 	self.CoinsLabel = Kit.Label({
 		Name = "Amount",
 		Text = "0",
-		Size = UDim2.new(1, -78, 0, 22),
-		Position = UDim2.new(0, 42, 0.5, 0),
+		Size = UDim2.new(1, -72, 0, 20),
+		Position = UDim2.new(0, 38, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
 		Font = F.Bold,
-		MaxTextSize = 18,
+		MaxTextSize = 17,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = coins,
 	})
 	local plus = Kit.Label({
 		Text = "+",
-		Size = UDim2.fromOffset(26, 26),
+		Size = UDim2.fromOffset(24, 24),
 		Position = UDim2.new(1, -8, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 0,
 		BackgroundColor3 = C.Accent,
 		Font = F.Title,
-		MaxTextSize = 20,
+		MaxTextSize = 18,
 		Parent = coins,
 	})
-	Kit.Corner(plus, 13)
+	Kit.Corner(plus, 12)
 	coins.Activated:Connect(function()
 		self:OpenPanel("Shop", false, "Upgrades")
 	end)
 
 	-- fragments: unlock heroes and abilities
-	local fragments = Kit.New("TextButton", {
-		Name = "Fragments",
-		Text = "",
-		AutoButtonColor = false,
-		Size = UDim2.fromOffset(100, 42),
-		BackgroundColor3 = C.Surface,
-		BackgroundTransparency = Theme.Glass,
-		LayoutOrder = 1,
-		Parent = bar,
-	})
-	Kit.Corner(fragments, 21)
-	Kit.Stroke(fragments)
-	Kit.Interactive(fragments)
-	Widgets.Fragment(fragments, 20, { Position = UDim2.new(0, 12, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
+	local fragments = pill("Fragments", 92, 2, bar)
+	Widgets.Fragment(fragments, 18, { Position = UDim2.new(0, 11, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
 	self.FragmentsLabel = Kit.Label({
 		Name = "Amount",
 		Text = "0",
-		Size = UDim2.new(1, -48, 0, 22),
-		Position = UDim2.new(0, 40, 0.5, 0),
+		Size = UDim2.new(1, -44, 0, 20),
+		Position = UDim2.new(0, 36, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
 		Font = F.Bold,
-		MaxTextSize = 18,
+		MaxTextSize = 17,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = fragments,
 	})
@@ -209,13 +240,13 @@ function LobbyController:BuildTop(safe: Frame)
 		Name = "Profile",
 		Text = "",
 		AutoButtonColor = false,
-		Size = UDim2.fromOffset(42, 42),
+		Size = UDim2.fromOffset(40, 40),
 		BackgroundColor3 = C.SurfaceLight,
 		LayoutOrder = 3,
 		Parent = bar,
 	})
-	Kit.Corner(profile, 21)
-	Kit.Stroke(profile, 2, C.Accent, 0.2)
+	Kit.Corner(profile, 20)
+	Kit.Stroke(profile, 2, C.Accent, 0.25)
 	Kit.Interactive(profile)
 	local avatar = Kit.New("ImageLabel", {
 		Name = "Avatar",
@@ -224,7 +255,7 @@ function LobbyController:BuildTop(safe: Frame)
 		Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", Players.LocalPlayer.UserId),
 		Parent = profile,
 	})
-	Kit.Corner(avatar, 21)
+	Kit.Corner(avatar, 20)
 	self.LevelChip = Kit.Label({
 		Name = "Level",
 		Text = "1",
@@ -247,7 +278,7 @@ function LobbyController:BuildTop(safe: Frame)
 		Name = "Settings",
 		Text = "",
 		AutoButtonColor = false,
-		Size = UDim2.fromOffset(42, 42),
+		Size = UDim2.fromOffset(40, 40),
 		BackgroundColor3 = C.Surface,
 		BackgroundTransparency = Theme.Glass,
 		LayoutOrder = 4,
@@ -256,62 +287,151 @@ function LobbyController:BuildTop(safe: Frame)
 	Kit.Corner(settings, 12)
 	Kit.Stroke(settings)
 	Kit.Interactive(settings)
-	Widgets.Gear(settings, 22, C.TextDim, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
+	Widgets.Gear(settings, 20, C.TextDim, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 	settings.Activated:Connect(function()
 		self:OpenPanel("Settings")
 	end)
 end
 
 function LobbyController:BuildCentre(safe: Frame)
-	local group = Kit.New("Frame", {
-		Name = "PlayGroup",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(360, 140),
-		Position = UDim2.fromScale(0.5, 0.6),
+	-- DIFFICULTY (above PLAY): ‹  III  HORDE  ›
+	local diff = Kit.New("Frame", {
+		Name = "Difficulty",
+		Size = UDim2.fromOffset(300, 40),
+		Position = UDim2.new(0.5, 0, PLAY_Y, -80),
 		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = C.Surface,
+		BackgroundTransparency = Theme.Glass,
 		Parent = safe,
 	})
+	Kit.Corner(diff, 20)
+	self.DiffStroke = Kit.Stroke(diff, 1.5, C.TextDim, 0.3)
+	local function arrow(name: string, text: string, x: number, anchor: number, step: number)
+		local b = Kit.New("TextButton", {
+			Name = name,
+			Text = text,
+			AutoButtonColor = false,
+			Font = F.Title,
+			TextSize = 24,
+			TextColor3 = C.TextDim,
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(44, 40),
+			Position = UDim2.new(x, 0, 0.5, 0),
+			AnchorPoint = Vector2.new(anchor, 0.5),
+			Parent = diff,
+		})
+		Kit.Interactive(b, 1.15)
+		b.Activated:Connect(function()
+			if Kit.ClickSound then
+				Kit.ClickSound()
+			end
+			self:StepDifficulty(step)
+		end)
+		return b
+	end
+	self.DiffPrev = arrow("Prev", "‹", 0, 0, -1)
+	self.DiffNext = arrow("Next", "›", 1, 1, 1)
+	local open = Kit.New("TextButton", {
+		Name = "Open",
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -88, 1, 0),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Parent = diff,
+	})
+	open.Activated:Connect(function()
+		if Kit.ClickSound then
+			Kit.ClickSound()
+		end
+		self:OpenPanel("Difficulty")
+	end)
+	-- "III  HORDE  x1.6": numeral in the tier colour, the name, the reward multiplier in gold
+	local row = Kit.New("Frame", { Name = "Row", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = open })
+	Kit.New("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = row,
+	})
+	local function part(name: string, order: number, font: Enum.Font, size: number, color: Color3): TextLabel
+		return Kit.New("TextLabel", {
+			Name = name,
+			Text = "",
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 22),
+			BackgroundTransparency = 1,
+			Font = font,
+			TextSize = size,
+			TextColor3 = color,
+			LayoutOrder = order,
+			Parent = row,
+		})
+	end
+	self.DiffNumeral = part("Numeral", 1, F.Title, 18, C.TextDim)
+	self.DiffName = part("Name", 2, F.Title, 17, C.Text)
+	self.DiffReward = part("Reward", 3, F.Bold, 12, C.Gold)
+	self.DiffPill = diff
+
+	-- PLAY: big, clean, a soft halo and a lift under the mouse
+	local halo = Kit.New("Frame", {
+		Name = "PlayHalo",
+		Size = UDim2.fromOffset(340, 106),
+		Position = UDim2.fromScale(0.5, PLAY_Y),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = C.Accent,
+		BackgroundTransparency = 1,
+		Parent = safe,
+	})
+	Kit.Corner(halo, 34)
+	local shadow = Kit.New("Frame", {
+		Name = "PlayShadow",
+		Size = UDim2.fromOffset(310, 84),
+		Position = UDim2.new(0.5, 0, PLAY_Y, 7),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = C.SurfaceDark,
+		BackgroundTransparency = 0.55,
+		Parent = safe,
+	})
+	Kit.Corner(shadow, 24)
 	local play, label = Kit.Button({
 		Name = "Play",
 		Text = "PLAY",
-		Size = UDim2.fromOffset(320, 92),
-		Position = UDim2.fromScale(0.5, 0),
-		AnchorPoint = Vector2.new(0.5, 0),
+		Size = UDim2.fromOffset(320, 88),
+		Position = UDim2.fromScale(0.5, PLAY_Y),
+		AnchorPoint = Vector2.new(0.5, 0.5),
 		Color = C.Accent,
 		Dark = C.AccentDark,
-		Radius = 22,
+		Radius = 26,
 		TextSize = 46,
 		Font = F.Title,
 		OnClick = function()
 			self:Play()
 		end,
-		Parent = group,
+		Parent = safe,
 	})
-	label.Size = UDim2.new(1, -40, 1, -24)
-	Kit.Interactive(play, 1.05)
+	label.Size = UDim2.new(1, -40, 1, -26)
+	Kit.Interactive(play, 1.04)
+	play.MouseEnter:Connect(function()
+		Kit.Tween(halo, 0.25, { BackgroundTransparency = 0.78 })
+	end)
+	play.MouseLeave:Connect(function()
+		Kit.Tween(halo, 0.3, { BackgroundTransparency = 1 })
+	end)
 	self.PlayButton = play
-	self.Tagline = Kit.Label({
-		Name = "Tagline",
-		Text = LobbyController.Tagline,
-		Size = UDim2.fromOffset(420, 22),
-		Position = UDim2.new(0.5, 0, 0, 106),
-		AnchorPoint = Vector2.new(0.5, 0),
-		Font = F.Medium,
-		MaxTextSize = 17,
-		TextColor3 = C.Text,
-		StrokeThickness = 1,
-		StrokeTransparency = 0.75,
-		Parent = group,
-	})
+	self.PlayHalo = halo
 
-	-- small chips under the tagline: only shown when they matter
+	-- small chips under PLAY: only shown when they matter
 	local chips = Kit.New("Frame", {
 		Name = "Chips",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(560, 30),
-		Position = UDim2.new(0.5, 0, 0, 138),
+		Size = UDim2.fromOffset(600, 30),
+		Position = UDim2.new(0.5, 0, PLAY_Y, 62),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Parent = group,
+		Parent = safe,
 	})
 	Kit.New("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
@@ -338,7 +458,7 @@ function LobbyController:BuildCentre(safe: Frame)
 		Kit.Stroke(button, 1.5, color, 0.3)
 		Kit.Padding(button, 12, 0)
 		Kit.Interactive(button, 1.04)
-		local label = Kit.New("TextLabel", {
+		local text = Kit.New("TextLabel", {
 			Name = "Text",
 			Text = "",
 			AutomaticSize = Enum.AutomaticSize.X,
@@ -355,8 +475,16 @@ function LobbyController:BuildCentre(safe: Frame)
 			end
 			onClick()
 		end)
-		return button, label
+		return button, text
 	end
+	self.DailyChip, self.DailyChipText = chip("Daily", 0, C.Gold, function()
+		local data = self.C.ClientData.Data
+		if data and data.Daily and data.Daily.CanClaim then
+			self.C.ClientData:Fire("ClaimDaily")
+		else
+			self:OpenPanel("Daily")
+		end
+	end)
 	self.AfkChip, self.AfkChipText = chip("Afk", 1, C.Gold, function()
 		self:OpenPanel("AfkCamp")
 	end)
@@ -370,8 +498,8 @@ function LobbyController:BuildCentre(safe: Frame)
 end
 
 function LobbyController:BuildQuestCard(safe: Frame)
-	local card = Widgets.Card(safe, UDim2.fromOffset(250, 112), 0, "QuestCard")
-	card.Position = UDim2.fromScale(0, 0.5)
+	local card = Widgets.Card(safe, UDim2.fromOffset(244, 100), 0, "QuestCard")
+	card.Position = UDim2.new(0, 0, 0.5, -16)
 	card.AnchorPoint = Vector2.new(0, 0.5)
 	card.BackgroundColor3 = C.Surface
 	card.BackgroundTransparency = Theme.Glass
@@ -380,32 +508,32 @@ function LobbyController:BuildQuestCard(safe: Frame)
 		Name = "Text",
 		Text = "",
 		Size = UDim2.new(1, -32, 0, 20),
-		Position = UDim2.fromOffset(16, 32),
+		Position = UDim2.fromOffset(16, 31),
 		Font = F.Bold,
-		MaxTextSize = 17,
+		MaxTextSize = 16,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = card,
 	})
-	self.QuestBar = Widgets.Bar(card, UDim2.new(1, -96, 0, 8), UDim2.fromOffset(16, 64), C.Accent)
+	self.QuestBar = Widgets.Bar(card, UDim2.new(1, -92, 0, 7), UDim2.fromOffset(16, 61), C.Accent)
 	self.QuestBar.Label.Visible = false
 	self.QuestCount = Kit.Label({
 		Text = "",
 		Size = UDim2.fromOffset(56, 16),
-		Position = UDim2.new(1, -16, 0, 60),
+		Position = UDim2.new(1, -16, 0, 57),
 		AnchorPoint = Vector2.new(1, 0),
 		Font = F.Bold,
-		MaxTextSize = 14,
+		MaxTextSize = 13,
 		TextColor3 = C.TextDim,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = card,
 	})
-	Widgets.Coin(card, 16, { Position = UDim2.fromOffset(16, 82) })
+	Widgets.Coin(card, 15, { Position = UDim2.fromOffset(16, 77) })
 	self.QuestReward = Kit.Label({
 		Text = "",
-		Size = UDim2.new(1, -56, 0, 16),
-		Position = UDim2.fromOffset(38, 82),
+		Size = UDim2.new(1, -56, 0, 15),
+		Position = UDim2.fromOffset(37, 77),
 		Font = F.Bold,
-		MaxTextSize = 14,
+		MaxTextSize = 13,
 		TextColor3 = C.Gold,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = card,
@@ -416,116 +544,65 @@ function LobbyController:BuildQuestCard(safe: Frame)
 	self.QuestCard = card
 end
 
-function LobbyController:BuildRightColumn(safe: Frame)
-	local column = Kit.New("Frame", {
-		Name = "Right",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(250, 322),
-		Position = UDim2.fromScale(1, 0.5),
-		AnchorPoint = Vector2.new(1, 0.5),
+-- the name plate under the 3D hero (bottom right): name, rarity + loadout, CHANGE
+function LobbyController:BuildHeroPlate(safe: Frame)
+	local plate = Kit.Panel({
+		Name = "HeroCard",
+		Size = UDim2.fromOffset(250, 62),
+		Position = UDim2.new(1, 0, 1, if Kit.IsTouch() then -70 else 0),
+		AnchorPoint = Vector2.new(1, 1),
+		Radius = 16,
 		Parent = safe,
 	})
-	Kit.New("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = column })
-
-	-- current hero
-	local card = Kit.Panel({ Name = "HeroCard", Size = UDim2.fromOffset(250, 222), LayoutOrder = 1, Radius = 16, Parent = column })
-	smallCaps(card, "HERO", UDim2.fromOffset(16, 12), 90)
+	self.CharacterName = Kit.Label({
+		Name = "Name",
+		Text = "",
+		Size = UDim2.new(1, -120, 0, 22),
+		Position = UDim2.fromOffset(16, 9),
+		Font = F.Title,
+		MaxTextSize = 18,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = plate,
+	})
 	self.HeroRarity = Kit.Label({
 		Name = "Rarity",
 		Text = "",
-		Size = UDim2.fromOffset(110, 16),
-		Position = UDim2.new(1, -16, 0, 12),
-		AnchorPoint = Vector2.new(1, 0),
+		Size = UDim2.new(1, -120, 0, 15),
+		Position = UDim2.fromOffset(16, 35),
 		Font = F.Bold,
-		MaxTextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Parent = card,
-	})
-	self.PreviewHolder = Kit.New("Frame", {
-		Name = "PreviewHolder",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -24, 0, 120),
-		Position = UDim2.fromOffset(12, 30),
-		Parent = card,
-	})
-	self.CharacterName = Kit.Label({
-		Text = "",
-		Size = UDim2.new(1, -32, 0, 22),
-		Position = UDim2.fromOffset(16, 150),
-		Font = F.Title,
-		MaxTextSize = 20,
+		MaxTextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = card,
+		Parent = plate,
 	})
 	Kit.Button({
 		Name = "Change",
 		Text = "CHANGE",
-		Size = UDim2.new(1, -32, 0, 34),
-		Position = UDim2.fromOffset(16, 178),
+		Size = UDim2.fromOffset(92, 38),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		AnchorPoint = Vector2.new(1, 0.5),
 		Color = C.Neutral,
-		TextSize = 15,
+		TextSize = 14,
 		OnClick = function()
 			self:OpenPanel("Heroes")
 		end,
-		Parent = card,
+		Parent = plate,
 	})
-
-	-- daily reward
-	local reward = Kit.Panel({ Name = "RewardCard", Size = UDim2.fromOffset(250, 88), LayoutOrder = 2, Radius = 16, Parent = column })
-	smallCaps(reward, "DAILY REWARD", UDim2.fromOffset(16, 12))
-	Widgets.Coin(reward, 18, { Position = UDim2.fromOffset(16, 38) })
-	self.RewardText = Kit.Label({
-		Text = "",
-		Size = UDim2.fromOffset(94, 20),
-		Position = UDim2.fromOffset(40, 37),
-		Font = F.Bold,
-		MaxTextSize = 17,
-		TextColor3 = C.Gold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = reward,
-	})
-	self.RewardDay = Kit.Label({
-		Text = "",
-		Size = UDim2.fromOffset(110, 16),
-		Position = UDim2.fromOffset(16, 62),
-		Font = F.Medium,
-		MaxTextSize = 13,
-		TextColor3 = C.TextMuted,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = reward,
-	})
-	local claim, claimLabel = Kit.Button({
-		Name = "Claim",
-		Text = "CLAIM",
-		Size = UDim2.fromOffset(96, 40),
-		Position = UDim2.new(1, -14, 0.5, 6),
-		AnchorPoint = Vector2.new(1, 0.5),
-		Color = C.Success,
-		TextSize = 15,
-		OnClick = function()
-			local data = self.C.ClientData.Data
-			if data and data.Daily and data.Daily.CanClaim then
-				self.C.ClientData:Fire("ClaimDaily")
-			end
-		end,
-		Parent = reward,
-	})
-	self.ClaimButton, self.ClaimLabel = claim, claimLabel
+	self.HeroPlate = plate
 end
 
 function LobbyController:BuildNav(safe: Frame)
 	local nav = Kit.New("Frame", {
 		Name = "Nav",
-		Size = UDim2.fromOffset(4 * 148 + 16, 60),
+		Size = UDim2.fromOffset(4 * 116 + 12, 48),
 		Position = UDim2.fromScale(0.5, 1),
 		AnchorPoint = Vector2.new(0.5, 1),
 		BackgroundColor3 = C.Surface,
-		BackgroundTransparency = Theme.Glass,
+		BackgroundTransparency = 0.35,
 		Parent = safe,
 	})
-	Kit.Corner(nav, 30)
+	Kit.Corner(nav, 24)
 	Kit.Stroke(nav)
-	Kit.Padding(nav, 8, 6)
+	Kit.Padding(nav, 6, 5)
 	Kit.New("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
@@ -540,23 +617,21 @@ function LobbyController:BuildNav(safe: Frame)
 			Text = entry.Text,
 			AutoButtonColor = false,
 			Font = F.Bold,
-			TextSize = 16,
+			TextSize = 14,
 			TextColor3 = C.TextDim,
 			BackgroundColor3 = C.SurfaceLight,
 			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(148, 48),
+			Size = UDim2.fromOffset(116, 38),
 			LayoutOrder = i,
 			Parent = nav,
 		})
-		Kit.Corner(button, 24)
+		Kit.Corner(button, 19)
 		Kit.Interactive(button, 1.03)
 		button.MouseEnter:Connect(function()
-			button.BackgroundTransparency = 0.2
-			button.TextColor3 = C.Text
+			Kit.Tween(button, 0.15, { BackgroundTransparency = 0.2, TextColor3 = C.Text })
 		end)
 		button.MouseLeave:Connect(function()
-			button.BackgroundTransparency = 1
-			button.TextColor3 = C.TextDim
+			Kit.Tween(button, 0.2, { BackgroundTransparency = 1, TextColor3 = C.TextDim })
 		end)
 		button.Activated:Connect(function()
 			if Kit.ClickSound then
@@ -566,14 +641,14 @@ function LobbyController:BuildNav(safe: Frame)
 		end)
 		local dot = Kit.New("Frame", {
 			Name = "Dot",
-			Size = UDim2.fromOffset(8, 8),
-			Position = UDim2.new(0.5, #entry.Text * 5 + 6, 0, 12), -- just after the label
+			Size = UDim2.fromOffset(7, 7),
+			Position = UDim2.new(0.5, #entry.Text * 4.5 + 5, 0, 9), -- just after the label
 			BackgroundColor3 = C.Accent,
 			Visible = false,
 			ZIndex = 3,
 			Parent = button,
 		})
-		Kit.Corner(dot, 5)
+		Kit.Corner(dot, 4)
 		self.NavButtons[entry.Key] = button
 	end
 end
@@ -588,7 +663,25 @@ function LobbyController:Play()
 	end
 	self:ClosePanel()
 	self.C.SoundController:Play("Banner")
-	self.C.ClientData:Fire("StartRun") -- the server uses the active loadout
+	self.C.ClientData:Fire("StartRun") -- the server uses the active loadout and difficulty
+end
+
+-- the pill's arrows: the next / previous OPEN tier (a locked one opens the difficulty screen)
+function LobbyController:StepDifficulty(step: number)
+	local data = self.C.ClientData.Data
+	local diff = data and data.Difficulty
+	if not diff then
+		return
+	end
+	local target = diff.Selected + step
+	if target < 1 then
+		return
+	end
+	if target > diff.Unlocked then
+		self:OpenPanel("Difficulty")
+		return
+	end
+	self.C.ClientData:Fire("SelectDifficulty", target)
 end
 
 function LobbyController:Show()
@@ -613,7 +706,7 @@ end
 --[[
 	key: panel module name without "Panel" (Heroes, Abilities, Shop, More, Achievements,
 	Collection, Challenges, AfkCamp, Party, Leaderboard, Statistics, Codes, Settings,
-	Profile, Daily, Credits)
+	Profile, Daily, Credits, Difficulty)
 	overlay: show above the run HUD (settings from the pause menu); arg: passed to OnOpen
 ]]
 function LobbyController:OpenPanel(key: string, overlay: boolean?, arg: any?)
@@ -693,23 +786,37 @@ function LobbyController:RefreshQuest(data)
 end
 
 function LobbyController:RefreshHero(data)
-	local equipped = data.Cosmetics and data.Cosmetics.Equipped
-	local skin = CosmeticData.Style(equipped, "HeroSkin")
-	local hat = CosmeticData.Style(equipped, "Hat")
-	local key = data.Selected .. "|" .. skin .. "|" .. hat
-	if self.PreviewKey ~= key then
-		self.PreviewKey = key
-		Widgets.Clear(self.PreviewHolder)
-		Previews.Hero(self.PreviewHolder, data.Selected, { Skin = skin, Hat = hat })
-	end
 	local def = HeroData.ByKey[data.Selected]
 	self.CharacterName.Text = if def then def.Name else ""
-	self.HeroRarity.Text = if def then string.upper(def.Rarity) else ""
+	local slot = if (data.LoadoutSlots or 1) > 1 then "  ·  LOADOUT " .. tostring(data.Loadout or 1) else ""
+	self.HeroRarity.Text = if def then string.upper(def.Rarity) .. slot else ""
 	self.HeroRarity.TextColor3 = if def then (Theme.Rarity[def.Rarity] or C.TextDim) else C.TextDim
+end
+
+-- the difficulty pill: tier numeral + name in the tier's colour, the reward multiplier
+function LobbyController:RefreshDifficulty(data)
+	local diff = data.Difficulty
+	if not diff then
+		return
+	end
+	local tier = DifficultyData.Get(diff.Selected)
+	self.DiffNumeral.Text = tier.Numeral
+	self.DiffNumeral.TextColor3 = tier.Color
+	self.DiffName.Text = tier.Name
+	self.DiffReward.Text = if tier.Reward > 1 then "x" .. tostring(tier.Reward) .. " REWARDS" else ""
+	self.DiffReward.Visible = tier.Reward > 1
+	self.DiffStroke.Color = tier.Color
+	self.DiffPrev.TextTransparency = if diff.Selected > 1 then 0 else 0.7
+	self.DiffNext.TextTransparency = if diff.Selected < DifficultyData.Count then 0 else 0.7
 end
 
 -- the small chips under PLAY
 function LobbyController:RefreshChips(data)
+	local daily = data.Daily
+	self.DailyChip.Visible = daily ~= nil and daily.CanClaim == true
+	if daily and daily.CanClaim then
+		self.DailyChipText.Text = "DAILY REWARD +" .. Widgets.Commas(daily.Reward)
+	end
 	local afk = data.Afk
 	local ready = afk and afk.Heroes > 0 and (afk.Coins > 0 or afk.Fragments > 0)
 	self.AfkChip.Visible = ready == true
@@ -725,23 +832,6 @@ function LobbyController:RefreshChips(data)
 	self.EventChip.Visible = event ~= nil
 	if event then
 		self.EventChipText.Text = event.Title
-	end
-end
-
-function LobbyController:RefreshReward(data)
-	local daily = data.Daily
-	if not daily then
-		return
-	end
-	self.RewardText.Text = "+" .. Widgets.Commas(daily.Reward)
-	self.RewardDay.Text = "Day " .. tostring(daily.Streak) .. " streak"
-	if daily.CanClaim then
-		self.ClaimLabel.Text = "CLAIM"
-		Kit.SetButtonColor(self.ClaimButton, C.Success)
-	else
-		self.ClaimLabel.Text = "TOMORROW"
-		Kit.SetButtonColor(self.ClaimButton, C.Neutral)
-		self.RewardText.Text = "Claimed"
 	end
 end
 
@@ -836,7 +926,7 @@ function LobbyController:Refresh(data)
 	self:ApplyTheme(data)
 	self:RefreshQuest(data)
 	self:RefreshHero(data)
-	self:RefreshReward(data)
+	self:RefreshDifficulty(data)
 	self:RefreshChips(data)
 	self:RefreshBadges(data)
 	local open = self.Open

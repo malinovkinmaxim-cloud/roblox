@@ -22,7 +22,21 @@ local serde = require("@lune/serde")
 
 local RealInstance = roblox.Instance
 local Enum = roblox.Enum
-local Vector2, Vector3, CFrame, Color3 = roblox.Vector2, roblox.Vector3, roblox.CFrame, roblox.Color3
+local Vector2, Vector3, Color3 = roblox.Vector2, roblox.Vector3, roblox.Color3
+
+-- Lune 0.8's CFrame.lookAt returns a wrong basis (transposed and turned around): the scripts
+-- get Roblox's lookAt instead, so cameras and aimed parts match the real game
+local CFrame = setmetatable({
+	lookAt = function(eye: roblox.Vector3, target: roblox.Vector3, up: roblox.Vector3?): roblox.CFrame
+		local look = (target - eye).Unit
+		local right = look:Cross(up or Vector3.new(0, 1, 0))
+		if right.Magnitude < 1e-6 then
+			right = look:Cross(Vector3.new(0, 0, if look.Y > 0 then 1 else -1))
+		end
+		right = right.Unit
+		return roblox.CFrame.fromMatrix(eye, right, right:Cross(look).Unit, -look)
+	end,
+}, { __index = roblox.CFrame })
 
 local Engine = {}
 Engine.RemoteFolder = "Remotes"

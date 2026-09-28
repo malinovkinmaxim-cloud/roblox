@@ -104,7 +104,7 @@ function BannerController:Init(controllers)
 		AnchorPoint = Vector2.new(0.5, 0),
 		Parent = root,
 	})
-	Kit.New("UIListLayout", {
+	self.ToastLayout = Kit.New("UIListLayout", {
 		Padding = UDim.new(0, 6),
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -112,6 +112,21 @@ function BannerController:Init(controllers)
 	})
 	self.Toasts = toasts
 	self.ToastOrder = 0
+end
+
+-- in a run (and on its results) toasts sit at the top centre (under the timer); in the hub
+-- the logo is there, so they stack on the right under the coins bar
+function BannerController:PlaceToasts()
+	local inRun = (self.C.RunClient and self.C.RunClient.Active) or self.C.ResultsController:IsOpen()
+	if inRun then
+		self.Toasts.Position = UDim2.new(0.5, 0, 0, 90)
+		self.Toasts.AnchorPoint = Vector2.new(0.5, 0)
+		self.ToastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	else
+		self.Toasts.Position = UDim2.new(1, -24, 0, 104)
+		self.Toasts.AnchorPoint = Vector2.new(1, 0)
+		self.ToastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -285,6 +300,7 @@ function BannerController:Toast(text: string, kind: string?)
 		return -- the results screen already lists them
 	end
 	local color = Theme.ToastColors[kind or "Info"] or Theme.ToastColors.Info
+	self:PlaceToasts()
 	self.ToastOrder += 1
 	local frame = Kit.Panel({
 		Size = UDim2.fromOffset(400, 40),

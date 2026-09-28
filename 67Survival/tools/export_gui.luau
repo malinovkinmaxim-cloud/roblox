@@ -57,21 +57,46 @@ local GUI = {
 	CanvasGroup = true,
 }
 
+local function shapeOf(d): string
+	if d:IsA("Part") then
+		return d.Shape.Name
+	elseif d:IsA("WedgePart") then
+		return "Wedge"
+	elseif d:IsA("CornerWedgePart") then
+		return "CornerWedge"
+	end
+	return "Block"
+end
+
+-- one part for tools/render3d.py (cf: the CFrame to draw it at)
+local function partInfo(d, cf)
+	local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+	local info = {
+		p = { x, y, z },
+		r = { r00, r01, r02, r10, r11, r12, r20, r21, r22 },
+		s = { d.Size.X, d.Size.Y, d.Size.Z },
+		c = color(d.Color),
+		t = d.Transparency,
+		shape = shapeOf(d),
+		mat = d.Material.Name,
+		neon = d.Material.Name == "Neon",
+	}
+	local mesh = d:FindFirstChildOfClass("SpecialMesh")
+	if mesh then
+		info.mesh = {
+			type = mesh.MeshType.Name,
+			scale = { mesh.Scale.X, mesh.Scale.Y, mesh.Scale.Z },
+			offset = { mesh.Offset.X, mesh.Offset.Y, mesh.Offset.Z },
+		}
+	end
+	return info
+end
+
 local function parts(vf)
 	local out = {}
 	for _, d in vf:GetDescendants() do
 		if d:IsA("BasePart") then
-			local cf = d.CFrame
-			local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
-			table.insert(out, {
-				p = { x, y, z },
-				r = { r00, r01, r02, r10, r11, r12, r20, r21, r22 },
-				s = { d.Size.X, d.Size.Y, d.Size.Z },
-				c = color(d.Color),
-				t = d.Transparency,
-				shape = if d:IsA("Part") then d.Shape.Name else "Block",
-				neon = d.Material.Name == "Neon",
-			})
+			table.insert(out, partInfo(d, d.CFrame))
 		end
 	end
 	return out
@@ -133,6 +158,9 @@ local function serialize(realInst)
 			node.bar = inst.ScrollBarThickness
 		elseif class == "ViewportFrame" then
 			node.ic = color(inst.ImageColor3)
+			node.amb = color(realInst.Ambient)
+			node.lc = color(realInst.LightColor)
+			node.ld = { realInst.LightDirection.X, realInst.LightDirection.Y, realInst.LightDirection.Z }
 			local camera = realInst:FindFirstChildOfClass("Camera")
 			if camera then
 				local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = camera.CFrame:GetComponents()
@@ -210,6 +238,108 @@ local function blurSize(world)
 	return size
 end
 
+local WORLD_RADIUS = 280
+
+local function isCharacterPart(d): boolean
+	local model = d:FindFirstAncestorOfClass("Model")
+	while model do
+		if model:FindFirstChildOfClass("Humanoid") then
+			return true
+		end
+		model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
+	end
+	return false
+end
+
+-- the 3D world a player sees behind the UI: the client's camera, map, local effects and
+-- enemy models, plus the hero models (built on the server; the offline engine does not
+-- move welded parts, so they are re-posed onto the character's current root)
+local function worldOf(client)
+	local ws = real(client.Game:GetService("Workspace"))
+	local camera = client.Camera -- the engine's camera (a plain table set by the client scripts)
+	if not camera then
+		return nil
+	end
+	local camCF = camera.CFrame
+	local camPos = camCF.Position
+	if camPos.Magnitude < 1 then
+		return nil -- the default camera script does not run offline: no scripted camera yet
+	end
+	local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = camCF:GetComponents()
+	local out = {
+		cam = { p = { x, y, z }, r = { r00, r01, r02, r10, r11, r12, r20, r21, r22 }, fov = camera.FieldOfView },
+		parts = {},
+		lights = {},
+		shadows = {},
+	}
+	local function near(p): boolean
+		return (p - camPos).Magnitude < WORLD_RADIUS
+	end
+	for _, d in ws:GetDescendants() do
+		if d:IsA("BasePart") then
+			if d.Transparency < 0.98 and near(d.CFrame.Position) and not isCharacterPart(d) then
+				table.insert(out.parts, partInfo(d, d.CFrame))
+			end
+		elseif d:IsA("PointLight") and d.Enabled and d.Parent:IsA("BasePart") and near(d.Parent.CFrame.Position) then
+			local lp = d.Parent.CFrame.Position
+			table.insert(out.lights, { p = { lp.X, lp.Y, lp.Z }, range = d.Range, brightness = d.Brightness, c = color(d.Color) })
+		end
+	end
+	local server = real(Engine.Server.Game:GetService("Workspace"))
+	for _, character in server:GetChildren() do
+		local root = character:IsA("Model") and character:FindFirstChild("HumanoidRootPart")
+		local hero = character:IsA("Model") and character:FindFirstChild("HeroModel")
+		local heroRoot = hero and hero:FindFirstChild("HeroRoot")
+		if root and heroRoot and near(root.CFrame.Position) then
+			-- the client's copy of the root has the up-to-date position
+			local clientChar = ws:FindFirstChild(character.Name)
+			local clientRoot = clientChar and clientChar:FindFirstChild("HumanoidRootPart")
+			local rootCF = if clientRoot then clientRoot.CFrame else root.CFrame
+			local delta = rootCF * heroRoot.CFrame:Inverse()
+			for _, d in character:GetDescendants() do
+				if d:IsA("BasePart") and d.Transparency < 0.98 and (d:IsDescendantOf(hero) or d.Name == "LobbyDecor") then
+					table.insert(out.parts, partInfo(d, delta * d.CFrame))
+				end
+			end
+			local feet = rootCF.Position - Vector3.new(0, 2.95, 0)
+			table.insert(out.shadows, { { feet.X, feet.Y, feet.Z }, 1.9 })
+		end
+	end
+	-- lighting: the server's (MapBuilder: time of day, haze; the offline engine does not
+	-- replicate Lighting) + the client's local effects (hub depth of field, difficulty mood)
+	local serverLighting = real(Engine.Server.Game:GetService("Lighting"))
+	local lighting = real(client.Game:GetService("Lighting"))
+	local clock = serverLighting.ClockTime
+	local a = (clock - 6) / 12 * math.pi
+	local sun = Vector3.new(-math.cos(a) * 0.6, math.sin(a), 0.45).Unit
+	local amb = serverLighting.OutdoorAmbient
+	out.light = {
+		sun = { -sun.X, -sun.Y, -sun.Z },
+		ambient = { 0.45 + amb.R * 0.35, 0.45 + amb.G * 0.35, 0.5 + amb.B * 0.35 },
+	}
+	local effects = {}
+	for _, child in serverLighting:GetChildren() do
+		table.insert(effects, child)
+	end
+	for _, child in lighting:GetChildren() do
+		table.insert(effects, child)
+	end
+	for _, child in effects do
+		if child:IsA("Atmosphere") then
+			out.light.fogDensity = child.Density * 0.012
+			out.light.fogColor = color(child.Color)
+		elseif child:IsA("DepthOfFieldEffect") and child.Enabled then
+			out.dof = { focus = child.FocusDistance, radius = child.InFocusRadius, blur = child.FarIntensity * 6 }
+		elseif child:IsA("ColorCorrectionEffect") and child.Enabled then
+			local t = child.TintColor
+			if t.R < 0.99 or t.G < 0.99 or t.B < 0.99 then
+				out.tint = { t.R, t.G, t.B, 0.12 }
+			end
+		end
+	end
+	return out
+end
+
 local function export(world, name: string, note: string?)
 	WORLD = world
 	local gui = real(world.LocalPlayer:FindFirstChild("PlayerGui"))
@@ -225,6 +355,7 @@ local function export(world, name: string, note: string?)
 		touch = world.Touch == true,
 		blur = blurSize(world),
 		guis = guis,
+		world = worldOf(world),
 	}))
 	print("exported " .. name)
 end
@@ -262,6 +393,11 @@ session.Data.Cosmetics.Owned["Hat.Cone"] = true
 session.Data.Cosmetics.New["Hat.Cone"] = true
 session.Data.Afk.Slots[1] = "Tank"
 session.Data.Afk.Since = os.time() - 50 * 60
+-- difficulty: CALM and HUNT done, HORDE selected
+session.Data.Difficulty.Best[1] = { Time = 740, Bosses = 3, Wins = 1 }
+session.Data.Difficulty.Best[2] = { Time = 655, Bosses = 2, Wins = 0 }
+session.Data.Difficulty.Cleared[1] = true
+session.Data.Difficulty.Selected = 3
 local cd = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.ClientData")
 local lobby = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.LobbyController")
 cd:Fire("BuyMeta", "Might")
@@ -288,6 +424,7 @@ for _, scene in {
 	{ "Codes" },
 	{ "Statistics" },
 	{ "Leaderboard" },
+	{ "Difficulty" },
 } do
 	lobby:OpenPanel(scene[1], false, scene[2])
 	Engine.Step(1)
@@ -299,6 +436,8 @@ Engine.Step(0.5)
 -- a run: play ~40 s, then jump to the first boss
 local runClient = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.RunClient")
 local levelUp = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.LevelUpController")
+cd:Fire("SelectDifficulty", 2) -- the classic tier: the scripted run below is tuned for it
+Engine.Step(0.5)
 cd:Fire("StartRun")
 Engine.Step(0.5)
 local run = GM.Entries[alicePlayer].Run

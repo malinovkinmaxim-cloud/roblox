@@ -25,6 +25,7 @@ local HeroData = require(Shared.HeroData)
 local UpgradeData = require(Shared.UpgradeData)
 local WeaponData = require(Shared.WeaponData)
 local MetaData = require(Shared.MetaData)
+local DifficultyData = require(Shared.DifficultyData)
 
 local SpatialGrid = require(script.Parent.SpatialGrid)
 local EnemyManager = require(script.Parent.EnemyManager)
@@ -49,6 +50,7 @@ export type Options = {
 	BossPicks: { string }?, -- forced boss of each timeline slot (tests)
 	LiveEvent: { [string]: number }?, -- limited-time event modifiers (EventRate...)
 	Follower: boolean?, -- party member: 67 events come from the party leader's run
+	Difficulty: number?, -- tier (shared/DifficultyData.lua); default II, the classic balance
 }
 
 -- buff key -> bonus stats while it is active
@@ -73,6 +75,12 @@ function Run.new(opts: Options)
 	self.Colliders = opts.Colliders
 	self.LiveEvent = opts.LiveEvent or {}
 	self.Follower = opts.Follower == true
+	-- difficulty: the tier's numbers + its rules (modifiers)
+	self.Difficulty = DifficultyData.Get(opts.Difficulty or 2).Index
+	self.Diff = DifficultyData.Get(self.Difficulty)
+	self.Mods = DifficultyData.ModSet(self.Difficulty)
+	self.Windup = if self.Mods.NoMercy then 0.75 else 1 -- enemy wind-ups / telegraphs
+	self.ShotSpeed = if self.Mods.NoMercy then 1.2 else 1 -- enemy projectiles
 
 	self.Time = 0
 	self.Steps = 0
@@ -304,6 +312,9 @@ function Run:Sources()
 		end
 	end
 	local sources = { self.CharStats, self.MetaStats, passives }
+	if self.Diff.Luck > 0 then
+		table.insert(sources, { Luck = self.Diff.Luck }) -- harder tiers: rarer cards and drops
+	end
 	for key, bonus in BUFF_STATS do
 		if self:Buff(key) then
 			table.insert(sources, bonus)
@@ -441,7 +452,7 @@ function Run:SetPlayer(x: number, z: number, fx: number?, fz: number?)
 end
 
 function Run:AddXP(amount: number)
-	local mult = self.Stats.Growth
+	local mult = self.Stats.Growth * self.Diff.XP
 	if self:Buff("P67") then
 		mult *= 1.67
 	end
@@ -803,6 +814,7 @@ function Run:Summary()
 	table.sort(events)
 	return {
 		Hero = self.Hero,
+		Difficulty = self.Difficulty,
 		Reason = self.EndReason or "Quit",
 		Victory = self.Victory,
 		Time = math.floor(self.Time),

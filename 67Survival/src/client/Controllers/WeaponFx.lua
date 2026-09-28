@@ -998,6 +998,13 @@ function WeaponFx:Clear()
 	end
 	self:SetLoadout({ Weapons = {} })
 	self.Loadout = nil
+	-- a busy run can park hundreds of parts: keep a few per style for the next run
+	for _, free in self.Free do
+		for i = #free, 25, -1 do
+			free[i]:Destroy()
+			free[i] = nil
+		end
+	end
 end
 
 function WeaponFx:Start()

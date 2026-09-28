@@ -308,6 +308,10 @@ function EffectsController:KillEffect(x: number, z: number, color: Color3, size:
 		self:Emit("Pixel", run:World(x, z, 1.5), if math.random() < 0.5 then rgb(0, 255, 230) else rgb(255, 0, 200), count + 2)
 	elseif style == "Coins" then
 		self:Poof(x, z, rgb(255, 205, 60), count)
+	elseif style == "Shatter" then
+		-- NIGHTMARE: violet shards over a dark puff
+		self:Emit("Pixel", run:World(x, z, 1.5), rgb(160, 100, 255), count)
+		self:Emit("Poof", run:World(x, z, 1.2), rgb(46, 26, 80), math.ceil(count / 2))
 	elseif style == "Pop67" then
 		self:Poof(x, z, if math.random() < 0.5 then rgb(255, 205, 50) else rgb(170, 90, 255), count)
 		self.KillCount = (self.KillCount or 0) + 1

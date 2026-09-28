@@ -3,7 +3,8 @@
 	Headless playtest: the REAL run simulation (src/server/Sim) played by tests/bot.luau.
 	Prints a per-minute timeline (level, kills, enemies alive, HP, build) and the outcome.
 
-	lune run tests/sim.luau [seeds=3] [hero=Rookie] [skill=1] [maxMinutes=16] [meta=0]
+	lune run tests/sim.luau [seeds=3] [hero=Rookie] [skill=1] [maxMinutes=16] [meta=0] [difficulty=2]
+	(difficulty: tier 1..7, shared/DifficultyData.lua; 2 = HUNT, the classic balance)
 ]]
 
 local process = require("@lune/process")
@@ -15,6 +16,7 @@ local hero = process.args[2] or "Rookie"
 local skill = tonumber(process.args[3]) or 1
 local maxMinutes = tonumber(process.args[4]) or 16
 local metaLevel = tonumber(process.args[5]) or 0
+local difficulty = tonumber(process.args[6]) or 2
 
 local Run = Harness.Require("ServerScriptService.Server.Sim.Run")
 local WeaponData = Harness.Require("ReplicatedStorage.Modules.WeaponData")
@@ -32,7 +34,7 @@ end
 local DT = 1 / 20
 local outcomes = {}
 for seed = 1, seeds do
-	local run = Run.new({ Seed = seed * 7919, Hero = hero, Unlocked = unlocked, Meta = meta })
+	local run = Run.new({ Seed = seed * 7919, Hero = hero, Unlocked = unlocked, Meta = meta, Difficulty = difficulty })
 	local nextReport = 60
 	local maxEnemies, maxGems, maxProj = 0, 0, 0
 	local stepTime, steps = 0, 0

@@ -77,15 +77,31 @@ function Previews.Hero(parent: Instance, key: string, opts: HeroOptions?): Viewp
 	return vf
 end
 
+-- a smooth ellipsoid (a part + a Sphere mesh)
+local function ellipsoid(vf: Instance, size: Vector3, color: Color3, cf: CFrame, material: Enum.Material?): Part
+	local p = part(vf, size, color, cf, nil, material)
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	return p
+end
+
 function Previews.Hat(parent: Instance, key: string, props: { [string]: any }?): ViewportFrame
 	local vf, camera = viewport(parent, props)
-	local turn = CFrame.Angles(0, math.rad(160), 0)
-	part(vf, Vector3.new(1.2, 1.2, 1.2), SKIN, turn, BALL)
-	for _, piece in HeroModels.Hats[key] or {} do
-		local p = part(vf, piece.Size, piece.Color or rgb(255, 255, 255), turn * piece.At, piece.Shape, piece.Material)
-		p.Transparency = piece.Transparency or 0
+	local turn = CFrame.Angles(0, math.rad(168), 0) -- almost facing the camera: glasses and plates read
+	local head = HeroModels.PreviewHead
+	ellipsoid(vf, head.Size, SKIN, turn * CFrame.new(0, -head.Top, 0))
+	-- two small eyes so the head reads as a face (and shades sit where they should)
+	for _, side in { -1, 1 } do
+		ellipsoid(vf, Vector3.new(0.2, 0.34, 0.1), rgb(24, 22, 30), turn * CFrame.new(side * 0.3, -head.Top + 0.03, -0.77))
 	end
-	camera.CFrame = CFrame.lookAt(Vector3.new(0, 1.2, 5.2), Vector3.new(0, 0.55, 0))
+	HeroModels.BuildHat(key, turn, vf)
+	local tall = 0
+	for _, piece in HeroModels.Hats[key] or {} do
+		tall = math.max(tall, piece.At.Position.Y + piece.Size.Y / 2)
+	end
+	local mid = (tall - head.Top * 2) / 2
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, mid + 1.1, 5.6 + tall * 0.6), Vector3.new(0, mid, 0))
 	return vf
 end
 

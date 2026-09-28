@@ -53,9 +53,9 @@ local function pickWeighted(rng, entries: { any }, weightOf: (any) -> number)
 	return entries[#entries]
 end
 
--- how much sooner 67 events come for this run (heroes, limited-time events)
+-- how much sooner 67 events come for this run (difficulty, heroes, limited-time events)
 local function eventRate(run): number
-	local rate = run.LiveEvent.EventRate or 1
+	local rate = (run.LiveEvent.EventRate or 1) * (if run.Diff then run.Diff.Events else 1)
 	if run.Mech == "Jackpot" then
 		rate *= 1.3
 	elseif run.Mech == "SixtySeven" then
@@ -89,6 +89,9 @@ function WaveManager.Init(run, bossPicks: { string }?)
 		Secret67Checked = false,
 		StareDone = false,
 		FirstSpawned = false,
+		-- difficulty rules (no random draws without them: tier II stays the classic run)
+		SurpriseAt = if run.Mods and run.Mods.Chaos then 60 + rng:NextNumber(0, 15) else math.huge, -- CHAOS: arena surprises
+		GlitchAt = if run.Mods and run.Mods.Glitch then 40 + rng:NextNumber(0, 10) else math.huge, -- GLITCH: the horde glitches in close
 	}
 	if run.Follower then
 		run.Wave.NextEventAt = math.huge
@@ -111,7 +114,10 @@ local function spawnKind(run, key: string, entry)
 		return EnemyManager.Spawn(run, "Goblin67", x, z, { Force = true, NoScale = true })
 	end
 	local invasion = now < run.Wave.InvasionUntil
-	local elite = not invasion and now >= GameConfig.Drops.EliteFrom and key ~= "Skitter" and rng:NextNumber() < GameConfig.Drops.EliteChance
+	-- ELITE INVASION difficulty: elites a minute sooner; every tier scales how many
+	local eliteFrom = if run.Mods and run.Mods.EliteInvasion then 90 else GameConfig.Drops.EliteFrom
+	local eliteChance = GameConfig.Drops.EliteChance * (if run.Diff then run.Diff.Elite else 1)
+	local elite = not invasion and now >= eliteFrom and key ~= "Skitter" and rng:NextNumber() < eliteChance
 	local opts = if elite then { Elite = true } elseif invasion then { HPMult = 0.4 } else nil
 	local e = EnemyManager.Spawn(run, key, x, z, opts)
 	-- packs: some enemies come in groups
@@ -166,10 +172,17 @@ function EVENTS.Percent67(run, ev)
 	run:AddBuff("P67", ev.Duration)
 end
 
+-- 67 CHAOS difficulty: 67 events are stronger (longer, double loot)
+local function chaos67(run): boolean
+	return run.Mods ~= nil and run.Mods.Chaos67 == true
+end
+
 function EVENTS.Chest67(run)
-	local a = run.Rng:NextNumber(0, TAU)
-	local r = run.Rng:NextNumber(14, 20)
-	Pickups.SpawnItem(run, "Chest67", run.PX + cos(a) * r, run.PZ + sin(a) * r)
+	for i = 1, if chaos67(run) then 2 else 1 do
+		local a = run.Rng:NextNumber(0, TAU) + (i - 1) * 2
+		local r = run.Rng:NextNumber(14, 20)
+		Pickups.SpawnItem(run, "Chest67", run.PX + cos(a) * r, run.PZ + sin(a) * r)
+	end
 end
 
 function EVENTS.Invasion67(run, ev)
@@ -184,12 +197,15 @@ end
 
 function EVENTS.Luck67(run, ev)
 	run:AddBuff("Luck67", ev.Duration)
-	for i = 1, 3 do
+	local more = chaos67(run)
+	for i = 1, if more then 5 else 3 do
 		local x, z = EnemyManager.RingPoint(run, 16 + i * 4, 22 + i * 4)
 		EnemyManager.Spawn(run, "Crate", x, z, { Force = true, NoScale = true })
 	end
-	local x, z = EnemyManager.RingPoint(run, 26, 32)
-	EnemyManager.Spawn(run, "Goblin67", x, z, { Force = true, NoScale = true })
+	for _ = 1, if more then 2 else 1 do
+		local x, z = EnemyManager.RingPoint(run, 26, 32)
+		EnemyManager.Spawn(run, "Goblin67", x, z, { Force = true, NoScale = true })
+	end
 end
 
 function EVENTS.Chaos67(run, ev)
@@ -232,6 +248,10 @@ function WaveManager.TriggerEvent(run, key: string, variantKey: string?): string
 	local ev = WaveData.EventByKey[key]
 	if not ev or run.Ended then
 		return nil
+	end
+	if chaos67(run) then
+		ev = table.clone(ev)
+		ev.Duration *= 1.5
 	end
 	local w = run.Wave
 	w.LastEvent = key
@@ -292,9 +312,51 @@ local function chaosTick(run)
 	end
 end
 
+-- GLITCH difficulty: a few far-away enemies glitch in on a ring around the player
+local function glitchHorde(run)
+	local rng = run.Rng
+	local half = GameConfig.Arena.HalfSize
+	local moved = 0
+	for _, e in run.Enemies do
+		if moved >= 4 then
+			break
+		end
+		local b = e.Behavior
+		if not e.IsBoss and not e.Dormant and not e.Lit and not e.Air and e.State == 0 and b ~= "Static" and b ~= "Flee" and b ~= "Sixty" and rng:NextNumber() < 0.35 then
+			local dx, dz = e.X - run.PX, e.Z - run.PZ
+			if dx * dx + dz * dz > 26 * 26 then
+				local a = rng:NextNumber(0, TAU)
+				local r = rng:NextNumber(14, 18)
+				local x = math.clamp(run.PX + cos(a) * r, -half, half)
+				local z = math.clamp(run.PZ + sin(a) * r, -half, half)
+				run:Write("Fx", 0, e.X, e.Z, 0, 3, 0, GFX.Teleport)
+				e.X, e.Z = x, z
+				e.SentX, e.SentZ = x, z
+				run:Write("Blink", e.Id, x, z)
+				run:Write("Fx", 0, x, z, 0, 3, 0, GFX.Teleport)
+				moved += 1
+			end
+		end
+	end
+end
+
 local function stepEvents(run, dt: number)
 	local w = run.Wave
 	local now = run.Time
+	local mods = run.Mods or {}
+
+	-- difficulty rules
+	if mods.Chaos and now >= w.SurpriseAt then
+		-- CHAOS: the arena throws a random surprise (never during a boss fight)
+		w.SurpriseAt = now + run.Rng:NextNumber(35, 50)
+		if not run.Boss and not w.PendingBoss then
+			chaosTick(run)
+		end
+	end
+	if mods.Glitch and now >= w.GlitchAt then
+		w.GlitchAt = now + run.Rng:NextNumber(10, 14)
+		glitchHorde(run)
+	end
 
 	-- ongoing effects
 	if w.RainLeft > 0 then
@@ -335,10 +397,16 @@ local function stepEvents(run, dt: number)
 				if e.Key == w.LastEvent or (e.MinTime and now < e.MinTime) then
 					return 0
 				end
-				if (e.Key == "Boss67" or e.Key == "The67") and run.Mech == "SixtySeven" then
-					return e.Weight * 3
+				local weight = e.Weight
+				if e.Key == "Boss67" or e.Key == "The67" then
+					if run.Mech == "SixtySeven" then
+						weight *= 3
+					end
+					if chaos67(run) then
+						weight *= 2
+					end
 				end
-				return e.Weight
+				return weight
 			end)
 		end
 		if ev then
@@ -450,11 +518,13 @@ function WaveManager.Step(run, dt: number)
 	-- steady spawns (+ catch-up when the screen is too empty)
 	local alive = #run.Enemies
 	local invasion = now < w.InvasionUntil
-	local rate = entry.Rate * (if run.Boss then 0.55 else 1)
+	-- difficulty: a bigger horde (NO MERCY: denser still)
+	local density = (if run.Diff then run.Diff.Spawn else 1) * (if run.Mods and run.Mods.NoMercy then 1.15 else 1)
+	local rate = entry.Rate * density * (if run.Boss then 0.55 else 1)
 	if run:Buff("P67") then
 		rate *= 1.67
 	end
-	local minAlive = entry.MinAlive
+	local minAlive = math.floor(entry.MinAlive * density)
 	if invasion then
 		rate *= 3
 		minAlive = run.MaxEnemies

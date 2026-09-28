@@ -15,6 +15,7 @@ local AchievementData = require(Shared.AchievementData)
 local MonetizationData = require(Shared.MonetizationData)
 local LiveEvents = require(Shared.LiveEvents)
 local CollectionData = require(Shared.CollectionData)
+local DifficultyData = require(Shared.DifficultyData)
 
 local Guard = require(script.Parent.Parent.Util.Guard)
 local Defaults = require(script.Parent.Parent.Data.Defaults)
@@ -137,6 +138,12 @@ end
 ---------------------------------------------------------------------------
 -- snapshot for the client
 ---------------------------------------------------------------------------
+-- the title shown on the name tag and the profile: a difficulty title (won on NIGHTMARE
+-- or harder) beats the account level title
+function PlayerManager.TitleOf(data): string
+	return DifficultyData.TitleFor(data.Stats.HighestWin) or MetaData.TitleFor((MetaData.Level(data.XP)))
+end
+
 function PlayerManager:Snapshot(session)
 	local d = session.Data
 	local level, xp, need = MetaData.Level(d.XP)
@@ -157,7 +164,14 @@ function PlayerManager:Snapshot(session)
 		Level = level,
 		LevelXP = xp,
 		LevelNeed = need,
-		Title = MetaData.TitleFor(level),
+		Title = PlayerManager.TitleOf(d),
+		Difficulty = {
+			Selected = d.Difficulty.Selected,
+			Unlocked = DifficultyData.Unlocked(d.Difficulty.Best),
+			Best = d.Difficulty.Best,
+			Cleared = d.Difficulty.Cleared,
+			HighestWin = d.Stats.HighestWin,
+		},
 		Heroes = d.Heroes,
 		Selected = d.Selected,
 		Weapons = d.Weapons,
@@ -201,7 +215,7 @@ function PlayerManager:Sync(player: Player)
 	end
 	local level = MetaData.Level(session.Data.XP)
 	player:SetAttribute("AccountLevel", level)
-	player:SetAttribute("Title", MetaData.TitleFor(level))
+	player:SetAttribute("Title", PlayerManager.TitleOf(session.Data))
 	player:SetAttribute("Hero", session.Data.Selected)
 	self.Remotes.Sync:FireClient(player, self:Snapshot(session))
 end
@@ -275,6 +289,23 @@ function PlayerManager:ClaimWeekly(player: Player, index: number)
 	self.Services.RewardManager:GiveCoins(session, def.Coins)
 	self.Services.RewardManager:GiveFragments(session, def.Fragments or 0)
 	self:Notify(player, string.format("Challenge complete: +%d coins, +%d fragments!", def.Coins, def.Fragments or 0), "Reward")
+	self:Sync(player)
+end
+
+-- the difficulty for the next runs (only tiers the player has opened)
+function PlayerManager:SelectDifficulty(player: Player, index: number)
+	local session = self:Get(player)
+	if not session then
+		return
+	end
+	local d = session.Data.Difficulty
+	local open = DifficultyData.Unlocked(d.Best)
+	if index < 1 or index > open then
+		local tier = DifficultyData.Get(index)
+		self:Notify(player, string.format("%s is locked: %s", tier.Name, if tier.Unlock then tier.Unlock.Text else ""), "Error")
+		return
+	end
+	d.Selected = index
 	self:Sync(player)
 end
 
@@ -365,6 +396,12 @@ function PlayerManager:Start()
 	end)
 	Guard.Connect(Net.Event("SetSetting"), { Rate = 4, Burst = 8 }, function(player, key, value)
 		self:SetSetting(player, key, value)
+	end)
+	Guard.Connect(Net.Event("SelectDifficulty"), { Rate = 4, Burst = 8 }, function(player, index)
+		local i = Guard.Int(index, 1, DifficultyData.Count)
+		if i then
+			self:SelectDifficulty(player, i)
+		end
 	end)
 
 	Players.PlayerAdded:Connect(function(player)

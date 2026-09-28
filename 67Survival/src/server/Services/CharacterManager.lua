@@ -168,7 +168,7 @@ function CharacterManager:ApplyNameTag(player: Player, character: Model, session
 	title.BackgroundTransparency = 1
 	title.Font = Enum.Font.BuilderSansBold
 	title.TextScaled = true
-	title.Text = string.format("Lv.%d %s", level, MetaData.TitleFor(level))
+	title.Text = string.format("Lv.%d %s", level, if session then self.Services.PlayerManager.TitleOf(session.Data) else MetaData.TitleFor(level))
 	title.TextColor3 = rgb(200, 205, 225)
 	title.Parent = gui
 	for _, label in { name, title } do
@@ -187,71 +187,163 @@ local RAINBOW = ColorSequence.new({
 	ColorSequenceKeypoint.new(1, rgb(200, 90, 255)),
 })
 
+local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+local FIRE = "rbxasset://textures/particles/fire_main.dds"
+
+local function clearNamed(parent: Instance, names: { string })
+	for _, name in names do
+		local old = parent:FindFirstChild(name)
+		while old do
+			old:Destroy()
+			old = parent:FindFirstChild(name)
+		end
+	end
+end
+
+local function trail(root: BasePart, name: string, a0: Attachment, a1: Attachment, props: { [string]: any }): Trail
+	local t = Instance.new("Trail")
+	t.Name = name
+	t.Attachment0 = a0
+	t.Attachment1 = a1
+	t.FaceCamera = true
+	t.MinLength = 0.05
+	-- a tapering ribbon: full width at the hero, a point at the end
+	t.WidthScale = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0.1) })
+	for k, v in props do
+		(t :: any)[k] = v
+	end
+	t.Parent = root
+	return t
+end
+
+--[[
+	TRAILS by rarity: Common a thin shimmer; Uncommon a two-colour flame; Rare a wider ribbon
+	with a gradient; Epic the rainbow + a few sparkles; Legendary two layers (a bright core
+	inside the colour) + sparkles. Always a clean taper, never a wall of particles.
+]]
 function CharacterManager:ApplyTrail(character: Model, session)
 	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root then
 		return
 	end
-	for _, name in { "HeroTrail", "TrailTop", "TrailBottom" } do
-		local old = root:FindFirstChild(name)
-		if old then
-			old:Destroy()
-		end
-	end
+	clearNamed(root, { "HeroTrail", "HeroTrailCore", "TrailTop", "TrailBottom", "TrailCoreTop", "TrailCoreBottom", "TrailSparkles" })
 	local trailStyle = style(session, "Trail")
 	if trailStyle == "None" then
 		return
 	end
 	local def = CosmeticData.ById["Trail." .. trailStyle]
+	local rarity = if def then def.Rarity else "Common"
+	local wide = rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic"
 	local a0 = Instance.new("Attachment")
 	a0.Name = "TrailTop"
-	a0.Position = Vector3.new(0, -1.2, 0)
+	a0.Position = Vector3.new(0, if wide then -1.0 else -1.6, 0)
 	a0.Parent = root
 	local a1 = Instance.new("Attachment")
 	a1.Name = "TrailBottom"
 	a1.Position = Vector3.new(0, -2.8, 0)
 	a1.Parent = root
-	local trail = Instance.new("Trail")
-	trail.Name = "HeroTrail"
-	trail.Attachment0 = a0
-	trail.Attachment1 = a1
-	trail.Lifetime = 0.45
-	trail.LightEmission = 0.6
-	trail.Transparency = NumberSequence.new(0.25, 1)
-	if trailStyle == "Rainbow" then
-		trail.Color = RAINBOW
-	elseif def and def.Color then
-		trail.Color = ColorSequence.new(def.Color, def.Color2 or def.Color)
+	local c1 = if def and def.Color then def.Color else rgb(255, 255, 255)
+	local c2 = if def and def.Color2 then def.Color2 else c1
+	local color = if trailStyle == "Rainbow" then RAINBOW else ColorSequence.new(c1, c2)
+	trail(root, "HeroTrail", a0, a1, {
+		Color = color,
+		Lifetime = if wide then 0.55 else 0.4,
+		LightEmission = if rarity == "Common" then 0.35 else 0.6,
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, if rarity == "Common" then 0.45 else 0.25), NumberSequenceKeypoint.new(1, 1) }),
+	})
+	if rarity == "Legendary" or rarity == "Mythic" then
+		-- a bright thin core inside the colour
+		local b0 = Instance.new("Attachment")
+		b0.Name = "TrailCoreTop"
+		b0.Position = Vector3.new(0, -1.7, 0)
+		b0.Parent = root
+		local b1 = Instance.new("Attachment")
+		b1.Name = "TrailCoreBottom"
+		b1.Position = Vector3.new(0, -2.3, 0)
+		b1.Parent = root
+		trail(root, "HeroTrailCore", b0, b1, {
+			Color = ColorSequence.new(rgb(255, 255, 255), c1),
+			Lifetime = 0.3,
+			LightEmission = 1,
+			Transparency = NumberSequence.new(0.1, 1),
+		})
 	end
-	trail.Parent = root
+	if rarity == "Epic" or rarity == "Legendary" or rarity == "Mythic" then
+		local sparkles = Instance.new("ParticleEmitter")
+		sparkles.Name = "TrailSparkles"
+		sparkles.Texture = SPARKLE
+		sparkles.Rate = 5
+		sparkles.Lifetime = NumberRange.new(0.4, 0.7)
+		sparkles.Speed = NumberRange.new(0.2, 0.8)
+		sparkles.SpreadAngle = Vector2.new(180, 180)
+		sparkles.Size = NumberSequence.new(0.28, 0)
+		sparkles.LightEmission = 1
+		sparkles.Color = color
+		sparkles.Parent = a1
+	end
 end
 
+--[[
+	AURAS: a soft light + one or two gentle emitters, tuned per aura (rarity decides how much
+	is going on): Gold a warm glow; Void dark motes rising; Inferno small flames at the feet;
+	67 Aura gold and purple sparks around a golden light.
+]]
 function CharacterManager:ApplyAura(character: Model, session)
 	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root then
 		return
 	end
-	local old = root:FindFirstChild("HeroAura")
-	if old then
-		old:Destroy()
-	end
+	clearNamed(root, { "HeroAura", "HeroAuraLight", "HeroAuraFeet" })
 	local auraKey = auraStyle(session)
 	if auraKey == "None" then
 		return
 	end
 	local def = CosmeticData.ById["Aura." .. auraKey]
+	local c1 = if def and def.Color then def.Color else rgb(255, 255, 255)
+	local c2 = if def and def.Color2 then def.Color2 else c1
+	local glow = Instance.new("PointLight")
+	glow.Name = "HeroAuraLight"
+	glow.Color = c1
+	glow.Range = 9
+	glow.Brightness = if auraKey == "Aura67" then 1.6 else 1
+	glow.Shadows = false
+	glow.Parent = root
 	local aura = Instance.new("ParticleEmitter")
 	aura.Name = "HeroAura"
-	aura.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	aura.Rate = if auraKey == "Aura67" then 14 else 8
-	aura.Lifetime = NumberRange.new(0.8, 1.4)
-	aura.Speed = NumberRange.new(0.6, 1.6)
+	aura.Texture = SPARKLE
+	aura.Rate = if auraKey == "Aura67" then 12 else 7
+	aura.Lifetime = NumberRange.new(0.9, 1.5)
+	aura.Speed = NumberRange.new(0.4, 1.2)
 	aura.SpreadAngle = Vector2.new(180, 180)
-	aura.Size = NumberSequence.new(0.45, 0)
+	aura.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.42), NumberSequenceKeypoint.new(1, 0) })
 	aura.LightEmission = 0.9
-	local c1 = if def and def.Color then def.Color else rgb(255, 255, 255)
-	aura.Color = ColorSequence.new(c1, if def and def.Color2 then def.Color2 else c1)
+	aura.Color = ColorSequence.new(c1, c2)
+	if auraKey == "Void" then
+		aura.Acceleration = Vector3.new(0, 2.5, 0)
+		aura.LightEmission = 0.5
+		aura.Transparency = NumberSequence.new(0.2, 1)
+	end
 	aura.Parent = root
+	if auraKey == "Inferno" or auraKey == "Aura67" then
+		-- a second layer low around the feet: small flames / sparks rising
+		local feet = Instance.new("Attachment")
+		feet.Name = "HeroAuraFeet"
+		feet.Position = Vector3.new(0, -2.7, 0)
+		feet.Parent = root
+		local flames = Instance.new("ParticleEmitter")
+		flames.Name = "HeroAura"
+		flames.Texture = if auraKey == "Inferno" then FIRE else SPARKLE
+		flames.Rate = 10
+		flames.Lifetime = NumberRange.new(0.5, 0.9)
+		flames.Speed = NumberRange.new(1.5, 3)
+		flames.SpreadAngle = Vector2.new(25, 25)
+		flames.EmissionDirection = Enum.NormalId.Top
+		flames.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+		flames.LightEmission = 1
+		flames.Color = ColorSequence.new(c2, c1)
+		flames.Transparency = NumberSequence.new(0.2, 1)
+		flames.Parent = feet
+	end
 end
 
 -- a decoration under the hero, only in the lobby

@@ -23,6 +23,7 @@ local MetaData = require(Shared.MetaData)
 local CosmeticData = require(Shared.CosmeticData)
 local CollectionData = require(Shared.CollectionData)
 local LiveEvents = require(Shared.LiveEvents)
+local DifficultyData = require(Shared.DifficultyData)
 
 local RewardManager = {}
 
@@ -258,10 +259,11 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 	local today = now // 86400
 	local live = LiveEvents.Mods(now)
 
-	-- bonuses (social + limited-time events)
+	-- bonuses (social + limited-time events), then the difficulty multiplier
+	local tier = DifficultyData.Get(run.Difficulty or 2)
 	local partyBonus = math.min(3, math.max(0, ctx.Party - 1)) * R.PartyBonusPerMember
 	local friendBonus = math.min(3, math.max(0, ctx.Friends)) * R.FriendBonusPerFriend
-	local mult = 1 + partyBonus + friendBonus + (live.CoinBonus or 0)
+	local mult = (1 + partyBonus + friendBonus + (live.CoinBonus or 0)) * tier.Reward
 
 	-- coins
 	local bonus = math.floor(
@@ -277,7 +279,7 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 
 	-- account XP
 	local levelBefore = MetaData.Level(data.XP)
-	local xp = math.floor((run.Time / 60 * R.XPPerMinute + run.Kills * R.XPPerKill + (if run.Victory then 150 else 0)) * (1 + partyBonus + friendBonus))
+	local xp = math.floor((run.Time / 60 * R.XPPerMinute + run.Kills * R.XPPerKill + (if run.Victory then 150 else 0)) * (1 + partyBonus + friendBonus) * tier.Reward)
 	data.XP += xp
 	local levelAfter = MetaData.Level(data.XP)
 
@@ -289,11 +291,49 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 	if run.Victory then
 		fragments += R.FragmentsVictory
 	end
+	-- harder tiers: extra fragments for every real run, and again for a win
+	if run.Time >= 60 then
+		fragments += tier.Fragments
+	end
+	if run.Victory then
+		fragments += tier.Fragments
+	end
 	fragments = math.floor(fragments * (1 + (live.FragmentBonus or 0)) + 0.5)
 	self:GiveFragments(session, fragments)
 
+	-- difficulty progress: bests per tier open the next tiers; a first win pays a bonus
+	local diff = data.Difficulty
+	local openBefore = DifficultyData.Unlocked(diff.Best)
+	local best = diff.Best[tier.Index]
+	best.Time = math.max(best.Time, run.Time)
+	best.Bosses += #run.Bosses
+	if run.Victory then
+		best.Wins += 1
+		stats.HighestWin = math.max(stats.HighestWin, tier.Index)
+	end
+	local openAfter = DifficultyData.Unlocked(diff.Best)
+	local firstClear = nil
+	if run.Victory and not diff.Cleared[tier.Index] then
+		diff.Cleared[tier.Index] = true
+		firstClear = { Coins = tier.FirstClear.Coins, Fragments = tier.FirstClear.Fragments }
+		self:GiveCoins(session, firstClear.Coins)
+		self:GiveFragments(session, firstClear.Fragments)
+	end
+	local newTier = if openAfter > openBefore then openAfter else nil
+	local player = session.Player
+	if player and player.Parent then
+		local PM = self.Services.PlayerManager
+		if firstClear then
+			PM:Notify(player, string.format("FIRST CLEAR: %s %s  +%d coins, +%d fragments", tier.Name, tier.Numeral, firstClear.Coins, firstClear.Fragments), "Reward")
+		end
+		if newTier then
+			local t = DifficultyData.Get(newTier)
+			PM:Notify(player, string.format("NEW DIFFICULTY: %s %s", t.Name, t.Numeral), "Unlock")
+		end
+	end
+
 	-- stats & bests
-	local best = {
+	local bests = {
 		Time = run.Time > stats.BestTime,
 		Level = run.Level > stats.BestLevel,
 		Kills = run.Kills > stats.BestKills,
@@ -381,9 +421,13 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 		CollectionTotal = collectionTotal,
 		Achievements = newAchievements,
 		Unlocks = unlocks,
-		Best = best,
+		Best = bests,
 		BestTime = stats.BestTime,
 		BestLevel = stats.BestLevel,
+		Difficulty = tier.Index,
+		RewardMult = tier.Reward,
+		FirstClear = firstClear,
+		NewTier = newTier,
 	}
 end
 

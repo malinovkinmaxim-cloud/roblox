@@ -25,6 +25,7 @@ local HeroData = require(Shared.HeroData)
 local WeaponData = require(Shared.WeaponData)
 local CosmeticData = require(Shared.CosmeticData)
 local LiveEvents = require(Shared.LiveEvents)
+local DifficultyData = require(Shared.DifficultyData)
 
 local Guard = require(script.Parent.Parent.Util.Guard)
 local Run = require(script.Parent.Parent.Sim.Run)
@@ -134,6 +135,7 @@ function GameManager:CreateEntry(player: Player, opts)
 		StartZ = offset.Z,
 		LiveEvent = LiveEvents.Mods(os.time()),
 		Follower = opts.Follower,
+		Difficulty = opts.Difficulty,
 	})
 	local entry = {
 		Player = player,
@@ -173,6 +175,7 @@ function GameManager:CreateEntry(player: Player, opts)
 				SpawnEffect = CosmeticData.Style(data.Cosmetics.Equipped, "SpawnEffect"),
 				Party = names,
 				LiveEvents = LiveEvents.Active(os.time()),
+				Difficulty = run.Difficulty,
 			},
 		},
 	})
@@ -198,6 +201,9 @@ function GameManager:StartRun(player: Player, heroKey: any, startWeapon: any): b
 	local spot = freeSpot(self)
 	local base = GameConfig.Arena.StartOffsets[spot]
 	local seed = math.random(1, 2 ^ 30)
+	-- the leader's difficulty (validated against what the leader has opened) for the whole party
+	local leaderData = self.Services.PlayerManager:Get(player).Data
+	local difficulty = math.clamp(leaderData.Difficulty.Selected, 1, DifficultyData.Unlocked(leaderData.Difficulty.Best))
 	local leaderEntry = nil
 	local followers = {}
 	local slot = 0
@@ -217,6 +223,7 @@ function GameManager:StartRun(player: Player, heroKey: any, startWeapon: any): b
 			Seed = seed + slot,
 			Follower = not isLeader,
 			Group = group,
+			Difficulty = difficulty,
 		})
 		if entry then
 			if isLeader then

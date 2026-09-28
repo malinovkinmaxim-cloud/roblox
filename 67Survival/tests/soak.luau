@@ -100,7 +100,9 @@ local function oneRun(label: string, god: boolean)
 	check("largest frame < 12 KB", maxFrame < 12000, maxFrame)
 	check("damage number budget", maxNumbers <= 40, maxNumbers)
 	check("ring budget", maxRings <= 24, maxRings)
-	check("enemy model pool bounded", maxPool <= 640, maxPool) -- 24 enemy kinds x variants (tiny, giant, elite, golden)
+	-- models = alive + dying + parked; the renderer frees parked models above a small budget
+	-- (EnemyRenderer PARKED_BUDGET), so the pool follows the horde instead of growing forever
+	check("enemy model pool bounded", maxPool <= maxEnemies + 240, maxPool .. " models for " .. maxEnemies .. " enemies")
 	check("no runtime errors", #Engine.Errors == mark, Engine.Errors[mark + 1])
 	return run
 end

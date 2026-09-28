@@ -46,6 +46,16 @@ local function poolKey(def, flags: number): string
 	return def.Key .. ":" .. v
 end
 
+-- parked models kept per pool key: plain kinds keep more than rare variants (tiny, giant,
+-- golden, elite); mid-run the pool is trimmed harder once too many models sit parked
+local PARKED_BUDGET = 96
+local function keepBetweenRuns(key: string): number
+	return if string.sub(key, -1) == ":" then 24 else 6
+end
+local function keepMidRun(key: string): number
+	return if string.sub(key, -1) == ":" then 4 else 1
+end
+
 function EnemyRenderer:Init(controllers)
 	self.C = controllers
 	self.List = {}
@@ -173,7 +183,7 @@ function EnemyRenderer:Clear()
 		self.Pool:Release(d.Item)
 	end
 	table.clear(self.Dying)
-	self.Pool:Trim(24)
+	self.Pool:Trim(keepBetweenRuns)
 end
 
 function EnemyRenderer:Update(dt: number)
@@ -193,6 +203,14 @@ function EnemyRenderer:Update(dt: number)
 	self.PX, self.PZ = px, pz
 	local paused = run.Paused
 	local turn = math.min(1, 10 * dt)
+	-- after a big wave (67 INVASION) hundreds of models can sit parked: free the extras
+	self.TrimClock = (self.TrimClock or 0) + dt
+	if self.TrimClock >= 2 then
+		self.TrimClock = 0
+		if self.Pool:Parked() > PARKED_BUDGET then
+			self.Pool:Trim(keepMidRun)
+		end
+	end
 
 	for _, e in self.List do
 		local item = e.Item
