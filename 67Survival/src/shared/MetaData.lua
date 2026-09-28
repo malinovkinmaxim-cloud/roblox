@@ -22,13 +22,15 @@ export type MetaDef = {
 
 local MetaData = {}
 
+-- permanent upgrades: Costs[n] = coins for level n (the first level is cheap so a new player
+-- buys one after the first runs; Revival and +1 Starting Ability stay big goals)
 MetaData.Upgrades = {
-	{ Key = "Might", Name = "Starting Damage", Desc = "+5% damage", Stat = "Might", PerLevel = 0.05, MaxLevel = 5, Costs = { 100, 220, 400, 650, 1000 } },
-	{ Key = "MaxHP", Name = "Starting HP", Desc = "+5% max HP", Stat = "MaxHPMult", PerLevel = 0.05, MaxLevel = 5, Costs = { 100, 220, 400, 650, 1000 } },
-	{ Key = "MoveSpeed", Name = "Movement Speed", Desc = "+5% movement speed", Stat = "MoveSpeed", PerLevel = 0.05, MaxLevel = 3, Costs = { 150, 350, 700 } },
-	{ Key = "Growth", Name = "XP Gain", Desc = "+5% XP", Stat = "Growth", PerLevel = 0.05, MaxLevel = 5, Costs = { 120, 260, 450, 700, 1100 } },
-	{ Key = "Greed", Name = "Coin Gain", Desc = "+10% coins", Stat = "Greed", PerLevel = 0.1, MaxLevel = 5, Costs = { 150, 300, 550, 900, 1400 } },
-	{ Key = "Magnet", Name = "Pickup Range", Desc = "+10% pickup range", Stat = "Magnet", PerLevel = 0.1, MaxLevel = 3, Costs = { 100, 250, 500 } },
+	{ Key = "Might", Name = "Starting Damage", Desc = "+5% damage", Stat = "Might", PerLevel = 0.05, MaxLevel = 5, Costs = { 60, 220, 400, 650, 1000 } },
+	{ Key = "MaxHP", Name = "Starting HP", Desc = "+5% max HP", Stat = "MaxHPMult", PerLevel = 0.05, MaxLevel = 5, Costs = { 60, 220, 400, 650, 1000 } },
+	{ Key = "MoveSpeed", Name = "Movement Speed", Desc = "+5% movement speed", Stat = "MoveSpeed", PerLevel = 0.05, MaxLevel = 3, Costs = { 80, 350, 700 } },
+	{ Key = "Growth", Name = "XP Gain", Desc = "+5% XP", Stat = "Growth", PerLevel = 0.05, MaxLevel = 5, Costs = { 70, 260, 450, 700, 1100 } },
+	{ Key = "Greed", Name = "Coin Gain", Desc = "+10% coins", Stat = "Greed", PerLevel = 0.1, MaxLevel = 5, Costs = { 80, 300, 550, 900, 1400 } },
+	{ Key = "Magnet", Name = "Pickup Range", Desc = "+10% pickup range", Stat = "Magnet", PerLevel = 0.1, MaxLevel = 3, Costs = { 50, 250, 500 } },
 	{ Key = "Armor", Name = "Armor", Desc = "-1 damage from every hit", Stat = "Armor", PerLevel = 1, MaxLevel = 2, Costs = { 400, 1200 } },
 	{ Key = "Regen", Name = "Regeneration", Desc = "+0.2 HP per second", Stat = "Regen", PerLevel = 0.2, MaxLevel = 3, Costs = { 200, 450, 900 } },
 	{ Key = "Luck", Name = "Luck", Desc = "+5% luck", Stat = "Luck", PerLevel = 0.05, MaxLevel = 3, Costs = { 250, 550, 1000 } },

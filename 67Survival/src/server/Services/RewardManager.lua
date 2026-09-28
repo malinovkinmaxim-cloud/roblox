@@ -286,7 +286,7 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 	-- fragments: a little for every real run, more for bosses / long runs / wins
 	local fragments = run.Fragments
 	if run.Time >= 60 then
-		fragments += R.FragmentsBase + math.floor(run.Time / 180) * R.FragmentsPer3Minutes
+		fragments += R.FragmentsBase + math.floor(run.Time / R.FragmentsTimeStep) * R.FragmentsPerStep
 	end
 	if run.Victory then
 		fragments += R.FragmentsVictory

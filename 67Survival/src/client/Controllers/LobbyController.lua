@@ -821,7 +821,8 @@ function LobbyController:RefreshQuest(data)
 		self.QuestBar:Set(best.Progress / math.max(1, best.Goal))
 		self.QuestCount.Text = if ready then "DONE" else string.format("%s/%s", Widgets.Commas(best.Progress), Widgets.Commas(best.Goal))
 		self.QuestCount.TextColor3 = if ready then C.Success else C.TextDim
-		self.QuestReward.Text = (if ready then "Claim +" else "+") .. Widgets.Commas(best.Coins) .. " COINS"
+		local fragments = if (best.Fragments or 0) > 0 then string.format(" · +%d FRAGMENT%s", best.Fragments, if best.Fragments == 1 then "" else "S") else ""
+		self.QuestReward.Text = (if ready then "Claim +" else "+") .. Widgets.Commas(best.Coins) .. " COINS" .. fragments
 		self.QuestCard.BackgroundColor3 = if ready then C.SuccessDark else C.Surface
 	else
 		self.QuestText.Text = if done > 0 then "All done for today" else "New quests tomorrow"

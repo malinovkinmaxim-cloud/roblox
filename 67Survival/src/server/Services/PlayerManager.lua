@@ -279,7 +279,11 @@ function PlayerManager:ClaimQuest(player: Player, index: number)
 	end
 	q.Claimed = true
 	self.Services.RewardManager:GiveCoins(session, def.Coins)
-	self:Notify(player, string.format("Quest complete: +%d coins!", def.Coins), "Reward")
+	local fragments = def.Fragments or 0
+	if fragments > 0 then
+		self.Services.RewardManager:GiveFragments(session, fragments)
+	end
+	self:Notify(player, string.format("Quest complete: +%d coins%s!", def.Coins, if fragments > 0 then string.format(", +%d fragment%s", fragments, if fragments == 1 then "" else "s") else ""), "Reward")
 	self:Sync(player)
 end
 

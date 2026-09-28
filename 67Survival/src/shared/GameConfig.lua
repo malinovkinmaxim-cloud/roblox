@@ -137,10 +137,12 @@ GameConfig.Rewards = {
 	CoinBagValue = 8,
 	XPPerMinute = 20, -- account XP
 	XPPerKill = 1 / 10,
-	-- fragments: unlock heroes and new abilities
-	FragmentsBase = 1,
-	FragmentsPerBoss = 1,
-	FragmentsPer3Minutes = 1,
+	-- fragments: unlock heroes and new abilities. A 5-minute first run with a boss pays ~6
+	-- (2 + 1 + 2 from the boss + an elite drop): the first paid hero (15) in 2-3 runs
+	FragmentsBase = 2, -- every run that lasts at least a minute
+	FragmentsPerStep = 1, -- + this many ...
+	FragmentsTimeStep = 180, -- ... for every this many seconds survived
+	FragmentsPerBoss = 2, -- dropped by every boss (picked up in the run)
 	FragmentsVictory = 5,
 	FragmentsThe67 = 5,
 	PartyBonusPerMember = 0.1, -- coins + XP per other party member (max 3)

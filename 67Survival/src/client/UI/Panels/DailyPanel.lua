@@ -110,7 +110,29 @@ function Panel.Build(body: Frame, controllers)
 			end,
 			Parent = row,
 		})
-		state.Quests[i] = { Row = row, Text = text, Bar = bar, Count = count, Button = button, Label = label }
+		-- the fragment part of the reward, next to the button: [crystal] +2
+		local bonus = Kit.New("Frame", {
+			Name = "FragmentReward",
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(52, 20),
+			Position = UDim2.new(1, -160, 0, 10),
+			AnchorPoint = Vector2.new(1, 0),
+			Parent = row,
+		})
+		Widgets.Fragment(bonus, 16, { Position = UDim2.new(0, 0, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
+		local bonusText = Kit.Label({
+			Name = "Amount",
+			Text = "",
+			Size = UDim2.new(1, -22, 1, 0),
+			Position = UDim2.fromOffset(22, 0),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 15,
+			TextColor3 = C.Fragment,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = bonus,
+		})
+		state.Quests[i] = { Row = row, Text = text, Bar = bar, Count = count, Button = button, Label = label, Bonus = bonus, BonusText = bonusText }
 	end
 	return state
 end
@@ -145,7 +167,11 @@ function Panel.Refresh(state, data)
 			ui.Text.Text = q.Text
 			ui.Bar:Set(q.Progress / math.max(1, q.Goal))
 			ui.Count.Text = string.format("%s/%s", Widgets.Commas(math.min(q.Progress, q.Goal)), Widgets.Commas(q.Goal))
-			ui.Label.Text = if q.Claimed then "DONE" elseif done then "CLAIM +" .. q.Coins else "+" .. q.Coins
+			-- coins on the button (coin icon + amount), fragments beside it (crystal + amount)
+			ui.Label.Text = if q.Claimed then "DONE" elseif done then "CLAIM" else ""
+			Widgets.Price(ui.Button, if q.Claimed or done then nil else q.Coins, "Coin")
+			ui.Bonus.Visible = (q.Fragments or 0) > 0 and not q.Claimed
+			ui.BonusText.Text = "+" .. tostring(q.Fragments or 0)
 			Kit.SetButtonColor(ui.Button, if q.Claimed then C.SuccessDark elseif done then C.Success else C.Neutral)
 		end
 	end
