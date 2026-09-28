@@ -1,0 +1,722 @@
+--!nocheck
+--[[
+	Unit tests for the pure modules (data tables, network protocol, stats, save data,
+	level-up offers, spatial grid, formatting) + a short headless run per character.
+	lune run tests/run.luau
+]]
+
+local process = require("@lune/process")
+local Harness = require("./harness")
+local Bot = require("./bot")
+
+local T, Expect, Eq = Harness.Test, Harness.Expect, Harness.Eq
+
+local function R(path: string)
+	return Harness.Require(path)
+end
+
+local GameConfig = R("ReplicatedStorage.Modules.GameConfig")
+local EnemyData = R("ReplicatedStorage.Modules.EnemyData")
+local WeaponData = R("ReplicatedStorage.Modules.WeaponData")
+local UpgradeData = R("ReplicatedStorage.Modules.UpgradeData")
+local HeroData = R("ReplicatedStorage.Modules.HeroData")
+local HeroModels = R("ReplicatedStorage.Modules.HeroModels")
+local CosmeticData = R("ReplicatedStorage.Modules.CosmeticData")
+local CollectionData = R("ReplicatedStorage.Modules.CollectionData")
+local LiveEvents = R("ReplicatedStorage.Modules.LiveEvents")
+local Rarity = R("ReplicatedStorage.Modules.Rarity")
+local MetaData = R("ReplicatedStorage.Modules.MetaData")
+local AchievementData = R("ReplicatedStorage.Modules.AchievementData")
+local WaveData = R("ReplicatedStorage.Modules.WaveData")
+local MonetizationData = R("ReplicatedStorage.Modules.MonetizationData")
+local Protocol = R("ReplicatedStorage.Modules.Protocol")
+local Stats = R("ReplicatedStorage.Modules.Stats")
+local Format = R("ReplicatedStorage.Modules.Util.Format")
+local SpatialGrid = R("ServerScriptService.Server.Sim.SpatialGrid")
+local Run = R("ServerScriptService.Server.Sim.Run")
+local LevelUp = R("ServerScriptService.Server.Sim.LevelUp")
+local Defaults = R("ServerScriptService.Server.Data.Defaults")
+
+---------------------------------------------------------------------------
+Harness.Section("data")
+---------------------------------------------------------------------------
+T("15 horde enemies, specials and 8 bosses", function()
+	local regular, bosses = 0, 0
+	local models = {}
+	for _, def in EnemyData.List do
+		if def.Boss or def.MiniBoss then
+			bosses += 1
+		elseif def.Collection and not def.Secret and not def.Rare then
+			regular += 1
+		end
+		models[def.Model] = true
+	end
+	Expect(regular >= 15, "regular " .. regular)
+	Expect(bosses >= 8, "bosses " .. bosses)
+	local n = 0
+	for _ in models do
+		n += 1
+	end
+	Expect(n >= 24, "distinct enemy models " .. n)
+end)
+
+T("every enemy has complete stats", function()
+	for _, def in EnemyData.List do
+		for _, field in { "HP", "Speed", "Damage", "XP", "Radius", "Scale", "Mass", "CoinChance", "ItemChance" } do
+			Expect(type(def[field]) == "number", def.Key .. "." .. field)
+		end
+		Expect(def.HP > 0 and def.Radius > 0 and def.Mass > 0, def.Key)
+		Expect(type(def.Model) == "string" and type(def.Behavior) == "string", def.Key)
+		Expect(typeof(def.Color) == "Color3" and typeof(def.Accent) == "Color3", def.Key)
+		if def.Behavior == "Boss" then
+			Expect(def.Params.Title and #def.Params.Patterns > 0, def.Key .. " boss params")
+		end
+		if def.Params.SplitInto then
+			Expect(EnemyData.ByKey[def.Params.SplitInto], def.Key .. " split target")
+		end
+		if def.Params.SummonKey then
+			Expect(EnemyData.ByKey[def.Params.SummonKey], def.Key .. " summon target")
+		end
+	end
+	Expect(#EnemyData.List < 256, "enemy ids fit in a byte")
+end)
+
+T("every boss pattern has its timing numbers", function()
+	local EVERY = { Slam = "SlamEvery", DoubleSlam = "SlamEvery", Dash = "DashEvery", Ring = "RingEvery", Spiral = "SpiralEvery", Summon = "SummonEvery", Rain = "RainEvery", Leap = "LeapEvery", Teleport = "TeleportEvery", Barrage = "BarrageEvery", Sweep = "SweepEvery", Hazard = "HazardEvery" }
+	for _, def in EnemyData.List do
+		if def.Behavior == "Boss" then
+			local patterns = table.clone(def.Params.Patterns)
+			for _, extra in def.Params.EnragePatterns or {} do
+				table.insert(patterns, extra)
+			end
+			for _, pattern in patterns do
+				Expect(EVERY[pattern] and def.Params[EVERY[pattern]], def.Key .. " " .. pattern)
+			end
+		end
+	end
+end)
+
+T("30 abilities + 12 evolutions with contiguous levels", function()
+	local base, evo = 0, 0
+	local categories = {}
+	for _, def in WeaponData.List do
+		Expect(def.Name ~= "" and def.Desc ~= "", def.Key)
+		Expect(Rarity.Index[def.Rarity], def.Key .. " rarity")
+		Expect(def.Base.Cooldown or def.Kind == "Allies", def.Key .. " base")
+		if def.Evolution then
+			evo += 1
+			Eq(def.Rarity, "Mythic", def.Key .. " evolutions are mythic")
+			Expect(WeaponData.ByKey[def.Evolution.From] and WeaponData.ByKey[def.Evolution.From].Evolution == nil, def.Key .. " from")
+			Expect(UpgradeData.PassiveByKey[def.Evolution.With], def.Key .. " with")
+		else
+			base += 1
+			categories[def.Category] = true
+			for level = 2, def.MaxLevel do
+				local l = def.Levels[level]
+				Expect(l and type(l.Desc) == "string", def.Key .. " level " .. level)
+			end
+			Expect(def.Unlock.Default or def.Unlock.Fragments or def.Unlock.Achievement or def.Unlock.Secret, def.Key .. " unlock")
+			if def.Unlock.Achievement then
+				Expect(AchievementData.ByKey[def.Unlock.Achievement], def.Key .. " unlock achievement")
+			end
+		end
+	end
+	Expect(base >= 30, "abilities " .. base)
+	Expect(evo >= 12, "evolutions " .. evo)
+	for _, cat in WeaponData.Categories do
+		Expect(categories[cat], "category " .. cat)
+	end
+	Expect(#WeaponData.List < 256, "ids fit in a byte")
+end)
+
+T("every ability kind has a simulation function", function()
+	local CombatManager = R("ServerScriptService.Server.Sim.CombatManager")
+	for _, def in WeaponData.List do
+		Expect(CombatManager.Kinds[def.Kind], def.Key .. " kind " .. def.Kind)
+	end
+end)
+
+T("15 heroes: models, start abilities, mechanics, unlocks", function()
+	Expect(#HeroData.List >= 15, "heroes " .. #HeroData.List)
+	local mechanics = {}
+	for _, def in HeroData.List do
+		Expect(HeroModels.Heroes[def.Key], def.Key .. " model")
+		Expect(WeaponData.IsBase(def.StartWeapon), def.Key .. " start ability")
+		Expect(Rarity.Index[def.Rarity], def.Key .. " rarity")
+		Expect(not mechanics[def.Mechanic], def.Key .. " mechanic is unique")
+		mechanics[def.Mechanic] = true
+		Expect(def.Unlock.Default or def.Unlock.Fragments or def.Unlock.Achievement, def.Key .. " unlock")
+		if def.Unlock.Achievement then
+			Expect(AchievementData.ByKey[def.Unlock.Achievement], def.Key .. " unlock achievement")
+		end
+		for stat in def.Stats do
+			Expect(Stats.Known[stat], def.Key .. " stat " .. stat)
+		end
+	end
+	Expect(HeroData.ByKey[HeroData.Default].Unlock.Default)
+end)
+
+T("passives / meta upgrades use known stats", function()
+	for _, def in UpgradeData.Passives do
+		for stat in def.Stats do
+			Expect(Stats.Known[stat], def.Key .. " " .. stat)
+		end
+		Expect(Rarity.Index[def.Rarity], def.Key .. " rarity")
+	end
+	for _, def in MetaData.Upgrades do
+		Expect(Stats.Known[def.Stat], def.Key)
+		Eq(#def.Costs, def.MaxLevel, def.Key .. " costs")
+		for i = 2, #def.Costs do
+			Expect(def.Costs[i] > def.Costs[i - 1], def.Key .. " costs grow")
+		end
+	end
+end)
+
+T("timeline is ordered and every mix key exists", function()
+	local last = -1
+	for _, entry in WaveData.Timeline do
+		Expect(entry.At > last, "order")
+		last = entry.At
+		for key in entry.Mix do
+			Expect(EnemyData.ByKey[key], "mix " .. key)
+		end
+		for key in entry.Pack or {} do
+			Expect(EnemyData.ByKey[key], "pack " .. key)
+		end
+		if entry.Burst then
+			Expect(EnemyData.ByKey[entry.Burst.Key], "burst")
+		end
+		if type(entry.Boss) == "string" then
+			Expect(EnemyData.IsBoss(entry.Boss), "boss")
+		elseif entry.Boss then
+			Expect(EnemyData.BossSlots[entry.Boss], "boss slot")
+		end
+	end
+	Expect(WaveData.HPScale(600) > WaveData.HPScale(60))
+end)
+
+T("run structure: bosses at 3, 6, 9 minutes, final at 12", function()
+	local bosses = {}
+	for _, entry in WaveData.Timeline do
+		if entry.Boss then
+			bosses[entry.At] = entry.Boss
+		end
+	end
+	Eq(bosses[180], 1)
+	Eq(bosses[360], 2)
+	Eq(bosses[540], 3)
+	Eq(bosses[720], "TheFinalOne")
+end)
+
+T("8 rare 67 events", function()
+	Expect(#WaveData.Events >= 8)
+	for _, e in WaveData.Events do
+		Expect(e.Weight > 0 and e.Duration > 0 and e.Title ~= "", e.Key)
+	end
+	local total = 0
+	for _, e in WaveData.Events do
+		total += e.Weight
+	end
+	Expect(WaveData.EventByKey.The67.Weight / total < 0.05, "THE 67 is very rare")
+	Expect(WaveData.EventGap[1] >= 60, "67 events are rare")
+end)
+
+T("achievements, quests and weekly challenges are well formed", function()
+	local keys = {}
+	for _, def in AchievementData.List do
+		Expect(not keys[def.Key], "duplicate " .. def.Key)
+		keys[def.Key] = true
+		Expect(def.Stat or def.Run or def.Flag, def.Key .. " condition")
+		Expect(def.Coins > 0, def.Key .. " reward")
+		if def.Stat then
+			Expect(table.find(Defaults.StatKeys, def.Stat), def.Key .. " stat " .. def.Stat)
+		end
+	end
+	for _, def in AchievementData.Quests do
+		Expect(def.Goal > 0 and def.Coins > 0, def.Key)
+	end
+	for _, def in AchievementData.Weekly do
+		Expect(def.Goal > 0 and def.Coins > 0 and (def.Fragments or 0) > 0, def.Key)
+	end
+	for _, key in AchievementData.Secrets do
+		Expect(AchievementData.ByKey[key], "secret " .. key)
+	end
+end)
+
+T("cosmetics: every item has a way to get it and a default per category", function()
+	local ids = {}
+	for _, def in CosmeticData.List do
+		Expect(not ids[def.Id], "duplicate " .. def.Id)
+		ids[def.Id] = true
+		Expect(def.Default or def.Cost or def.Achievement or def.Pass or def.Level or def.Collection, def.Id)
+		if def.Achievement then
+			Expect(AchievementData.ByKey[def.Achievement], def.Id .. " achievement")
+		end
+		if def.Pass then
+			Expect(MonetizationData.PassByKey[def.Pass], def.Id .. " pass")
+		end
+		if def.Category == "Hat" then
+			Expect(HeroModels.Hats[def.Style], def.Id .. " hat model")
+		elseif def.Category == "HeroSkin" and def.Style ~= "Default" then
+			Expect(HeroModels.Skins[def.Style], def.Id .. " skin palette")
+		end
+	end
+	for _, cat in CosmeticData.Categories do
+		Expect(CosmeticData.DefaultOf[cat.Key], cat.Key .. " default")
+		Expect(#CosmeticData.ByCategory[cat.Key] >= 4, cat.Key .. " has choices")
+	end
+	Expect(#CosmeticData.Categories >= 12)
+end)
+
+T("collection book covers everything", function()
+	Expect(CollectionData.Total >= 100, "total " .. CollectionData.Total)
+	local n, total = CollectionData.Count(Defaults.New())
+	Expect(n == 3 and total == CollectionData.Total, "a new profile owns the 3 starter heroes " .. n)
+end)
+
+T("live events follow the calendar", function()
+	-- 2026-09-26 was a Saturday, 2026-09-25 a Friday, 2026-09-23 a Wednesday
+	local saturday = os.time({ year = 2026, month = 9, day = 26, hour = 12 })
+	local mods = LiveEvents.Mods(saturday)
+	Eq(mods.EventRate, 2, "67 WEEKEND")
+	local friday = os.time({ year = 2026, month = 9, day = 25, hour = 12 })
+	Expect(LiveEvents.Mods(friday).CoinBonus == 0.25, "gold rush")
+	local wednesday = os.time({ year = 2026, month = 9, day = 23, hour = 12 })
+	Eq(#LiveEvents.Active(wednesday), 0, "nothing mid-week")
+end)
+
+T("rarity: legendary is rare, luck helps", function()
+	Expect(Rarity.WeightFor("Legendary", 1) < Rarity.WeightFor("Rare", 1) / 4)
+	Expect(Rarity.WeightFor("Legendary", 3) > Rarity.WeightFor("Legendary", 1) * 2)
+	Eq(Rarity.WeightFor("Mythic", 5), 0, "mythic cards are never random")
+end)
+
+T("monetization: no pay-to-win items", function()
+	for _, def in MonetizationData.Passes do
+		local desc = string.lower(def.Desc)
+		Expect(not string.find(desc, "damage") and not string.find(desc, "coins"), def.Key)
+		Expect(def.Price > 0, def.Key)
+	end
+	for _, def in MonetizationData.Products do
+		Expect(def.Price > 0, def.Key)
+	end
+end)
+
+T("XP curve grows", function()
+	for level = 1, 100 do
+		Expect(GameConfig.XPNeeded(level + 1) >= GameConfig.XPNeeded(level), "level " .. level)
+	end
+	Eq(GameConfig.XPNeeded(1), 5, "first level is quick")
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("protocol")
+---------------------------------------------------------------------------
+T("every record round-trips", function()
+	local w = Protocol.NewWriter(16) -- tiny: forces growth
+	local sent = {}
+	local samples = { u8 = 200, u16 = 60000, u32 = 3000000000, i16 = -1234, f32 = 123.5, q = -123.45, a = 1.5, s = 42.42, v = -12.34 }
+	for name, record in Protocol.Records do
+		local args = {}
+		for i, kind in record.Fields do
+			args[i] = samples[kind]
+		end
+		Protocol.Write(w, name, table.unpack(args))
+		table.insert(sent, { Name = name, Args = args })
+	end
+	local frame = Protocol.Finish(w)
+	local got = {}
+	local handlers = {}
+	for name in Protocol.Records do
+		handlers[name] = function(...)
+			table.insert(got, { Name = name, Args = { ... } })
+		end
+	end
+	Expect(Protocol.Decode(frame, handlers), "decode")
+	Eq(#got, #sent, "record count")
+	for i, s in sent do
+		Eq(got[i].Name, s.Name)
+		for j, v in s.Args do
+			local tolerance = if Protocol.Records[s.Name].Fields[j] == "a" then 0.001 elseif Protocol.Records[s.Name].Fields[j] == "f32" then 0.01 else 0.011
+			Expect(math.abs(got[i].Args[j] - v) <= tolerance, s.Name .. "#" .. j .. " " .. tostring(got[i].Args[j]) .. " vs " .. v)
+		end
+	end
+end)
+
+T("values are clamped, never corrupt the stream", function()
+	local w = Protocol.NewWriter()
+	Protocol.Write(w, "Pos", 70000, 9999, -9999)
+	Protocol.Write(w, "Hit", 5, 0 / 0, 1)
+	Protocol.Write(w, "Coin", 3)
+	local n = 0
+	Expect(Protocol.Decode(Protocol.Finish(w), {
+		Pos = function(id, x, z)
+			Eq(id, 65535)
+			Expect(x > 327 and z < -327)
+			n += 1
+		end,
+		Hit = function(_, dmg)
+			Eq(dmg, 0, "nan damage -> 0")
+			n += 1
+		end,
+		Coin = function(c)
+			Eq(c, 3)
+			n += 1
+		end,
+	}))
+	Eq(n, 3)
+end)
+
+T("truncated / garbage frames are rejected safely", function()
+	local w = Protocol.NewWriter()
+	Protocol.Write(w, "Spawn", 1, 1, 0, 0, 0)
+	local frame = Protocol.Finish(w)
+	local cut = buffer.create(buffer.len(frame) - 2)
+	buffer.copy(cut, 0, frame, 0, buffer.len(cut))
+	Expect(not Protocol.Decode(cut, {}), "truncated")
+	local junk = buffer.create(4)
+	buffer.writeu8(junk, 0, 250)
+	Expect(not Protocol.Decode(junk, {}), "unknown record")
+	Expect(not Protocol.Decode("not a buffer" :: any, {}), "wrong type")
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("stats")
+---------------------------------------------------------------------------
+T("base stats", function()
+	local s = Stats.Compute({})
+	Eq(s.MaxHP, GameConfig.Player.BaseHP)
+	Eq(s.WalkSpeed, GameConfig.Player.BaseWalkSpeed)
+	Eq(s.WeaponSlots, GameConfig.Player.MaxWeapons)
+end)
+
+T("bonuses stack and clamp", function()
+	local s = Stats.Compute({ { Might = 0.5, MoveSpeed = 5, Cooldown = 5, MaxHPMult = -10 }, { Might = 0.25 } })
+	Expect(math.abs(s.Might - 1.75) < 1e-9)
+	Eq(s.WalkSpeed, GameConfig.Player.MaxWalkSpeed, "walk speed capped")
+	Expect(s.CooldownMult >= 0.2, "cooldown floor")
+	Expect(s.MaxHP >= 10, "hp floor")
+	local bad = Stats.Compute({ { Might = 0 / 0, Area = math.huge, Nonsense = 5 } })
+	Eq(bad.Might, 1, "nan ignored")
+	Eq(bad.Area, 1, "inf ignored")
+end)
+
+T("ability stats scale with player stats", function()
+	local base = Stats.Compute({})
+	local strong = Stats.Compute({ { Might = 1, Area = 0.5, Amount = 1 } })
+	local a = Stats.Weapon("PulseBlast", 1, base)
+	local b = Stats.Weapon("PulseBlast", 1, strong)
+	Expect(b.Damage == a.Damage * 2, "might")
+	Expect(b.Amount == a.Amount + 1, "amount")
+	local aura = Stats.Weapon("SigmaAura", 1, strong)
+	Eq(aura.Amount or 1, 1, "NoAmount abilities ignore amount")
+	local burn = Stats.Weapon("FireRing", 1, Stats.Compute({ { Burn = 0.35 } }))
+	Expect(burn.Burn > Stats.Weapon("FireRing", 1, base).Burn, "burn mastery")
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("save data")
+---------------------------------------------------------------------------
+T("defaults are valid", function()
+	local d = Defaults.New()
+	Eq(d.Coins, 0)
+	Eq(d.Fragments, 0)
+	Expect(d.Heroes.Rookie and d.Heroes.Runner and d.Heroes.Tank and not d.Heroes.Samurai)
+	Expect(d.Weapons.BasicBlaster and not d.Weapons.Blast67 and d.Weapons.OverdriveBlaster == nil)
+	Eq(d.Selected, "Rookie")
+	Eq(d.Cosmetics.Equipped.Hat, "Hat.None")
+	Eq(d.Afk.SlotCount, 1)
+end)
+
+T("reconcile repairs garbage and migrates version 1", function()
+	local d = Defaults.Reconcile({
+		Coins = 0 / 0,
+		BrainXP = 500,
+		Selected = "Samurai", -- not unlocked
+		Heroes = { Samurai = "yes", FakeGuy = true },
+		Weapons = { Meteor = true, Nope = true, OverdriveBlaster = true },
+		Meta = { Might = 99, Hacks = 5 },
+		Stats = { Kills = math.huge, BestTime = "7" },
+		Settings = { Sfx = "loud", Shake = false },
+		Quests = { Day = 5, List = { { Key = "Kill300", Progress = 10 }, { Key = "Bogus" }, "x" } },
+		Receipts = { "a", 5, "b" },
+		StudioPasses = { VIPCosmetics = true, Hack = true },
+		Skins = { Cone = true },
+		EquippedSkin = "Cone",
+		Cosmetics = { Owned = { ["Aura.Void"] = "yes" }, Equipped = { Aura = "Aura.Void" } },
+		Afk = { Since = -5, SlotCount = 99, Slots = { "Rookie", "Samurai", 5 } },
+		Loadouts = { { Hero = "Samurai", StartWeapon = "Nope" } },
+		Extra = { junk = true },
+	})
+	Eq(d.Coins, 0, "nan coins")
+	Eq(d.XP, 500, "Brain XP migrated")
+	Eq(d.Selected, "Rookie", "locked selection")
+	Expect(d.Heroes.Samurai == false and d.Heroes.FakeGuy == nil)
+	Expect(d.Weapons.Meteor == true and d.Weapons.Nope == nil and d.Weapons.OverdriveBlaster == nil)
+	Eq(d.Meta.Might, MetaData.ByKey.Might.MaxLevel, "meta clamped")
+	Expect(d.Meta.Hacks == nil)
+	Expect(d.Stats.Kills <= 1e12 and d.Stats.BestTime == 0)
+	Expect(d.Settings.Sfx == true and d.Settings.Shake == false)
+	Eq(#d.Quests.List, 1, "only valid quests")
+	Eq(#d.Receipts, 2, "only string receipts")
+	Expect(d.StudioPasses.VIPCosmetics == true and d.StudioPasses.Hack == nil)
+	Expect(d.Cosmetics.Owned["Hat.Cone"] == true and d.Cosmetics.Equipped.Hat == "Hat.Cone", "v1 hats migrated")
+	Expect(d.Cosmetics.Owned["Aura.Void"] == nil and d.Cosmetics.Equipped.Aura == "Aura.None", "unowned cosmetics dropped")
+	Expect(d.Afk.Since == 0 and d.Afk.SlotCount == #GameConfig.Afk.SlotCosts and d.Afk.Slots[1] == "Rookie" and d.Afk.Slots[2] == "", "afk repaired")
+	Expect(d.Loadouts[1].Hero == "Rookie" and d.Loadouts[1].StartWeapon == "", "loadout repaired")
+	Expect(d.Extra == nil, "unknown keys dropped")
+end)
+
+T("reconcile is idempotent", function()
+	local a = Defaults.Reconcile({ Coins = 50, Meta = { Might = 2 }, Fragments = 7 })
+	local b = Defaults.Reconcile(a)
+	Eq(b.Coins, 50)
+	Eq(b.Fragments, 7)
+	Eq(b.Meta.Might, 2)
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("level up offers")
+---------------------------------------------------------------------------
+local function unlockedAll()
+	local u = {}
+	for _, def in WeaponData.List do
+		u[def.Key] = true
+	end
+	return u
+end
+
+T("offers have distinct, valid cards", function()
+	for seed = 1, 50 do
+		local run = Run.new({ Seed = seed, Unlocked = unlockedAll() })
+		run.Level = 30
+		for _ = 1, 20 do
+			local cards = LevelUp.Build(run, "Level")
+			Eq(#cards, 3, "card count")
+			local seen = {}
+			for _, card in cards do
+				Expect(not seen[card.Id], "duplicate " .. card.Id)
+				seen[card.Id] = true
+				Expect(card.Title and card.Desc and card.Rarity, card.Id)
+			end
+			LevelUp.Apply(run, cards[run.Rng:NextInteger(1, #cards)])
+		end
+		Expect(#run.Weapons <= run.Stats.WeaponSlots, "slots respected")
+	end
+end)
+
+T("THE LUCKY gets 4 cards from chests, 67 chests give 4", function()
+	local run = Run.new({ Seed = 3, Hero = "Lucky", Unlocked = unlockedAll() })
+	Eq(#LevelUp.Build(run, "Chest"), 4)
+	local other = Run.new({ Seed = 3, Unlocked = unlockedAll() })
+	Eq(#LevelUp.Build(other, "Chest"), 3)
+	Eq(#LevelUp.Build(other, "Chest67"), 4)
+end)
+
+T("a ready evolution is always the first card", function()
+	local run = Run.new({ Seed = 12, Unlocked = unlockedAll() })
+	local w = run:GetWeapon("BasicBlaster")
+	w.Level = w.Def.MaxLevel
+	run.Passives.RapidFire = 1
+	table.insert(run.PassiveOrder, "RapidFire")
+	local cards = LevelUp.Build(run, "Level")
+	Eq(cards[1].Type, "Evolution")
+	Eq(cards[1].Rarity, "Mythic")
+	LevelUp.Apply(run, cards[1])
+	Expect(run:GetWeapon("OverdriveBlaster") ~= nil and run:GetWeapon("BasicBlaster") == nil, "evolved in place")
+	Eq(run.Result.Evolutions[1], "OverdriveBlaster")
+end)
+
+T("secret passives only after their secret", function()
+	local run = Run.new({ Seed = 13, Unlocked = unlockedAll() })
+	for _ = 1, 200 do
+		for _, card in LevelUp.Build(run, "Level") do
+			Expect(card.Key ~= "TouchGrass", "secret offered")
+		end
+	end
+end)
+
+T("locked abilities are never offered", function()
+	local run = Run.new({ Seed = 9, Unlocked = { BasicBlaster = true } })
+	for _ = 1, 40 do
+		for _, card in LevelUp.Build(run, "Level") do
+			Expect(card.Type ~= "Weapon", "offered " .. card.Key)
+		end
+	end
+end)
+
+T("maxed build falls back to filler cards", function()
+	local run = Run.new({ Seed = 4, Hero = "Goober", Unlocked = { PulseBlast = true } })
+	run:GetWeapon("PulseBlast").Level = run:GetWeapon("PulseBlast").Def.MaxLevel
+	for _, def in UpgradeData.Passives do
+		run.Passives[def.Key] = def.MaxStacks
+	end
+	local cards = LevelUp.Build(run, "Level")
+	for _, card in cards do
+		Eq(card.Type, "Filler")
+	end
+end)
+
+T("choose validates the index", function()
+	local run = Run.new({ Seed = 5, Unlocked = unlockedAll() })
+	run.PendingLevels = 1
+	LevelUp.OpenNext(run)
+	Expect(run.Offer ~= nil)
+	Expect(not run:Choose(0) and not run:Choose(4) and not run:Choose(1.5) and not run:Choose("1" :: any))
+	Expect(run.Offer ~= nil, "still open")
+	Expect(run:Choose(2))
+	Expect(run.Offer == nil and run.PendingLevels == 0)
+end)
+
+T("reroll spends a reroll, skip closes", function()
+	local run = Run.new({ Seed = 6, Unlocked = unlockedAll() })
+	run.PendingLevels = 2
+	LevelUp.OpenNext(run)
+	local rerolls = run.Rerolls
+	Expect(run:RerollOffer())
+	Eq(run.Rerolls, rerolls - 1)
+	Expect(run:SkipOffer())
+	Expect(run.Offer ~= nil, "second pending level opens")
+	Expect(run:SkipOffer())
+	Expect(run.Offer == nil)
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("simulation")
+---------------------------------------------------------------------------
+T("spatial grid finds neighbours", function()
+	local grid = SpatialGrid.new(8)
+	local items = {}
+	for i = 1, 100 do
+		local it = { X = (i % 10) * 5 - 25, Z = (i // 10) * 5 - 25 }
+		items[i] = it
+		SpatialGrid.Insert(grid, it, it.X, it.Z)
+	end
+	local out = {}
+	local n = SpatialGrid.Query(grid, 0, 0, 6, out)
+	local found = 0
+	for i = 1, n do
+		local it = out[i]
+		if it.X * it.X + it.Z * it.Z <= 36 then
+			found += 1
+		end
+	end
+	local expected = 0
+	for _, it in items do
+		if it.X * it.X + it.Z * it.Z <= 36 then
+			expected += 1
+		end
+	end
+	Eq(found, expected, "exact neighbours")
+	SpatialGrid.Clear(grid)
+	Eq(SpatialGrid.Query(grid, 0, 0, 50, out), 0, "cleared")
+end)
+
+T("every hero survives the first minute headless", function()
+	for _, def in HeroData.List do
+		local run = Run.new({ Seed = 11, Hero = def.Key, Unlocked = unlockedAll() })
+		for _ = 1, 60 * 20 do
+			Bot.Step(run, 1 / 20, 1)
+			if run.Steps % 2 == 0 then
+				run:Flush()
+				run:TakeEvents()
+			end
+		end
+		Expect(run.Kills > 20, def.Key .. " kills " .. run.Kills)
+		Expect(run.Level >= 3, def.Key .. " level " .. run.Level)
+		Expect(not run.Ended, def.Key .. " died in the first minute")
+	end
+end)
+
+T("first level up comes in the first 15 seconds", function()
+	local run = Run.new({ Seed = 21, Unlocked = unlockedAll() })
+	local at = nil
+	for _ = 1, 30 * 20 do
+		Bot.Step(run, 1 / 20, 1)
+		if not at and run.Level >= 2 then
+			at = run.Time
+		end
+	end
+	Expect(at and at < 15, "first level at " .. tostring(at))
+end)
+
+T("time can jump (debug) and the picked slot boss appears", function()
+	local run = Run.new({ Seed = 31, Unlocked = unlockedAll(), BossPicks = { "TheGoober", "TheMachine", "TheVoid" } })
+	run.Time = 358
+	for _ = 1, 8 * 20 do
+		Bot.Step(run, 1 / 20, 1)
+	end
+	Expect(run.Boss and run.Boss.Key == "TheMachine", "slot 2 boss")
+end)
+
+T("every enemy behaviour and every boss runs without errors", function()
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local WaveManager = R("ServerScriptService.Server.Sim.WaveManager")
+	for _, def in EnemyData.List do
+		local run = Run.new({ Seed = 50 + def.Id, Unlocked = unlockedAll() })
+		run.Invulnerable = 1e9
+		EnemyManager.Spawn(run, def.Key, run.PX + 12, run.PZ, { Force = true })
+		for _ = 1, 15 * 20 do
+			Bot.Step(run, 1 / 20, 1)
+			if run.Steps % 2 == 0 then
+				run:Flush()
+				run:TakeEvents()
+			end
+		end
+	end
+	local run = Run.new({ Seed = 77, Unlocked = unlockedAll() })
+	run.Invulnerable = 1e9
+	for _, e in WaveData.Events do
+		WaveManager.TriggerEvent(run, e.Key)
+		for _ = 1, 5 * 20 do
+			Bot.Step(run, 1 / 20, 1)
+		end
+		Expect(run.Result.EventsSeen[e.Key], e.Key)
+	end
+end)
+
+T("party followers get the leader's events only", function()
+	local follower = Run.new({ Seed = 88, Follower = true, Unlocked = unlockedAll() })
+	for _ = 1, 200 * 20 do
+		follower:Step(1 / 20)
+		if follower.Offer then
+			follower:Choose(1)
+		end
+		if follower.Dead or follower.Ended then
+			break
+		end
+	end
+	Eq(follower.Result.Events67, 0, "no own events")
+end)
+
+T("dead run offers a revive window, then ends", function()
+	local run = Run.new({ Seed = 41, Unlocked = unlockedAll() })
+	run:HurtPlayer(1e6, true)
+	Expect(run.Dead and not run.Ended)
+	for _ = 1, (GameConfig.Run.DeathReviveWindow + 2) * 20 do
+		run:Step(1 / 20)
+	end
+	Expect(run.Ended and run.EndReason == "Death")
+end)
+
+T("free revive is used automatically", function()
+	local run = Run.new({ Seed = 42, Unlocked = unlockedAll(), Meta = { Revive = 1 } })
+	Eq(run.Revives, 1)
+	run:HurtPlayer(1e6, true)
+	Expect(not run.Dead and run.HP > 0 and run.Revives == 0)
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("format")
+---------------------------------------------------------------------------
+T("numbers and times", function()
+	Eq(Format.Time(125), "2:05")
+	Eq(Format.Time(-5), "0:00")
+	Eq(Format.Number(999), "999")
+	Eq(Format.Number(1234), "1.23K")
+	Eq(Format.Number(15600000), "15.6M")
+	Eq(Format.Commas(1234567), "1,234,567")
+	Eq(Format.Number(0 / 0), "0")
+end)
+
+process.exit(if Harness.Finish() then 0 else 1)

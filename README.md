@@ -2,9 +2,9 @@
 
 > 📁 В этом репозитории три игры: **The Doppelgänger Obby** (этот файл, корень репозитория),
 > **[🇨🇱 Chile Simulator — TAP → GET TALLER](ChileSimulator/README.md)** (папка `ChileSimulator/`) и
-> **[🧠 Brainrot Survivors — survivor-like с ордами, level up и 67](BrainrotSurvivors/README.md)** (папка `BrainrotSurvivors/`): минималистичный хаб (большая PLAY в центре, 4 пункта внизу, остальное в MORE), минимальный HUD, адаптив под ПК / планшет / телефон — [скриншоты](BrainrotSurvivors/README.md#интерфейс-один-экран--одна-цель).
-> Готовые файлы мест лежат рядом в корне: `DoppelgangerObby.rbxlx`, `ChileSimulator.rbxlx` и `BrainrotSurvivors.rbxlx` — открыть в Roblox Studio → **Play (F5)**.
-> 🧠 **Brainrot Survivors одним кликом:** `PLAY_BrainrotSurvivors.bat` (Windows) / `PLAY_BrainrotSurvivors.command` (macOS) — открывает готовый `BrainrotSurvivors.rbxlx` в Studio, ничего не скачивая. Или просто двойной клик по `BrainrotSurvivors.rbxlx`.
+> **[67 SURVIVAL — survivor-like: 15 героев, 30 способностей + 12 эволюций, орды, 8 боссов, редкие 67-события](67Survival/README.md)** (папка `67Survival/`): минималистичный хаб, Collection Book, AFK Camp, пати, косметика без pay-to-win — [скриншоты](67Survival/README.md#интерфейс-один-экран--одна-цель).
+> Готовые файлы мест лежат рядом в корне: `DoppelgangerObby.rbxlx`, `ChileSimulator.rbxlx` и `67Survival.rbxlx` — открыть в Roblox Studio → **Play (F5)**.
+> **67 Survival одним кликом:** `PLAY_67Survival.bat` (Windows) / `PLAY_67Survival.command` (macOS) — открывает готовый `67Survival.rbxlx` в Studio, ничего не скачивая. Или просто двойной клик по `67Survival.rbxlx`.
 
 Multiplayer-obby для Roblox, в котором главный игровой элемент — **точная копия игрока (Doppelgänger)**.
 На каждом уровне двойник получает роль: Echo (следует за тобой), Rival (соревнуется с тобой), Shadow (повторяет твои действия с задержкой), Ally (помогает по команде) или Troll (притворяется союзником).

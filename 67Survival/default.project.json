@@ -1,0 +1,72 @@
+{
+  "name": "67 Survival",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Modules": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$properties": {
+        "CharacterWalkSpeed": 17,
+        "CharacterUseJumpPower": false,
+        "CharacterJumpHeight": 7.2,
+        "CameraMaxZoomDistance": 120,
+        "CameraMinZoomDistance": 0.5,
+        "DevTouchMovementMode": "Thumbstick",
+        "DevComputerMovementMode": "KeyboardMouse",
+        "LoadCharacterAppearance": true
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "Players": {
+      "$className": "Players",
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "FallenPartsDestroyHeight": -500,
+        "StreamingEnabled": false
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "ClockTime": 14,
+        "Brightness": 2.6,
+        "GlobalShadows": true,
+        "Ambient": [0.45, 0.45, 0.52],
+        "OutdoorAmbient": [0.62, 0.62, 0.68],
+        "EnvironmentDiffuseScale": 0.6,
+        "EnvironmentSpecularScale": 0.3,
+        "Technology": "ShadowMap"
+      }
+    },
+    "SoundService": {
+      "$className": "SoundService"
+    },
+    "TextChatService": {
+      "$className": "TextChatService",
+      "$properties": {
+        "ChatVersion": "TextChatService"
+      }
+    }
+  }
+}
