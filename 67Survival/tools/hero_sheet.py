@@ -89,13 +89,35 @@ def surface_text(img, parts, cam, eye):
         d.text(((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2), text["value"], fill=col, font=font, anchor="mm")
 
 
+def tile_thin_blocks(parts, tile=0.25):
+    """split thin flat blocks (screens, digits) into small tiles: the painter's algorithm sorts
+    whole faces by their centre, so a big screen face would hide the digits lying on it"""
+    out = []
+    for part in parts:
+        s = part["s"]
+        if part.get("mesh") or part.get("shape", "Block") != "Block" or min(s) > 0.15 or max(s) <= tile * 1.5:
+            out.append(part)
+            continue
+        thin = s.index(min(s))
+        counts = [1 if i == thin else max(1, min(8, math.ceil(s[i] / tile))) for i in range(3)]
+        step = [s[i] / counts[i] for i in range(3)]
+        for i in range(counts[0]):
+            for j in range(counts[1]):
+                for k in range(counts[2]):
+                    local = ((i + 0.5) * step[0] - s[0] / 2, (j + 0.5) * step[1] - s[1] / 2, (k + 0.5) * step[2] - s[2] / 2)
+                    out.append(dict(part, p=list(render3d._xf(part["p"], part["r"], local)), s=step, text=None))
+        if part.get("text"):
+            out.append(dict(part, t=1.0))  # keeps the text (drawn by surface_text), draws nothing
+    return out
+
+
 def view(parts, size, eye, target, fov, ground=False, shadow=True):
     img = background(size, ground)
     cam = look_at(eye, target, fov)
     if shadow:
         c = render3d.Camera(cam, size[0], size[1])
         render3d.shadows(img, c, [[[0, -3, 0], 1.9]])
-    layer = render3d.render_viewport(size, cam, parts, LIGHT)
+    layer = render3d.render_viewport(size, cam, tile_thin_blocks(parts), LIGHT)
     surface_text(layer, parts, cam, eye)
     img.alpha_composite(layer)
     return img
