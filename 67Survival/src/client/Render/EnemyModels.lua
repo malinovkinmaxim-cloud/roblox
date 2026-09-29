@@ -8,7 +8,7 @@
 	Silhouette first: every enemy reads as a different SHAPE from the top-down camera (bug,
 	bomb, sac, frog, sheet, rifle...), colour second. Faces stay goofy (googly eyes).
 
-	EnemyModels.Build(def, variant) -> model, root, info { Height, BodyColor, Scale, Parts, Float }
+	EnemyModels.Build(def, variant) -> model, root, info { Height, Top, BodyColor, Scale, Parts, Float }
 	variant: "" | "t" (tiny) | "g" (golden) | "G" (giant, 67 MODE) | "e" (elite)
 ]]
 
@@ -442,6 +442,141 @@ function STYLES.FinalOne(b: Builder, c: Color3, a: Color3): number
 	return 7.6
 end
 
+---------------------------------------------------------------------------- mini-bosses of 67 TOWN
+-- THE BIG QUACK: a rubber duck the size of a car, in a tiny captain's hat
+function STYLES.Quack(b: Builder, c: Color3, a: Color3): number
+	newPart(b, "Body", Vector3.new(8.4, 8.4, 8.4), c, CFrame.new(), BALL)
+	newPart(b, "Tail", Vector3.new(3.6, 3.6, 3.6), c, CFrame.new(0, 1.8, 3.8), BALL)
+	for _, side in { -1, 1 } do
+		newPart(b, "Wing", Vector3.new(3.2, 3.2, 3.2), c:Lerp(a, 0.18), CFrame.new(side * 3.9, 0.4, 0.6), BALL)
+	end
+	newPart(b, "Head", Vector3.new(5.4, 5.4, 5.4), c, CFrame.new(0, 4.4, -2.4), BALL)
+	newPart(b, "Beak", Vector3.new(3.2, 1.1, 2.4), a, CFrame.new(0, 3.9, -5.4))
+	newPart(b, "BeakLow", Vector3.new(2.6, 0.6, 1.8), a:Lerp(BLACK, 0.15), CFrame.new(0, 3.2, -5.1))
+	googlyEyes(b, 1.5, 1.25, 5.3, -4.6)
+	newPart(b, "Hat", Vector3.new(3.4, 1.1, 3.4), WHITE, CFrame.new(0, 7.4, -2.2))
+	newPart(b, "HatBand", Vector3.new(3.5, 0.4, 3.5), rgb(40, 60, 140), CFrame.new(0, 7, -2.2))
+	newPart(b, "HatBrim", Vector3.new(2.6, 0.25, 1.4), rgb(40, 60, 140), CFrame.new(0, 6.9, -4.1))
+	return 4.2
+end
+
+function STYLES.Duckling(b: Builder, c: Color3, a: Color3): number
+	newPart(b, "Body", Vector3.new(1.7, 1.7, 1.7), c, CFrame.new(), BALL)
+	newPart(b, "Head", Vector3.new(1.15, 1.15, 1.15), c, CFrame.new(0, 0.95, -0.5), BALL)
+	newPart(b, "Beak", Vector3.new(0.6, 0.25, 0.5), a, CFrame.new(0, 0.85, -1.15))
+	newPart(b, "EyeL", Vector3.new(0.25, 0.25, 0.25), BLACK, CFrame.new(-0.3, 1.15, -1), BALL)
+	newPart(b, "EyeR", Vector3.new(0.25, 0.25, 0.25), BLACK, CFrame.new(0.3, 1.15, -1), BALL)
+	return 0.85
+end
+
+-- CARTZILLA: a shopping cart that learned to bite
+function STYLES.Cart(b: Builder, c: Color3, a: Color3): number
+	newPart(b, "Basket", Vector3.new(6.6, 4.2, 8.6), c, CFrame.new(), nil, Enum.Material.DiamondPlate)
+	newPart(b, "Inside", Vector3.new(5.6, 0.4, 7.6), rgb(60, 64, 76), CFrame.new(0, 2.05, 0))
+	newPart(b, "Handle", Vector3.new(7.4, 0.7, 0.7), a, CFrame.new(0, 3, 4.9))
+	newPart(b, "Seat", Vector3.new(5.6, 0.4, 2.2), a, CFrame.new(0, 2.4, 3.2) * CFrame.Angles(-0.5, 0, 0))
+	for _, x in { -2.8, 2.8 } do
+		for _, z in { -3.6, 3.6 } do
+			newPart(b, "Wheel", Vector3.new(1.6, 1.6, 1.6), BLACK, CFrame.new(x, -2.9, z), BALL)
+		end
+	end
+	googlyEyes(b, 1.7, 1.5, 1.1, -4.5)
+	for i = -3, 3 do
+		newPart(b, "Tooth", Vector3.new(0.6, 0.8, 0.3), WHITE, CFrame.new(i * 0.8, -0.9, -4.45) * CFrame.Angles(0, 0, if i % 2 == 0 then 0.3 else -0.3))
+	end
+	newPart(b, "PriceTag", Vector3.new(1.8, 1.1, 0.15), rgb(255, 214, 60), CFrame.new(3.4, 1.6, -3.2) * CFrame.Angles(0, 0.4, 0.3))
+	return 3.7
+end
+
+-- JACKPOT JIMMY: a slot machine on little legs (the reels are drawn by the renderer)
+function STYLES.Slots(b: Builder, c: Color3, a: Color3): number
+	newPart(b, "Cabinet", Vector3.new(7, 7.4, 5), c, CFrame.new())
+	newPart(b, "Crown", Vector3.new(7.4, 1.6, 5.4), a, CFrame.new(0, 4.4, 0), nil, Enum.Material.Foil)
+	newPart(b, "Light", Vector3.new(1.6, 1.6, 1.6), rgb(255, 90, 90), CFrame.new(0, 5.8, 0), BALL, Enum.Material.Neon)
+	newPart(b, "Window", Vector3.new(5.8, 2.8, 0.3), rgb(30, 24, 46), CFrame.new(0, 0.9, -2.55))
+	for i = -1, 1 do
+		newPart(b, "Reel", Vector3.new(1.6, 2.2, 0.2), WHITE, CFrame.new(i * 1.85, 0.9, -2.72))
+	end
+	newPart(b, "Tray", Vector3.new(5, 0.8, 1.2), a, CFrame.new(0, -2.6, -2.8))
+	newPart(b, "LeverArm", Vector3.new(0.5, 4, 0.5), rgb(200, 200, 210), CFrame.new(4.1, 1.6, 0))
+	newPart(b, "LeverBall", Vector3.new(1.5, 1.5, 1.5), rgb(236, 50, 60), CFrame.new(4.1, 3.8, 0), BALL)
+	googlyEyes(b, 1.4, 1.5, 3.1, -2.6)
+	for _, side in { -1, 1 } do
+		newPart(b, "Leg", Vector3.new(1.2, 1.8, 1.2), rgb(40, 36, 52), CFrame.new(side * 2.2, -4.5, 0))
+		newPart(b, "Shoe", Vector3.new(1.6, 0.8, 2.2), a, CFrame.new(side * 2.2, -5.2, -0.4))
+	end
+	return 5.6
+end
+
+function STYLES.CoinStack(b: Builder, c: Color3, a: Color3): number
+	-- a small plinth is the root (a root keeps no rotation; the coins are flat cylinders)
+	newPart(b, "Plinth", Vector3.new(3.2, 0.5, 3.2), a:Lerp(BLACK, 0.3), CFrame.new())
+	for i = 0, 4 do
+		local d = 3.2 - i * 0.18
+		newPart(b, "Coin", Vector3.new(0.7, d, d), if i % 2 == 0 then c else a, CFrame.new(0.1 * (i % 2), 0.6 + i * 0.72, 0) * CFrame.Angles(0, 0, math.pi / 2), Enum.PartType.Cylinder, Enum.Material.Foil)
+	end
+	newPart(b, "Glint", Vector3.new(0.5, 0.5, 0.5), WHITE, CFrame.new(0.8, 4, -1), BALL, Enum.Material.Neon)
+	return 0.25
+end
+
+-- SIX and SEVEN: walking seven-segment digits with googly eyes. They face -Z, so the digit's
+-- right side (seen from the front) is -X. The root part keeps no offset (the renderer places
+-- it), so the digit is shifted to put its first segment at the origin.
+local function digitBody(b: Builder, ch: string, c: Color3, a: Color3): number
+	local s, t, depth = 3.2, 1.3, 1.8
+	local spots = {
+		g = { 0, 0, true },
+		a = { 0, s, true },
+		d = { 0, -s, true },
+		b = { -s / 2, s / 2, false },
+		c = { -s / 2, -s / 2, false },
+		e = { s / 2, -s / 2, false },
+		f = { s / 2, s / 2, false },
+	}
+	-- the root first (the segment that flashes): the middle bar of a 6, the top of a 7
+	local order = if ch == "6" then { "g", "a", "f", "e", "d", "c" } else { "a", "b", "c" }
+	local shift = -spots[order[1]][2]
+	for _, seg in order do
+		local spot = spots[seg]
+		local size = if spot[3] then Vector3.new(s + t, t, depth) else Vector3.new(t, s, depth)
+		newPart(b, "Seg" .. seg, size, c, CFrame.new(spot[1], spot[2] + shift, 0))
+	end
+	googlyEyes(b, 1.2, 0.8, s + 0.2 + shift, -1.1)
+	newPart(b, "Glow", Vector3.new(s + t + 0.3, 0.3, depth + 0.3), a, CFrame.new(0, s + t / 2 + 0.1 + shift, 0), nil, Enum.Material.Neon)
+	local feet = if ch == "6" then { -1.2, 1.2 } else { -1.6 }
+	for _, x in feet do
+		newPart(b, "Foot", Vector3.new(1.4, 0.8, 2), a:Lerp(BLACK, 0.3), CFrame.new(x, -s - t / 2 - 0.5 + shift, -0.2))
+	end
+	return s + t / 2 + 0.9 - shift
+end
+
+function STYLES.Six(b: Builder, c: Color3, a: Color3): number
+	return digitBody(b, "6", c, a)
+end
+
+function STYLES.Seven(b: Builder, c: Color3, a: Color3): number
+	return digitBody(b, "7", c, a)
+end
+
+-- TICK TOCK: a round alarm clock with two bells, running late (the root is the round body:
+-- a root keeps no rotation, so the face is its own disc)
+function STYLES.Clock(b: Builder, c: Color3, a: Color3): number
+	newPart(b, "Body", Vector3.new(7, 7, 7), c, CFrame.new(), BALL)
+	local front = CFrame.Angles(0, math.pi / 2, 0)
+	newPart(b, "Bezel", Vector3.new(0.4, 6.2, 6.2), rgb(255, 205, 60), CFrame.new(0, 0.2, -2.9) * front, Enum.PartType.Cylinder, Enum.Material.Foil)
+	newPart(b, "Face", Vector3.new(0.4, 5.4, 5.4), a, CFrame.new(0, 0.2, -3.1) * front, Enum.PartType.Cylinder)
+	newPart(b, "HandLong", Vector3.new(0.35, 2.3, 0.15), BLACK, CFrame.new(0.45, 1.0, -3.35) * CFrame.Angles(0, 0, -0.5))
+	newPart(b, "HandShort", Vector3.new(0.4, 1.4, 0.15), BLACK, CFrame.new(-0.3, -0.35, -3.35) * CFrame.Angles(0, 0, 2.6))
+	newPart(b, "Pin", Vector3.new(0.5, 0.5, 0.5), rgb(236, 60, 60), CFrame.new(0, 0.2, -3.4), BALL)
+	for _, side in { -1, 1 } do
+		newPart(b, "Bell", Vector3.new(2.4, 2.4, 2.4), rgb(255, 205, 60), CFrame.new(side * 2.1, 3.7, 0), BALL, Enum.Material.Foil)
+		newPart(b, "Leg", Vector3.new(0.7, 2, 0.7), BLACK, CFrame.new(side * 1.9, -3.6, 0) * CFrame.Angles(0, 0, side * 0.35))
+	end
+	newPart(b, "Hammer", Vector3.new(0.4, 1.6, 0.4), BLACK, CFrame.new(0, 4.2, 0))
+	googlyEyes(b, 1.3, 1.1, 1.9, -3.2)
+	return 4.5
+end
+
 -- floating models bob in the air instead of hopping
 local FLOAT = { Diver = true, Ghost = true, The67 = true, VoidBoss = true }
 
@@ -470,9 +605,20 @@ function EnemyModels.Build(def, variant: string?): (Model, BasePart, any)
 		-- elites wear a glowing ring: a tougher version, worth a fragment sometimes
 		newPart(b, "EliteRing", Vector3.new(0.25, 3.6, 3.6), rgb(255, 205, 60), CFrame.new(0, -height + 0.15, 0) * CFrame.Angles(0, 0, math.pi / 2), Enum.PartType.Cylinder, Enum.Material.Neon)
 	end
+	if def.Champion then
+		-- a mini-boss stands in a red ring (readable in any crowd, from any zoom)
+		local d = def.Radius * 2.4
+		local ring = newPart(b, "MiniRing", Vector3.new(0.2, d / scale, d / scale), rgb(255, 70, 70), CFrame.new(0, -height + 0.12, 0) * CFrame.Angles(0, 0, math.pi / 2), Enum.PartType.Cylinder, Enum.Material.Neon)
+		ring.Transparency = 0.45
+	end
 	local root = b.Root :: BasePart
 	model.PrimaryPart = root
-	return model, root, { Height = height * scale, BodyColor = root.Color, Scale = scale, Parts = b.Parts, Float = FLOAT[def.Model] == true }
+	-- how far the model reaches above its root (name plates of mini-bosses sit above it)
+	local top = 0
+	for _, p in b.Parts do
+		top = math.max(top, p.Position.Y + p.Size.Y / 2 - root.Position.Y)
+	end
+	return model, root, { Height = height * scale, Top = top, BodyColor = root.Color, Scale = scale, Parts = b.Parts, Float = FLOAT[def.Model] == true }
 end
 
 return EnemyModels

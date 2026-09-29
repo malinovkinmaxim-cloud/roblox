@@ -40,13 +40,29 @@ GameConfig.Arena = {
 	SpawnRadiusMin = 58, -- enemies appear just outside the camera view
 	SpawnRadiusMax = 74,
 	RelocateDistance = 105, -- enemies left further behind than this are moved ahead of the player
-	StartOffsets = { -- where runs start (a random one, so ghosts of other players spread out)
-		Vector3.new(0, 0, 0),
-		Vector3.new(-60, 0, -40),
-		Vector3.new(60, 0, -40),
-		Vector3.new(-60, 0, 50),
-		Vector3.new(60, 0, 50),
+	StuckRelocate = 3, -- seconds an enemy may stay stuck on a wall (far from you) before it is moved ahead
+	StartOffsets = { -- where runs start: around the 67 fountain (a random one, so players spread out)
+		Vector3.new(0, 0, 26),
+		Vector3.new(-30, 0, 22),
+		Vector3.new(30, 0, 22),
+		Vector3.new(-28, 0, -24),
+		Vector3.new(28, 0, -24),
 	},
+}
+
+-- 67 TOWN: zone events of a run (shared/ArenaData.lua: the zones; Sim/ArenaDirector.lua)
+GameConfig.Map = {
+	HotFirstAt = 200, -- 67 RUSH: one zone pays more for a while
+	HotEvery = { 100, 130 },
+	HotTime = 40,
+	HotXP = 1.67,
+	HotCoins = 2,
+	VaultFirstAt = 135, -- a 67 VAULT wakes up somewhere
+	VaultEvery = { 95, 125 },
+	VaultAwake = 60, -- seconds it stays open
+	EliteRelicChance = 0.03, -- an elite drops a (common-ish) relic
+	MaxLoot = 12, -- relics lying on the ground at once
+	MinimapHz = 10, -- minimap marker updates per second
 }
 
 GameConfig.Lobby = {

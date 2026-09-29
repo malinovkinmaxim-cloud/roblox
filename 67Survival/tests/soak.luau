@@ -84,7 +84,12 @@ local function oneRun(label: string, god: boolean)
 		maxPool = math.max(maxPool, enemyRenderer.Pool.Created)
 		if run.Time >= nextReport then
 			nextReport += 60
-			print(string.format("  %4.0fs lvl %2d kills %5d enemies %3d pool %3d gems %3d ws %5d boss %s", run.Time, run.Level, run.Kills, #run.Enemies, enemyRenderer.Pool.Created, #run.Gems, countWorkspace(), if run.Boss then run.Boss.Key else "-"))
+			local boss = run.Boss
+			print(string.format(
+				"  %4.0fs lvl %2d kills %5d enemies %3d pool %3d gems %3d ws %5d you %4.0f,%4.0f boss %s",
+				run.Time, run.Level, run.Kills, #run.Enemies, enemyRenderer.Pool.Created, #run.Gems, countWorkspace(), run.PX, run.PZ,
+				if boss then string.format("%s %d%% at %.0f,%.0f", boss.Key, math.floor(boss.HP / boss.MaxHP * 100), boss.X, boss.Z) else "-"
+			))
 		end
 	end
 	Engine.Step(5)

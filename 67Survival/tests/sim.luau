@@ -39,7 +39,7 @@ for seed = 1, seeds do
 	local maxEnemies, maxGems, maxProj = 0, 0, 0
 	local stepTime, steps = 0, 0
 	local levelAt = {}
-	local bossAt, bossLog, eventLog = {}, {}, {}
+	local bossAt, bossLog, eventLog, townLog = {}, {}, {}, {}
 	local minHP = math.huge
 	print(string.format("\n=== seed %d (%s, skill %.1f) ===", seed, hero, skill))
 	while not run.Ended and run.Time < maxMinutes * 60 do
@@ -56,6 +56,13 @@ for seed = 1, seeds do
 					table.insert(bossLog, string.format("%s %.0fs (%.0fs fight)", ev.Payload.Key, run.Time, run.Time - (bossAt[ev.Payload.Key] or 0)))
 				elseif ev.Name == "EvolutionReady" then
 					table.insert(eventLog, string.format("EVO-READY %s@%.0f", ev.Payload.Evolution, run.Time))
+				elseif ev.Name == "MiniBoss" and ev.Payload.Phase ~= "Spawn" and ev.Payload.Phase ~= "Bond" then
+					table.insert(townLog, string.format("%s:%s@%.0f", ev.Payload.Key, ev.Payload.Phase, run.Time))
+				elseif ev.Name == "Relic" then
+					table.insert(townLog, string.format("+%s@%.0f", ev.Payload.Key, run.Time))
+				elseif ev.Name == "Map" and (ev.Payload.Vault or ev.Payload.Rift or ev.Payload.Hot) then
+					local what = if ev.Payload.Vault then "Vault" .. ev.Payload.Vault .. ":" .. tostring(ev.Payload.State) elseif ev.Payload.Rift then "RiftOpen" else "Rush:" .. tostring(ev.Payload.Hot)
+					table.insert(townLog, string.format("%s@%.0f", what, run.Time))
 				elseif ev.Name == "Event67" then
 					table.insert(eventLog, string.format("%s@%.0f", ev.Payload.Key .. (if ev.Payload.Variant then "/" .. ev.Payload.Variant else ""), run.Time))
 				end
@@ -106,6 +113,13 @@ for seed = 1, seeds do
 	print(string.format("first level-up at %.1fs, level 5 at %.1fs, level 10 at %.1fs, level 20 at %.1fs", levelAt[2] or -1, levelAt[5] or -1, levelAt[10] or -1, levelAt[20] or -1))
 	print("bosses: " .. table.concat(bossLog, " | "))
 	print("events: " .. table.concat(eventLog, " "))
+	local visited = {}
+	for key in run.Map.Visited do
+		table.insert(visited, key)
+	end
+	table.sort(visited)
+	print("67 town: " .. table.concat(townLog, " "))
+	print(string.format("mini-bosses %d, relics %d, vaults %d, zones %s", s.MiniBosses or 0, #(s.Relics or {}), s.Vaults or 0, table.concat(visited, ",")))
 	print(string.format("damage taken %d, lowest hp %d, rares %d, evolutions %s, fragments %d", s.DamageTaken, math.floor(minHP), s.Rares, table.concat(s.Evolutions, ","), s.Fragments))
 	table.insert(outcomes, s)
 end

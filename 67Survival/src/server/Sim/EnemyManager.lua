@@ -9,12 +9,18 @@
 	Behaviours (shared/EnemyData.lua Behavior):
 	  Chase Charge Strafe Blink Bomber Dive Summoner Phase Leap Mimic Sniper
 	  Flee (67 Goblin)  Sixty (THE 67)  Static (loot box)  March (formations)  Boss
+	  Champion (the MINI-BOSSES of 67 TOWN: Sim/MiniBosses.lua)
+
+	67 TOWN (Sim/ArenaDirector.lua): the horde never spawns in the sealed rift or behind a wall
+	from you, the zone scales XP / coins, kills fill the zone's threat meter; enemies stuck on
+	a wall for a while are moved ahead of you like stragglers.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 
 local GameConfig = require(Shared.GameConfig)
+local ArenaData = require(Shared.ArenaData)
 local EnemyData = require(Shared.EnemyData)
 local WaveData = require(Shared.WaveData)
 local Protocol = require(Shared.Protocol)
@@ -22,6 +28,9 @@ local Protocol = require(Shared.Protocol)
 local SpatialGrid = require(script.Parent.SpatialGrid)
 local Bosses = require(script.Parent.Bosses)
 local Pickups = require(script.Parent.Pickups)
+local MiniBosses = require(script.Parent.MiniBosses)
+local ArenaDirector = require(script.Parent.ArenaDirector)
+local Relics = require(script.Parent.Relics)
 
 local EnemyManager = {}
 
@@ -77,6 +86,10 @@ export type SpawnOptions = {
 	NoScale: boolean?,
 	Force: boolean?, -- ignore the enemy cap (bosses, event specials)
 	HPMult: number?,
+	DamageMult: number?, -- the zone's danger
+	Encounter: any?, -- mini-boss: its encounter (Sim/MiniBosses)
+	HomeX: number?, -- mini-boss: its lair
+	HomeZ: number?,
 }
 
 function EnemyManager.Count(run): number
@@ -93,13 +106,18 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 	local diff = run.Diff or NO_DIFF
 	local hpScale = if o.NoScale then 1 else WaveData.HPScale(t)
 	local dmgScale = if o.NoScale then 1 else WaveData.DamageScale(t)
-	local isBoss = def.Boss == true or def.MiniBoss == true
+	local champion = def.Champion == true
+	local isBoss = def.Boss == true or def.MiniBoss == true or champion
 	-- difficulty: the horde (and THE 67) gets tougher; loot boxes and the goblin do not
 	if not o.NoScale or key == "The67" then
 		hpScale *= diff.EnemyHP
 		dmgScale *= diff.EnemyDamage
 	end
-	if isBoss then
+	if champion then
+		-- mini-bosses grow with the run (and a little with a strong build)
+		hpScale = WaveData.HPScale(t) * (1 + max(0, run.Level - 10) * 0.02) * diff.BossHP
+		dmgScale = WaveData.DamageScale(t) * diff.BossDamage
+	elseif isBoss then
 		-- bosses scale with the player's level so a strong build still has a fight
 		hpScale = (1 + max(0, run.Level - 10) * 0.025) * diff.BossHP
 		dmgScale = WaveData.DamageScale(t) * diff.BossDamage
@@ -138,7 +156,7 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 		HP = hp,
 		MaxHP = hp,
 		Speed = speed,
-		Damage = def.Damage * dmgScale,
+		Damage = def.Damage * dmgScale * (o.DamageMult or 1),
 		DmgScale = dmgScale,
 		Radius = radius,
 		Mass = def.Mass * (if o.Elite then 2 elseif giant then 1.5 else 1),
@@ -196,8 +214,11 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 	if o.FromSky then
 		flags += FLAGS.FromSky
 	end
-	if isBoss then
+	if isBoss and not champion then
 		flags += FLAGS.Boss
+	end
+	if champion then
+		flags += FLAGS.Champion
 	end
 	if o.Elite then
 		flags += FLAGS.Elite
@@ -209,25 +230,57 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 	if e.Dormant then
 		setState(run, e, ES.Dormant)
 	end
-	if isBoss then
+	if champion then
+		MiniBosses.Init(run, e, o)
+	elseif isBoss then
 		Bosses.Init(run, e)
 	end
 	return e
 end
 
--- A spawn point on a ring around the player, inside the arena
+-- true when a wall stands between (x0, z0) and (x1, z1) (sampled every few studs)
+function EnemyManager.WallBetween(run, x0: number, z0: number, x1: number, z1: number): boolean
+	if not run.Colliders then
+		return false
+	end
+	local dx, dz = x1 - x0, z1 - z0
+	local n = math.ceil(sqrt(dx * dx + dz * dz) / 6)
+	for i = 1, n - 1 do
+		local f = i / n
+		if EnemyManager.InsideCollider(run, x0 + dx * f, z0 + dz * f, 0.3) then
+			return true
+		end
+	end
+	return false
+end
+
+-- A spawn point on a ring around the player, inside the arena: not in a wall, not in the
+-- sealed rift, not behind a wall from the player (the horde has to reach you)
 function EnemyManager.RingPoint(run, rMin: number, rMax: number): (number, number)
 	local rng = run.Rng
-	for _ = 1, 8 do
+	local fallbackX, fallbackZ = nil, nil
+	for _ = 1, 10 do
 		local a = rng:NextNumber(0, TAU)
 		local r = rng:NextNumber(rMin, rMax)
 		local x, z = run.PX + cos(a) * r, run.PZ + sin(a) * r
-		if abs(x) <= HALF and abs(z) <= HALF and not EnemyManager.InsideCollider(run, x, z, 1.5) then
+		if abs(x) <= HALF and abs(z) <= HALF and not EnemyManager.InsideCollider(run, x, z, 1.5) and not (run.Map and ArenaDirector.SpawnBlocked(run, x, z)) then
+			if not EnemyManager.WallBetween(run, run.PX, run.PZ, x, z) then
+				return x, z
+			end
+			fallbackX, fallbackZ = fallbackX or x, fallbackZ or z
+		end
+	end
+	if fallbackX and fallbackZ then
+		return fallbackX, fallbackZ
+	end
+	for _ = 1, 8 do
+		local a = rng:NextNumber(0, TAU)
+		local x, z = math.clamp(run.PX + cos(a) * rMin, -HALF, HALF), math.clamp(run.PZ + sin(a) * rMin, -HALF, HALF)
+		if not (run.Map and ArenaDirector.SpawnBlocked(run, x, z)) then
 			return x, z
 		end
 	end
-	local a = rng:NextNumber(0, TAU)
-	return math.clamp(run.PX + cos(a) * rMin, -HALF, HALF), math.clamp(run.PZ + sin(a) * rMin, -HALF, HALF)
+	return math.clamp(run.PX, -HALF, HALF), math.clamp(run.PZ + rMin, -HALF, HALF)
 end
 
 ---------------------------------------------------------------------------
@@ -322,15 +375,21 @@ function EnemyManager.Kill(run, e)
 	run.Kills += 1
 	result.EnemyKills[key] = (result.EnemyKills[key] or 0) + 1
 	run:OnKill(e)
+	if run.Map then
+		ArenaDirector.OnKill(run, e)
+	end
 
-	-- XP gem
+	-- XP gem (the zone it died in pays more or less)
 	if def.XP > 0 then
 		local xp = def.XP * (if e.Golden then 5 elseif e.Elite then 4 elseif e.Giant then 1.5 else 1)
+		if run.Map then
+			xp *= ArenaDirector.XPMult(run, e.X, e.Z)
+		end
 		Pickups.SpawnGem(run, e.X, e.Z, xp)
 	end
 	-- coins / items
 	local params = def.Params
-	local coinChance = def.CoinChance * luck * (if run.Mech == "Hoarder" then 1.5 else 1)
+	local coinChance = def.CoinChance * luck * (if run.Mech == "Hoarder" then 1.5 else 1) * (if run.Map then ArenaDirector.CoinMult(run, e.X, e.Z) else 1)
 	if params.Coins then
 		run:AddCoins(params.Coins)
 	elseif rng:NextNumber() < coinChance then
@@ -342,9 +401,15 @@ function EnemyManager.Kill(run, e)
 	if def.ItemChance > 0 and rng:NextNumber() < GameConfig.Drops.BaseItemChance * def.ItemChance * luck then
 		Pickups.SpawnItem(run, EnemyManager.RollItem(run), e.X, e.Z)
 	end
-	-- elites sometimes drop a hero fragment
+	-- elites sometimes drop a hero fragment, rarely a relic
 	if e.Elite and rng:NextNumber() < GameConfig.Drops.EliteFragmentChance * min(3, luck) then
 		Pickups.SpawnItem(run, "Fragment", e.X, e.Z)
+	end
+	if e.Elite and run.Map and rng:NextNumber() < GameConfig.Map.EliteRelicChance * min(3, luck) then
+		local relic = Relics.Roll(run, max(0, ArenaDirector.Zone(run).LootTier - 1))
+		if relic then
+			Relics.Drop(run, relic, e.X, e.Z)
+		end
 	end
 	if params.SplitInto and not e.Tiny then
 		for i = 1, params.SplitCount do
@@ -367,7 +432,9 @@ function EnemyManager.Kill(run, e)
 	elseif key == "Mimic" then
 		run:Write("Fx", 0, e.X, e.Z, 0, 6, 0, GFX.Bomb)
 	end
-	if e.IsBoss then
+	if def.Champion then
+		MiniBosses.OnKilled(run, e, EnemyManager)
+	elseif e.IsBoss then
 		Bosses.OnKilled(run, e, EnemyManager)
 	end
 end
@@ -380,11 +447,14 @@ local function wake(run, e)
 end
 
 function EnemyManager.Damage(run, e, dmg: number, hitFlags: number, kx: number, kz: number, knock: number)
-	if not e.Alive or dmg <= 0 or e.Phased then
+	if not e.Alive or dmg <= 0 or e.Phased or e.Shielded then
 		return
 	end
 	if e.Dormant then
 		wake(run, e)
+	end
+	if e.StunnedUntil and e.StunnedUntil > run.Time then
+		dmg *= 1.5 -- JACKPOT! it can't block
 	end
 	e.HP -= dmg
 	if run.FrameHits < GameConfig.Sim.MaxHitsPerFrame or dmg >= 100 or e.IsBoss then
@@ -862,6 +932,10 @@ function Behaviors.Boss(run, e, dx, dz, d, dt)
 	return Bosses.Step(run, e, dx, dz, d, dt, EnemyManager)
 end
 
+function Behaviors.Champion(run, e, dx, dz, d, dt)
+	return MiniBosses.Step(run, e, dx, dz, d, dt, EnemyManager)
+end
+
 EnemyManager.Behaviors = Behaviors
 
 ---------------------------------------------------------------------------
@@ -875,13 +949,55 @@ function EnemyManager.RebuildGrid(run)
 	end
 end
 
-local NO_RELOCATE = { March = true, Static = true, Flee = true, Sixty = true, Mimic = true, Boss = true }
+local NO_RELOCATE = { March = true, Static = true, Flee = true, Sixty = true, Mimic = true, Boss = true, Champion = true }
+local RIFT = ArenaData.ByKey.Rift.Rect
+
+local function inRift(x: number, z: number): boolean
+	return x < RIFT.MaxX and z < RIFT.MaxZ
+end
+
+-- the rift's cliffs are long: an enemy on the other side of them heads for the best gate
+-- first (aiming a little past it, so big ones don't stop in the doorway)
+local GATES = ArenaData.RiftGates
+local THROUGH = 16
+local function viaGate(x: number, z: number, tx: number, tz: number): (number, number)
+	local best, bestGate = math.huge, GATES[1]
+	for _, g in GATES do
+		local d = sqrt((g.X - x) ^ 2 + (g.Z - z) ^ 2) + sqrt((tx - g.X) ^ 2 + (tz - g.Z) ^ 2)
+		if d < best then
+			best, bestGate = d, g
+		end
+	end
+	local g = bestGate
+	local inside = x < RIFT.MaxX and z < RIFT.MaxZ
+	if g.Axis == "X" then
+		-- a gate in the south cliffs (z = -80)
+		return g.X, g.Z + (if inside then THROUGH else -THROUGH)
+	end
+	-- a gate in the east cliffs (x = 80)
+	return g.X + (if inside then THROUGH else -THROUGH), g.Z
+end
+
+-- the sealed rift: push the horde back out over its nearest edge
+local function keepOutOfRift(e)
+	if e.X < RIFT.MaxX and e.Z < RIFT.MaxZ and e.X > RIFT.MinX and e.Z > RIFT.MinZ then
+		local south, east = RIFT.MaxZ - e.Z, RIFT.MaxX - e.X
+		if south < east then
+			e.Z = RIFT.MaxZ + e.Radius
+		else
+			e.X = RIFT.MaxX + e.Radius
+		end
+	end
+end
 
 function EnemyManager.Step(run, dt: number)
 	local px, pz = run.PX, run.PZ
 	local now = run.Time
 	local turbo = if run:Buff("TurboMode") then 1.67 else 1
 	local relocate = GameConfig.Arena.RelocateDistance
+	local stuckLimit = GameConfig.Arena.StuckRelocate
+	local riftSealed = run.Map ~= nil and not run.Map.RiftOpen
+	local riftOpen = run.Map ~= nil and run.Map.RiftOpen
 	local grid = run.Grid
 	local knockDecay = exp(-7 * dt)
 	local decoy = run.Decoy
@@ -906,6 +1022,10 @@ function EnemyManager.Step(run, dt: number)
 			if ddx * ddx + ddz * ddz < 40 * 40 then
 				tx, tz = decoy.X, decoy.Z
 			end
+		end
+		-- the rift's cliffs: go round through a gate (only when open; sealed, nobody is inside)
+		if riftOpen and not e.Air and inRift(e.X, e.Z) ~= inRift(tx, tz) then
+			tx, tz = viaGate(e.X, e.Z, tx, tz)
 		end
 		local dx, dz = tx - e.X, tz - e.Z
 		local d = sqrt(dx * dx + dz * dz)
@@ -974,7 +1094,13 @@ function EnemyManager.Step(run, dt: number)
 				e.X += sx * speed * dt * 0.8
 				e.Z += sz * speed * dt * 0.8
 				pushOut(run, e)
+				e.Stuck = (e.Stuck or 0) + dt
+			elseif e.Stuck then
+				e.Stuck = max(0, e.Stuck - dt * 0.5)
 			end
+		end
+		if riftSealed and not e.IsBoss then
+			keepOutOfRift(e)
 		end
 		if e.X < -HALF then
 			e.X = -HALF
@@ -990,7 +1116,9 @@ function EnemyManager.Step(run, dt: number)
 		-- left far behind: reappear ahead of the player (the horde never thins out)
 		local pdx, pdz = px - e.X, pz - e.Z
 		local pd2 = pdx * pdx + pdz * pdz
-		if pd2 > relocate * relocate and not NO_RELOCATE[e.Behavior] and not e.Lit and e.State == 0 then
+		local stuck = e.Stuck ~= nil and e.Stuck > stuckLimit and pd2 > 30 * 30
+		if (pd2 > relocate * relocate or stuck) and not NO_RELOCATE[e.Behavior] and not e.Lit and e.State == 0 then
+			e.Stuck = 0
 			local a = atan2(run.FZ, run.FX) + run.Rng:NextNumber(-0.9, 0.9)
 			local r = run.Rng:NextNumber(GameConfig.Arena.SpawnRadiusMin, GameConfig.Arena.SpawnRadiusMax)
 			e.X = math.clamp(px + cos(a) * r, -HALF, HALF)
@@ -1035,6 +1163,10 @@ function EnemyManager.Step(run, dt: number)
 			for _, e in touching do
 				EnemyManager.Damage(run, e, dmg, 0, e.X - px, e.Z - pz, 6)
 			end
+		end
+		-- the Cactus Hug relic does the same for everyone
+		if run.Relics and touching then
+			Relics.Thorns(run, touching)
 		end
 	end
 

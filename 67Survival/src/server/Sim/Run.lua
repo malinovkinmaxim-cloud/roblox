@@ -8,11 +8,13 @@
 
 	The same object runs headless in tests/ with a bot at the controls.
 
-	Step order: WaveManager (spawns, bosses, 67 events) -> EnemyManager (AI, movement,
-	contact, burning) -> CombatManager (abilities, projectiles, zones, allies) -> Pickups
-	(gems, items) -> level ups.
+	Step order: WaveManager (spawns, bosses, 67 events, then the map's director:
+	ArenaDirector -> MiniBosses) -> EnemyManager (AI, movement, contact, burning) ->
+	CombatManager (abilities, projectiles, zones, allies) -> Pickups (gems, items) -> Relics
+	(dash, trails, relic loot) -> level ups.
 
-	Hero mechanics (shared/HeroData.lua Mechanic) live here and in the modules above.
+	Hero mechanics (shared/HeroData.lua Mechanic) live here and in the modules above;
+	relics (shared/RelicData.lua) in Sim/Relics.lua.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -33,6 +35,9 @@ local CombatManager = require(script.Parent.CombatManager)
 local WaveManager = require(script.Parent.WaveManager)
 local Pickups = require(script.Parent.Pickups)
 local LevelUp = require(script.Parent.LevelUp)
+local Relics = require(script.Parent.Relics)
+local ArenaDirector = require(script.Parent.ArenaDirector)
+local MiniBosses = require(script.Parent.MiniBosses)
 
 local Run = {}
 Run.__index = Run
@@ -170,8 +175,13 @@ function Run.new(opts: Options)
 		MaxWeapons = 0,
 		Fragments = 0,
 		LowestHP = math.huge,
+		MiniBosses = 0, -- 67 TOWN
+		Relics = 0,
+		Vaults = 0,
+		Dashes = 0,
 	}
 
+	Relics.Init(self)
 	self:RefreshStats()
 	self.HP = self.Stats.MaxHP
 	self.Rerolls = self.Stats.Rerolls + GameConfig.LevelUp.FreeRerolls
@@ -197,6 +207,7 @@ function Run.new(opts: Options)
 	end
 
 	WaveManager.Init(self, opts.BossPicks)
+	ArenaDirector.Init(self)
 	return self
 end
 
@@ -311,7 +322,7 @@ function Run:Sources()
 			end
 		end
 	end
-	local sources = { self.CharStats, self.MetaStats, passives }
+	local sources = { self.CharStats, self.MetaStats, passives, Relics.Sources(self) }
 	if self.Diff.Luck > 0 then
 		table.insert(sources, { Luck = self.Diff.Luck }) -- harder tiers: rarer cards and drops
 	end
@@ -341,6 +352,7 @@ function Run:RefreshStats()
 		elseif self.Mech == "ArcaneEcho" and (w.Def.Kind == "Missile" or w.Def.Kind == "Projectile") then
 			w.S.Amount += 1
 		end
+		Relics.ApplyWeapon(self, w) -- ability-type relics
 	end
 	self.StatsDirty = true
 end
@@ -351,7 +363,7 @@ function Run:DamageMult(e): number
 	if self.Mech == "Headhunter" and e and (e.IsBoss or e.Elite) then
 		m *= 1.4
 	end
-	return m
+	return m * Relics.DamageMult(self, e)
 end
 
 function Run:FireRate(): number
@@ -382,9 +394,15 @@ function Run:SendLoadout()
 	for _, key in self.PassiveOrder do
 		table.insert(passives, { Key = key, Stacks = self.Passives[key] })
 	end
+	local relics = {}
+	for _, key in self.RelicOrder do
+		table.insert(relics, { Key = key, Stacks = self.Relics[key] })
+	end
 	self:Event("Loadout", {
 		Weapons = weapons,
 		Passives = passives,
+		Relics = relics,
+		Dash = if self.DashState then self.DashState.Max else 0,
 		Slots = self.Stats.WeaponSlots,
 		WalkSpeed = self.Stats.WalkSpeed,
 		PickupRange = self.Stats.PickupRange,
@@ -464,6 +482,30 @@ function Run:InWater(x: number, z: number): boolean
 		end
 	end
 	return false
+end
+
+-- walk speed multiplier of the ground you stand on (THE BIG QUACK's puddles)
+function Run:SlowFactor(): number
+	local f = 1
+	for _, h in self.Hazards do
+		if h.Slow then
+			local dx, dz = self.PX - h.X, self.PZ - h.Z
+			if dx * dx + dz * dz <= h.R * h.R then
+				f = math.min(f, h.Slow)
+			end
+		end
+	end
+	return f
+end
+
+-- the DASH (Rocket Skates relic): the client asks with the direction it holds
+function Run:Dash(dx: number, dz: number): boolean
+	return Relics.Dash(self, dx, dz)
+end
+
+-- the player stands in a secret place of the map (the server checked the position)
+function Run:EnterSecret(key: string): boolean
+	return ArenaDirector.RunSecret(self, key)
 end
 
 function Run:AddXP(amount: number)
@@ -628,6 +670,7 @@ function Run:OnKill(e)
 	if self.Mech == "SixtySeven" and self.Kills % 67 == 0 then
 		CombatManager.Free67Blast(self)
 	end
+	Relics.OnKill(self, e)
 end
 
 ---------------------------------------------------------------------------
@@ -723,6 +766,7 @@ function Run:Step(dt: number)
 	EnemyManager.Step(self, dt)
 	CombatManager.Step(self, dt)
 	Pickups.Step(self, dt)
+	Relics.Step(self, dt)
 
 	if self.VictoryAt and self.Time >= self.VictoryAt then
 		self:End("Victory")
@@ -791,6 +835,7 @@ function Run:Flush(): buffer
 	for i, ally in self.Allies do
 		self:Write("Ally", i, ally.X, ally.Z)
 	end
+	MiniBosses.Flush(self) -- mini-boss HP bars (what changed)
 	for _, e in self.Enemies do
 		local dx, dz = e.X - e.SentX, e.Z - e.SentZ
 		if dx * dx + dz * dz > 0.0004 then
@@ -850,6 +895,9 @@ function Run:Summary()
 		Fragments = r.Fragments,
 		Flags = table.clone(r.Flags),
 		DamageTaken = math.floor(self.DamageTaken),
+		MiniBosses = r.MiniBosses,
+		Relics = table.clone(self.RelicOrder),
+		Vaults = r.Vaults,
 		Build = self:BuildSummary(),
 	}
 end

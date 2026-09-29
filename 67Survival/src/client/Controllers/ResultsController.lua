@@ -313,9 +313,12 @@ function ResultsController:ShowResults(p)
 
 	Widgets.Clear(self.Build)
 	local order = 0
+	-- the row holds 13: abilities first, up to 4 kept for the relics of 67 TOWN
+	local relics = s.Relics or {}
+	local cap = math.min(11, 13 - math.min(#relics, 4))
 	for _, w in s.Build.Weapons do
 		local def = WeaponData.ByKey[w.Key]
-		if def and order < 11 then
+		if def and order < cap then
 			order += 1
 			local slot = Kit.Panel({ Size = UDim2.fromOffset(40, 40), LayoutOrder = order, Radius = 10, Parent = self.Build })
 			if w.Evolved then
@@ -328,10 +331,28 @@ function ResultsController:ShowResults(p)
 		end
 	end
 	for _, p in s.Build.Passives or {} do
-		if order < 11 then
+		if order < cap then
 			order += 1
 			Icons.Make(self.Build, "Stat", p.Key, 40, { LayoutOrder = order })
 		end
+	end
+	-- the relics you picked up (what does not fit: "+N")
+	for i, key in relics do
+		if order >= 12 and i < #relics then
+			order += 1
+			Kit.Label({
+				Text = "+" .. (#relics - i + 1),
+				Size = UDim2.fromOffset(40, 40),
+				Font = F.Title,
+				MaxTextSize = 18,
+				TextColor3 = C.TextDim,
+				LayoutOrder = order,
+				Parent = self.Build,
+			})
+			break
+		end
+		order += 1
+		Icons.Make(self.Build, "Relic", key, 40, { LayoutOrder = order })
 	end
 
 	-- the hero: victory pose when you won
@@ -357,6 +378,19 @@ function ResultsController:ShowResults(p)
 	if r.NewTier then
 		local new = DifficultyData.Get(r.NewTier)
 		table.insert(lines, string.format("New difficulty: %s %s", new.Numeral, new.Name))
+	end
+	if (s.MiniBosses or 0) > 0 or (s.Vaults or 0) > 0 then
+		local parts = {}
+		if (s.MiniBosses or 0) > 0 then
+			table.insert(parts, string.format("%d mini-boss%s defeated", s.MiniBosses, if s.MiniBosses == 1 then "" else "es"))
+		end
+		if #relics > 0 then
+			table.insert(parts, string.format("%d relic%s", #relics, if #relics == 1 then "" else "s"))
+		end
+		if (s.Vaults or 0) > 0 then
+			table.insert(parts, string.format("%d vault%s cracked", s.Vaults, if s.Vaults == 1 then "" else "s"))
+		end
+		table.insert(lines, table.concat(parts, "  ·  "))
 	end
 	if r.LevelAfter > r.LevelBefore then
 		table.insert(lines, "Account level " .. r.LevelAfter .. "!")

@@ -546,6 +546,8 @@ def check_bounds(node, screen, ctx, path=""):
 
 
 ICONS = {"Gear", "Coin", "Lock", "PauseIcon", "Mono", "Price", "Icon", "Preview", "Picture", "Knob"}
+# canvases that layer their children on purpose (the minimap draws markers over its zones)
+CANVASES = {"Map"}
 
 
 def check_overlaps(node, ctx, path=""):
@@ -555,7 +557,7 @@ def check_overlaps(node, ctx, path=""):
     name = path + "/" + node["n"]
     kids = [c for c in node.get("kids", []) if c["c"] in GUI and c.get("vis", True) and c.get("_box")]
     managed = kid(node, "UIListLayout") or kid(node, "UIGridLayout")
-    if not managed and node["c"] != "ScrollingFrame":
+    if not managed and node["c"] != "ScrollingFrame" and node["n"] not in CANVASES:
         px, py, pw, ph = node["_box"]
         # full-screen overlays (dims, vignettes) and bar fills sit under other things on purpose
         solid = [

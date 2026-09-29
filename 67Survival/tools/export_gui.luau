@@ -468,6 +468,23 @@ end
 play(45)
 Engine.Step(0.5)
 export(alice, "hud", "in-run HUD")
+-- 67 TOWN: a mini-boss out (its arrow, the minimap), relics picked up (card + row), the dash
+local Relics = Engine.Module(Engine.Server, "ServerScriptService.Server.Sim.Relics")
+cd:Fire("Admin", "miniboss", "Cartzilla")
+Engine.Step(0.3)
+Relics.Gain(run, "ProteinBar")
+Relics.Gain(run, "Crown67")
+Relics.Gain(run, "RocketSkates")
+Engine.Step(0.3)
+for _ = 1, 10 do
+	if levelUp:IsOpen() then
+		levelUp:Pick(Bot.Pick(run))
+	end
+	Engine.Step(0.25)
+end
+Relics.Gain(run, "Espresso67")
+Engine.Step(0.4)
+export(alice, "hud_town", "HUD in 67 TOWN: zone, minimap, mini-boss arrow, relics, dash")
 cd:Fire("Admin", "time", "177")
 Engine.Step(0.2)
 play(8)
@@ -506,6 +523,11 @@ local bobCd = Engine.Module(bob, "StarterPlayer.StarterPlayerScripts.Client.Cont
 bobCd:Fire("StartRun")
 Engine.Step(8)
 export(bob, "phone_hud", "HUD on a phone")
+local bobRun = GM.Entries[bob.ServerPlayer].Run
+bobCd:Fire("Admin", "miniboss", "BigQuack")
+Relics.Gain(bobRun, "RocketSkates")
+Engine.Step(1)
+export(bob, "phone_town", "HUD in 67 TOWN on a phone")
 print("errors: " .. #Engine.Errors)
 for i, e in Engine.Errors do
 	if i <= 5 then

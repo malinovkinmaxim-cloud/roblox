@@ -1,8 +1,9 @@
 --[[
 	PointerController - arrows on the screen edge towards things worth walking to when they are
-	off screen: the boss, treasure chests, fragments and rare specials (67 Goblin, THE 67,
-	Golden Goober). Each arrow carries a small monogram badge. Also the one-time "how to play" hint
-	of the very first run.
+	off screen: the boss, MINI-BOSSES ("⚠ MINI-BOSS" and how far), relics on the ground, an awake
+	67 VAULT, treasure chests, fragments and rare specials (67 Goblin, THE 67, Golden Goober).
+	Each arrow carries a small monogram badge. Also the one-time "how to play" hint of the very
+	first run.
 ]]
 
 local Players = game:GetService("Players")
@@ -12,12 +13,16 @@ local Workspace = game:GetService("Workspace")
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Widgets = require(script.Parent.Parent.UI.Widgets)
-local GameConfig = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules").GameConfig)
+local Modules = game:GetService("ReplicatedStorage"):WaitForChild("Modules")
+local GameConfig = require(Modules.GameConfig)
+local ArenaData = require(Modules.ArenaData)
+local Rarity = require(Modules.Rarity)
 
 local PointerController = {}
 
 local C = Theme.Colors
-local MAX_ARROWS = 5
+local MAX_ARROWS = 6
+local MINI = Color3.fromRGB(255, 120, 70)
 local MARGIN = 0.07 -- fraction of the screen kept free at the edges
 local RARE_ICONS = { Goblin67 = "67", The67 = "67", GoldenGoober = "GG" }
 
@@ -51,7 +56,22 @@ function PointerController:Init(controllers)
 		local icon = Widgets.Mono(holder, "", C.Gold, 34, { Name = "Icon", Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 		icon.BackgroundColor3 = C.SurfaceDark
 		icon.BackgroundTransparency = Theme.Glass
-		self.Arrows[i] = { Frame = holder, Arrow = arrow, Icon = icon, IconText = icon:FindFirstChild("Text") :: TextLabel, IconStroke = icon:FindFirstChildOfClass("UIStroke") :: UIStroke }
+		-- "MINI-BOSS 120" under the badge (only for the big things)
+		local tag = Kit.Label({
+			Name = "Tag",
+			Text = "",
+			Size = UDim2.fromOffset(110, 16),
+			Position = UDim2.new(0.5, 0, 0.5, 26),
+			AnchorPoint = Vector2.new(0.5, 0),
+			Font = Theme.Fonts.Title,
+			MaxTextSize = 13,
+			TextColor3 = C.Text,
+			StrokeThickness = 1.5,
+			StrokeTransparency = 0.2,
+			Visible = false,
+			Parent = holder,
+		})
+		self.Arrows[i] = { Frame = holder, Arrow = arrow, Icon = icon, IconText = icon:FindFirstChild("Text") :: TextLabel, IconStroke = icon:FindFirstChildOfClass("UIStroke") :: UIStroke, Tag = tag }
 	end
 
 	-- first run: a short "how to play" card (GameConfig.Tutorial)
@@ -100,7 +120,16 @@ function PointerController:Init(controllers)
 	self.HintUntil = -1
 end
 
--- targets: { Pos: Vector3, Icon: string, Color: Color3 }
+-- how far something is from you (studs, rounded)
+local function distance(run, x: number, z: number): number
+	local px, pz = run:LocalXZ()
+	if not px or not pz then
+		return 0
+	end
+	return math.floor(math.sqrt((x - px) ^ 2 + (z - pz) ^ 2) + 0.5)
+end
+
+-- targets: { Pos: Vector3, Icon: string, Color: Color3, Tag: string? }
 function PointerController:Targets()
 	local run = self.C.RunClient
 	local out = {}
@@ -109,6 +138,32 @@ function PointerController:Targets()
 		local e = run.Enemies[boss.Id]
 		if e then
 			table.insert(out, { Pos = run:World(e.RX or e.X1, e.RZ or e.Z1, 3), Icon = "BOSS", Color = C.Danger })
+		end
+	end
+	-- mini-bosses: the reason to go somewhere
+	for _, enc in run.Encounters do
+		local x, z = enc.X, enc.Z
+		for _, id in enc.Ids do
+			local e = run.Enemies[id]
+			if e then
+				x, z = e.RX or e.X1, e.RZ or e.Z1
+				break
+			end
+		end
+		if #out < MAX_ARROWS then
+			table.insert(out, { Pos = run:World(x, z, 3), Icon = "⚠", Color = MINI, Tag = "MINI-BOSS " .. distance(run, x, z) })
+		end
+	end
+	-- relics on the ground and an awake vault
+	for _, item in self.C.LootRenderer.Items do
+		if #out < MAX_ARROWS then
+			table.insert(out, { Pos = run:World(item.X, item.Z, 2), Icon = "◆", Color = Rarity.Colors[item.Def.Rarity] or C.Gold })
+		end
+	end
+	for i, v in run.Map.Vaults do
+		if v.State == 1 and #out < MAX_ARROWS then
+			local def = ArenaData.Vaults[i]
+			table.insert(out, { Pos = run:World(def.X, def.Z, 2), Icon = "67", Color = C.Gold, Tag = "VAULT " .. distance(run, def.X, def.Z) })
 		end
 	end
 	for _, item in self.C.PickupRenderer.Items do
@@ -164,6 +219,13 @@ function PointerController:Update()
 					a.IconText.Text = t.Icon
 					a.IconText.TextColor3 = t.Color
 					a.IconStroke.Color = t.Color
+					a.Tag.Visible = t.Tag ~= nil
+					if t.Tag then
+						a.Tag.Text = t.Tag
+						a.Tag.TextColor3 = t.Color
+						-- the tag sits on the inner side of the arrow (never off the screen)
+						a.Tag.Position = UDim2.new(0.5, -dx * 40, 0.5, if dy > 0.5 then -44 else 26)
+					end
 					shown = true
 				end
 			end

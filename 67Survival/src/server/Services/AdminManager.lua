@@ -9,6 +9,8 @@
 	  die             lose all HP                   coins <n>    +n coins
 	  fragments <n>   +n fragments                  afk <min>    the AFK camp rested n minutes
 	  evolve          max abilities + their evolution passives
+	  miniboss <key>  a mini-boss comes out now     relic <key>  a relic at your feet
+	  vault           a 67 VAULT wakes up           rush         a 67 RUSH starts
 	  unlockall       unlock everything             reset        wipe your profile (Studio)
 	  stats           server performance numbers
 ]]
@@ -31,6 +33,10 @@ local Defaults = require(script.Parent.Parent.Data.Defaults)
 local Sim = script.Parent.Parent.Sim
 local EnemyManager = require(Sim.EnemyManager)
 local WaveManager = require(Sim.WaveManager)
+local ArenaDirector = require(Sim.ArenaDirector)
+local Relics = require(Sim.Relics)
+local MiniBossData = require(Shared.MiniBossData)
+local RelicData = require(Shared.RelicData)
 
 local AdminManager = {}
 
@@ -142,6 +148,22 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 	elseif command == "die" then
 		run.Invulnerable = 0
 		run:HurtPlayer(1e9, true)
+	elseif command == "miniboss" then
+		local key = if arg and MiniBossData.ByKey[arg] then arg else nil
+		if not ArenaDirector.Summon(run, "Debug", false, key, true) then
+			say("no mini-boss can come out now")
+		end
+	elseif command == "relic" then
+		local key = if arg and RelicData.ByKey[arg] then arg else Relics.Roll(run, 4)
+		if key then
+			Relics.Drop(run, key, run.PX + run.FX * 5, run.PZ + run.FZ * 5)
+		end
+	elseif command == "vault" then
+		run.Map.VaultAt = 0
+		run.Map.QuietUntil = 0
+	elseif command == "rush" then
+		run.Map.HotAt = 0
+		run.Map.QuietUntil = 0
 	else
 		say("unknown command " .. command)
 	end

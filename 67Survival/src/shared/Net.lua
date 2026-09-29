@@ -28,6 +28,7 @@ Net.ClientToServer = {
 	"Revive", -- () ask for a Robux revive while dead
 	"GiveUp", -- () end the run now (decline revive / quit)
 	"Pause", -- (paused: boolean) settings menu open during a run
+	"Dash", -- (dirX: number, dirZ: number) DASH with the Rocket Skates relic (the run decides)
 	"ReturnToLobby", -- ()
 	"BuyMeta", -- (key)
 	"UnlockHero", -- (key) fragments

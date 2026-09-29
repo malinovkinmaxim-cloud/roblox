@@ -9,7 +9,8 @@
 	  Zone / ZoneEnd      poison clouds, black holes
 	  Clone               the decoy copy of the hero
 	  EProj / EProjEnd    enemy projectiles (straight lines, deterministic)
-	  Telegraph           circles / dash lines / void zones / laser lines that fill up
+	  Telegraph           circles / dash lines / void zones / laser lines that fill up;
+	                      puddles (blue) and spills (orange) stay on the ground a while
 	Always-on abilities (auras, fire rings, ice fields, orbits, drones, barrier) are drawn
 	from the Loadout every frame, with the same formulas as the server.
 
@@ -25,6 +26,8 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local WeaponData = require(Shared.WeaponData)
 local Protocol = require(Shared.Protocol)
 local CosmeticData = require(Shared.CosmeticData)
+local RelicData = require(Shared.RelicData)
+local Rarity = require(Shared.Rarity)
 local HeroModels = require(Shared.HeroModels)
 local GameConfig = require(Shared.GameConfig)
 
@@ -417,17 +420,20 @@ end
 ---------------------------------------------------------------------------
 -- telegraphs (enemy / boss attacks)
 ---------------------------------------------------------------------------
+local TELE_COLOR = { [3] = rgb(150, 60, 255), [5] = rgb(80, 170, 255), [6] = rgb(255, 140, 40) }
+local LINGER_COLOR = { [3] = rgb(60, 20, 110), [5] = rgb(70, 150, 255), [6] = rgb(230, 100, 30) }
 function WeaponFx:Telegraph(shape: number, x: number, z: number, angle: number, size: number, width: number, delay: number)
 	local run = self.C.RunClient
 	local edge = self:Take("Disc")
 	local fill = self:Take("Disc")
-	local red = if shape == 3 then rgb(150, 60, 255) else rgb(255, 40, 60)
+	-- lingering ground: void (purple), a slippery puddle (blue), a spill (orange)
+	local red = TELE_COLOR[shape] or rgb(255, 40, 60)
 	edge.Color = red
 	fill.Color = red
 	edge.Transparency = 0.55
 	fill.Transparency = 0.35
 	local tele = { Edge = edge, Fill = fill, Shape = shape, T = 0, Delay = math.max(0.1, delay) }
-	if shape == 1 or shape == 3 then
+	if shape == 1 or shape == 3 or shape == 5 or shape == 6 then
 		local pos = run:World(x, z, 0.35)
 		edge.Size = Vector3.new(0.15, size * 2, size * 2)
 		edge.CFrame = CFrame.new(pos) * FLAT
@@ -436,8 +442,8 @@ function WeaponFx:Telegraph(shape: number, x: number, z: number, angle: number, 
 			fill.Size = Vector3.new(0.2, r * 2, r * 2)
 			fill.CFrame = CFrame.new(pos + Vector3.new(0, 0.05, 0)) * FLAT
 		end
-		if shape == 3 then
-			-- after the warning the void zone stays for `width` seconds
+		if shape == 3 or shape == 5 or shape == 6 then
+			-- after the warning the zone stays on the ground for `width` seconds
 			tele.Linger = width
 			tele.Pos = pos
 			tele.R = size
@@ -770,6 +776,87 @@ function WeaponFx:Generic(variant: number, x: number, z: number, pos: Vector3, a
 	elseif variant == GFX.Event67 then
 		-- the event banner and screen effects come with the reliable Event67 event
 		fx:Ring(pos, p1, rgb(255, 205, 50), 0.8)
+	elseif variant == GFX.MiniSpawn then
+		-- a column of red light where a mini-boss is about to land
+		fx:Ring(pos, p1, rgb(255, 70, 70), 0.9)
+		local pillar = self:Take("Beam")
+		pillar.Color = rgb(255, 90, 80)
+		self:Transient(1.4, function(t)
+			local w = p1 * 0.5 * (1 - t * 0.6)
+			pillar.Size = Vector3.new(w, 60, w)
+			pillar.CFrame = CFrame.new(pos + Vector3.new(0, 30, 0))
+			pillar.Transparency = 0.35 + t * 0.65
+		end, function()
+			self:Give("Beam", pillar)
+		end)
+		fx:Emit("Big", pos + Vector3.new(0, 2, 0), rgb(255, 90, 80), 24)
+		sound:Play("BossSpawn", 1.2, 0.6)
+	elseif variant == GFX.Trail then
+		-- Hot Sauce Socks: a patch of fire that fades
+		local patch = self:Take("Disc")
+		patch.Color = rgb(255, 110, 30)
+		patch.Size = Vector3.new(0.12, p1 * 2, p1 * 2)
+		patch.CFrame = CFrame.new(pos + Vector3.new(0, 0.3, 0)) * FLAT
+		self:Transient(math.max(0.3, p2), function(t)
+			patch.Transparency = self:Fade(0.35 + t * 0.65)
+		end, function()
+			self:Give("Disc", patch)
+		end)
+		if math.random() < 0.4 then
+			fx:Emit("Poof", pos + Vector3.new(0, 1, 0), rgb(255, 150, 40), 3)
+		end
+	elseif variant == GFX.Dash then
+		-- a streak from where you were
+		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		local base = pos + Vector3.new(0, 2, 0)
+		local streak = self:Take("Beam")
+		streak.Color = rgb(170, 240, 255)
+		local look = CFrame.lookAt(base, base + dir)
+		self:Transient(0.3, function(t)
+			streak.Size = Vector3.new(1.6 * (1 - t), 0.8, p1)
+			streak.CFrame = look * CFrame.new(0, 0, -p1 / 2)
+			streak.Transparency = 0.2 + t * 0.8
+		end, function()
+			self:Give("Beam", streak)
+		end)
+		fx:Poof(x, z, rgb(200, 245, 255), 8)
+		sound:Play("Dash")
+	elseif variant == GFX.VaultOpen then
+		fx:Ring(pos, p1, rgb(255, 205, 60), 0.7)
+		fx:Emit("Big", pos + Vector3.new(0, 3, 0), rgb(255, 215, 80), 40)
+		fx:WorldText(pos + Vector3.new(0, 8, 0), "67!", rgb(255, 215, 60), 3, 1.2)
+		sound:Play("Chest")
+		cam:Shake(0.6)
+	elseif variant == GFX.Jackpot then
+		fx:Ring(pos, p1, rgb(255, 215, 60), 0.6)
+		fx:Emit("Big", pos + Vector3.new(0, 4, 0), rgb(255, 215, 60), 30)
+		fx:WorldText(pos + Vector3.new(0, 10, 0), "JACKPOT!", rgb(255, 215, 60), 3.2, 1.4)
+		sound:Play("Jackpot")
+	elseif variant == GFX.RelicTake then
+		local relic = RelicData.ById[math.floor(p2 + 0.5)]
+		local color = if relic then Rarity.Colors[relic.Rarity] or rgb(255, 255, 255) else rgb(255, 255, 255)
+		fx:Ring(pos, p1, color, 0.5)
+		fx:Emit("Big", pos + Vector3.new(0, 3, 0), color, 26)
+	elseif variant == GFX.TwinRevive then
+		fx:Ring(pos, p1, rgb(170, 110, 255), 0.6)
+		fx:WorldText(pos + Vector3.new(0, 9, 0), "BACK!", rgb(255, 205, 60), 2.6, 1)
+		sound:Play("Revive", 0.8)
+	elseif variant == GFX.Alarm then
+		fx:Ring(pos, p1, rgb(255, 60, 60), 0.8)
+		fx:Ring(pos, p1 * 0.6, rgb(255, 255, 255), 0.6)
+		fx:WorldText(pos + Vector3.new(0, 9, 0), "RIIIING!", rgb(255, 90, 90), 3, 1.2)
+		sound:Play("Alarm")
+		cam:Shake(1)
+	elseif variant == GFX.Zap then
+		local to = pos + Vector3.new(math.cos(angle) * p1, 2, math.sin(angle) * p1)
+		self:Bolt(pos + Vector3.new(0, 2, 0), to, rgb(150, 230, 255), 0.4, 0.15)
+		if math.random() < 0.3 then
+			sound:Play("Zap", 1.5, 0.25)
+		end
+	elseif variant == GFX.TimeStop then
+		fx:Ring(pos, p1, rgb(200, 240, 255), 0.9, p1 * 0.2)
+		fx:Flash(rgb(180, 220, 255), 0.25)
+		sound:Play("Freeze")
 	end
 end
 
@@ -930,7 +1017,7 @@ function WeaponFx:Update(dt: number)
 				t.Lingering = t.T
 				t.Fill.Size = Vector3.new(0.25, t.R * 2, t.R * 2)
 				t.Fill.CFrame = CFrame.new(t.Pos + Vector3.new(0, 0.05, 0)) * FLAT
-				t.Fill.Color = rgb(60, 20, 110)
+				t.Fill.Color = LINGER_COLOR[t.Shape] or rgb(60, 20, 110)
 			end
 			local lt = (t.T - t.Lingering) / t.Linger
 			t.Fill.Transparency = 0.25 + math.sin(clock * 6) * 0.1 + math.max(0, lt - 0.85) * 4

@@ -73,8 +73,9 @@ function Bosses.Init(run, e)
 	run:Event("BossSpawn", { Id = e.Id, Key = e.Key, Title = p.Title, MaxHP = math.ceil(e.MaxHP), Final = p.Final == true })
 end
 
--- a delayed attack: shape 1 circle, 2 dash line (visual only), 3 lingering zone, 4 laser line
-local function telegraph(run, e, shape: number, x: number, z: number, angle: number, size: number, width: number, delay: number, damage: number, kind: string?)
+-- a delayed attack: shape 1 circle, 2 dash line (visual only), 3 lingering zone, 4 laser line,
+-- 5 slippery puddle (slows, no damage), 6 spill (a small lingering zone that hurts): Protocol.Shapes
+local function telegraph(run, e, shape: number, x: number, z: number, angle: number, size: number, width: number, delay: number, damage: number, kind: string?, slow: number?)
 	table.insert(run.Telegraphs, {
 		At = run.Time + delay,
 		Shape = shape,
@@ -86,6 +87,7 @@ local function telegraph(run, e, shape: number, x: number, z: number, angle: num
 		Damage = damage,
 		Boss = e,
 		Kind = kind,
+		Slow = slow,
 	})
 	run:Write("Telegraph", shape, x, z, angle, size, width, delay)
 end
@@ -218,6 +220,7 @@ function ACTIONS.Rain(run, _e, p, _scale, EM)
 end
 
 Bosses.Actions = ACTIONS
+Bosses.Telegraph = telegraph -- mini-bosses (Sim/MiniBosses) telegraph the same way
 
 -- movement intent for EnemyManager: dirX, dirZ, speed multiplier
 function Bosses.Step(run, e, dx: number, dz: number, d: number, dt: number, EM): (number, number, number)
@@ -356,8 +359,11 @@ function Bosses.StepTelegraphs(run, _EM, dt: number?)
 					run:HurtPlayer(t.Damage, true)
 				end
 				run:Write("Fx", 0, t.X, t.Z, t.Angle, t.R, t.Width, GFX.Sweep)
-			elseif t.Shape == 3 then
-				table.insert(run.Hazards, { X = t.X, Z = t.Z, R = t.R, Until = now + t.Width, Tick = 0, Damage = t.Damage })
+			elseif t.Shape == 3 or t.Shape == 6 then
+				table.insert(run.Hazards, { X = t.X, Z = t.Z, R = t.R, Until = now + t.Width, Tick = 0, Damage = t.Damage, Void = t.Shape == 3 })
+			elseif t.Shape == 5 then
+				-- a puddle: no damage, you wade through it slower (Run:SlowFactor)
+				table.insert(run.Hazards, { X = t.X, Z = t.Z, R = t.R, Until = now + t.Width, Tick = 0, Damage = 0, Slow = t.Slow or 0.6 })
 			end
 			list[i] = list[#list]
 			list[#list] = nil
@@ -376,12 +382,14 @@ function Bosses.StepTelegraphs(run, _EM, dt: number?)
 			hazards[#hazards] = nil
 		else
 			h.Tick -= dt or 0.05
-			if h.Tick <= 0 then
+			if h.Tick <= 0 and h.Damage > 0 then
 				local dx, dz = run.PX - h.X, run.PZ - h.Z
 				if dx * dx + dz * dz <= (h.R + PLAYER_R * 0.3) ^ 2 then
 					h.Tick = 0.5
 					run:HurtPlayer(h.Damage, true)
-					run:Write("Fx", 0, run.PX, run.PZ, 0, 3, 0, GFX.Hazard)
+					if h.Void then
+						run:Write("Fx", 0, run.PX, run.PZ, 0, 3, 0, GFX.Hazard)
+					end
 				end
 			end
 			i += 1

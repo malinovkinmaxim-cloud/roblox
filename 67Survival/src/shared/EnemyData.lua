@@ -1,5 +1,6 @@
 --[[
-	EnemyData - the horde (15 enemy types), rare specials and the 8 bosses.
+	EnemyData - the horde (15 enemy types), rare specials, the 8 bosses and the MINI-BOSSES
+	of 67 TOWN (Champion = true, with their minions; shared/MiniBossData.lua).
 
 	Stats are the values at minute 0; WaveManager scales HP / damage with run time.
 	  HP, Speed (studs/s), Damage (contact, per hit), XP (gem value), Radius (collision, studs)
@@ -32,6 +33,7 @@ export type EnemyDef = {
 	ItemChance: number,
 	Boss: boolean?,
 	MiniBoss: boolean?,
+	Champion: boolean?, -- a MINI-BOSS of 67 TOWN (shared/MiniBossData.lua): lairs, relic loot
 	Rare: boolean?,
 	Secret: boolean?,
 	NoContact: boolean?,
@@ -358,6 +360,116 @@ local LIST: { EnemyDef } = ({
 			Coins = 400,
 		},
 	}),
+	-------------------------------------------------------------------- mini-bosses of 67 TOWN
+	-- (shared/MiniBossData.lua: who, where and when; Sim/MiniBosses.lua: how they fight)
+	enemy({
+		Key = "BigQuack",
+		Name = "THE BIG QUACK",
+		Desc = "Mini-boss of Goober Gardens. Belly-flops where you stand and leaves slippery puddles.",
+		HP = 1500, Speed = 8, Damage = 14, XP = 0, Radius = 4.4,
+		Model = "Quack", Color = rgb(255, 214, 60), Accent = rgb(255, 136, 40),
+		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true,
+		Params = {
+			Title = "THE BIG QUACK",
+			FlopEvery = 5.2, FlopDelay = 1.1, FlopRadius = 9, FlopDamage = 22,
+			DropCount = 12, DropSpeed = 15, DropDamage = 9,
+			PuddleRadius = 8, PuddleTime = 6, PuddleSlow = 0.55,
+			DucklingEvery = 11, DucklingCount = 4,
+			EnrageAt = 0.4,
+		},
+	}),
+	enemy({
+		Key = "Duckling",
+		Name = "Duckling",
+		Desc = "Follows THE BIG QUACK. Follows you. Bites ankles.",
+		HP = 10, Speed = 15.5, Damage = 5, XP = 1, Radius = 1.0,
+		Model = "Duckling", Color = rgb(255, 226, 90), Accent = rgb(255, 140, 40),
+		Behavior = "Chase", Mass = 0.6, CoinChance = 0.004, ItemChance = 0,
+	}),
+	enemy({
+		Key = "Cartzilla",
+		Name = "CARTZILLA",
+		Desc = "Mini-boss of the Horde Mart Lot. Charges in straight lines and spills everywhere.",
+		HP = 1800, Speed = 9, Damage = 16, XP = 0, Radius = 4.2,
+		Model = "Cart", Color = rgb(196, 204, 220), Accent = rgb(255, 72, 72),
+		Behavior = "Champion", Mass = 34, CoinChance = 0, ItemChance = 0, Champion = true,
+		Params = {
+			Title = "CARTZILLA",
+			ChargeEvery = 6.5, Dashes = 3, DashWindup = 0.85, DashSpeed = 62, DashLength = 46, DashDamage = 26,
+			SpillEvery = 8, SpillRadius = 3.4, SpillTime = 4, SpillDamage = 6,
+			PriceEvery = 9.5, PriceCount = 7, PriceRadius = 4.5, PriceSpread = 16, PriceDelay = 1.3, PriceDamage = 18,
+			EnrageAt = 0.35,
+		},
+	}),
+	enemy({
+		Key = "JackpotJimmy",
+		Name = "JACKPOT JIMMY",
+		Desc = "Mini-boss of the Neon Strip. Its reels decide the attack. Tilts behind a shield of coin stacks.",
+		HP = 2000, Speed = 6.5, Damage = 16, XP = 0, Radius = 4.4,
+		Model = "Slots", Color = rgb(235, 60, 100), Accent = rgb(255, 205, 60),
+		Behavior = "Champion", Mass = 40, CoinChance = 0, ItemChance = 0, Champion = true,
+		Params = {
+			Title = "JACKPOT JIMMY",
+			SpinEvery = 6, SpinTime = 1.3,
+			Reels = { Ring = 3, Cross = 3, Bombs = 3, Jackpot = 1 },
+			RingCount = 16, RingSpeed = 17, RingDamage = 11,
+			CrossCount = 3, CrossLength = 64, CrossWidth = 4, CrossDelay = 1.0, CrossDamage = 22,
+			BombCount = 6, BombRadius = 5, BombSpread = 16, BombDelay = 1.2, BombDamage = 20,
+			JackpotCoins = 8, StunTime = 3.5,
+			ShieldAt = 0.5, PylonCount = 3, PylonDistance = 19,
+		},
+	}),
+	enemy({
+		Key = "CoinStack",
+		Name = "Coin Stack",
+		Desc = "Holds up JACKPOT JIMMY's shield. Break all three.",
+		HP = 160, Speed = 0, Damage = 0, XP = 2, Radius = 1.8,
+		Model = "CoinStack", Color = rgb(255, 205, 60), Accent = rgb(200, 140, 30),
+		Behavior = "Static", Mass = 999, CoinChance = 1, ItemChance = 0, NoContact = true, Collection = false,
+		Params = { Coins = 3 },
+	}),
+	enemy({
+		Key = "Six",
+		Name = "SIX",
+		Desc = "Mini-boss of the Rift (with SEVEN). Keeps its distance and fans out sixes.",
+		HP = 1300, Speed = 10, Damage = 14, XP = 0, Radius = 3.4,
+		Model = "Six", Color = rgb(255, 205, 50), Accent = rgb(130, 70, 220),
+		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true,
+		Params = {
+			Title = "SIX", Twin = "Seven",
+			Keep = 15, FanEvery = 3.2, FanShots = 6, FanSpread = 0.9, FanSpeed = 20, FanDamage = 10,
+			ReviveTime = 6.7,
+		},
+	}),
+	enemy({
+		Key = "Seven",
+		Name = "SEVEN",
+		Desc = "Mini-boss of the Rift (with SIX). Walks up to you and lays seven mines.",
+		HP = 1300, Speed = 8.5, Damage = 16, XP = 0, Radius = 3.6,
+		Model = "Seven", Color = rgb(140, 80, 230), Accent = rgb(255, 205, 50),
+		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true,
+		Params = {
+			Title = "SEVEN", Twin = "Six",
+			MineEvery = 5.5, MineCount = 7, MineRadius = 4, MineDelay = 1.6, MineDamage = 20,
+			ReviveTime = 6.7,
+		},
+	}),
+	enemy({
+		Key = "TickTock",
+		Name = "TICK TOCK",
+		Desc = "Roaming mini-boss. A laser clock hand sweeps around it. 67 seconds, then it rings and runs.",
+		HP = 1600, Speed = 6.2, Damage = 15, XP = 0, Radius = 3.8,
+		Model = "Clock", Color = rgb(240, 80, 80), Accent = rgb(250, 248, 240),
+		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true,
+		Params = {
+			Title = "TICK TOCK",
+			Timer = 67,
+			HandEvery = 0.3, HandLength = 30, HandWidth = 3, HandDelay = 0.55, HandSpeed = 0.95, HandDamage = 16,
+			TockEvery = 8, TockRadius = 8, TockDelay = 1, TockDamage = 20,
+			AlarmCount = 24, AlarmSpeed = 20, AlarmDamage = 14,
+			OnTimeCoins = 67,
+		},
+	}),
 } :: any)
 
 local EnemyData = {}
@@ -388,6 +500,12 @@ end
 function EnemyData.IsBoss(key: string): boolean
 	local def = EnemyData.ByKey[key]
 	return def ~= nil and (def.Boss == true or def.MiniBoss == true)
+end
+
+-- a mini-boss of 67 TOWN (not a timeline boss)
+function EnemyData.IsChampion(key: string): boolean
+	local def = EnemyData.ByKey[key]
+	return def ~= nil and def.Champion == true
 end
 
 return EnemyData

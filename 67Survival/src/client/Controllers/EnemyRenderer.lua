@@ -5,6 +5,8 @@
 	state poses (windup shake, dash lean, frozen, phased ghost, dormant mimic, lit bomber,
 	burning), and ONE workspace:BulkMoveTo call for all enemy roots.
 	Killed enemies are launched into the air with a spin before going back to the pool.
+	Mini-bosses of 67 TOWN wear a name plate: name, HP bar and what they are up to (reels
+	spinning, SHIELDED, JACKPOT!, reviving, TICK TOCK's countdown...).
 ]]
 
 local RunService = game:GetService("RunService")
@@ -17,6 +19,7 @@ local Protocol = require(Shared.Protocol)
 
 local Pool = require(script.Parent.Parent.Render.Pool)
 local EnemyModels = require(script.Parent.Parent.Render.EnemyModels)
+local Theme = require(script.Parent.Parent.UI.Theme)
 local EnemyData = require(Shared.EnemyData)
 
 local EnemyRenderer = {}
@@ -81,6 +84,158 @@ function EnemyRenderer:Add(e)
 	e.Sky = if bit32.band(e.Flags, FLAGS.FromSky) ~= 0 then 0.55 else 0
 	table.insert(self.List, e)
 	e.Index = #self.List
+	if e.Def.Champion then
+		self:AttachPlate(e, item)
+	end
+end
+
+---------------------------------------------------------------------------
+-- mini-boss name plates
+---------------------------------------------------------------------------
+local PLATE_W, PLATE_H = 190, 56
+local MF = Protocol.MiniFlags
+local REEL_SYMBOL = { Ring = "O", Cross = "X", Bombs = "!", Jackpot = "7" }
+local REEL_SPIN = { "O", "X", "!", "7" }
+
+function EnemyRenderer:AttachPlate(e, item)
+	local C = Theme.Colors
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "MiniPlate"
+	gui.Size = UDim2.fromOffset(PLATE_W, PLATE_H)
+	gui.StudsOffset = Vector3.new(0, (item.Info.Top or item.Info.Height) + 2.2, 0)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 260
+	gui.Adornee = item.Root
+	local name = Instance.new("TextLabel")
+	name.Name = "Name"
+	name.BackgroundTransparency = 1
+	name.Size = UDim2.new(1, 0, 0, 20)
+	name.Font = Theme.Fonts.Title
+	name.TextScaled = true
+	name.Text = e.Def.Name
+	name.TextColor3 = Color3.fromRGB(255, 170, 120)
+	name.Parent = gui
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = C.SurfaceDark
+	stroke.Parent = name
+	local back = Instance.new("Frame")
+	back.Name = "Back"
+	back.Size = UDim2.new(1, -20, 0, 10)
+	back.Position = UDim2.new(0.5, 0, 0, 23)
+	back.AnchorPoint = Vector2.new(0.5, 0)
+	back.BackgroundColor3 = C.SurfaceDark
+	back.BackgroundTransparency = 0.2
+	back.BorderSizePixel = 0
+	back.Parent = gui
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 5)
+	corner.Parent = back
+	local backStroke = Instance.new("UIStroke")
+	backStroke.Thickness = 1.5
+	backStroke.Color = C.SurfaceDark
+	backStroke.Parent = back
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = C.Danger
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 5)
+	fillCorner.Parent = fill
+	local status = Instance.new("TextLabel")
+	status.Name = "Status"
+	status.BackgroundTransparency = 1
+	status.Size = UDim2.new(1, 0, 0, 18)
+	status.Position = UDim2.fromOffset(0, 36)
+	status.Font = Theme.Fonts.Bold
+	status.TextScaled = true
+	status.Text = ""
+	status.TextColor3 = C.Text
+	status.Parent = gui
+	local statusStroke = Instance.new("UIStroke")
+	statusStroke.Thickness = 1.5
+	statusStroke.Color = C.SurfaceDark
+	statusStroke.Parent = status
+	gui.Parent = item.Root
+	e.Plate = { Gui = gui, Fill = fill, Status = status, Name = name }
+	self.Champions = self.Champions or {}
+	table.insert(self.Champions, e)
+end
+
+local function detachPlate(self, e)
+	if e.Plate then
+		e.Plate.Gui:Destroy()
+		e.Plate = nil
+		local list = self.Champions
+		local i = list and table.find(list, e)
+		if i then
+			table.remove(list, i)
+		end
+	end
+end
+
+-- what a mini-boss is doing, in a few words (and its colour)
+function EnemyRenderer:PlateStatus(e, m, now: number): (string, Color3)
+	local C = Theme.Colors
+	local run = self.C.RunClient
+	local flags = if m then m.Flags or 0 else 0
+	if m and m.ReviveUntil and now < m.ReviveUntil then
+		return string.format("REVIVING %s  %.1f", tostring(m.ReviveBody or ""), m.ReviveUntil - now), C.Gold
+	end
+	if bit32.band(flags, MF.Shielded) ~= 0 then
+		return "SHIELDED · BREAK THE COIN STACKS", C.Gold
+	end
+	if (m and m.JackpotUntil and now < m.JackpotUntil) or bit32.band(flags, MF.Stunned) ~= 0 then
+		return "JACKPOT! HIT IT!", C.Gold
+	end
+	if m and m.Reels then
+		local reels = m.Reels
+		if now < reels.Until then
+			local k = math.floor(now * 12)
+			return string.format("[ %s  %s  %s ]", REEL_SPIN[k % 4 + 1], REEL_SPIN[(k + 1) % 4 + 1], REEL_SPIN[(k + 2) % 4 + 1]), C.Text
+		elseif now < reels.Until + 1.2 then
+			local sym = REEL_SYMBOL[reels.Result] or "?"
+			return string.format("[ %s  %s  %s ]", sym, sym, sym), if reels.Result == "Jackpot" then C.Gold else C.Danger
+		end
+	end
+	local enc = m and m.Encounter and run.Encounters[m.Encounter]
+	if enc and enc.TimerEnd then
+		local left = math.max(0, enc.TimerEnd - now)
+		return string.format("ALARM IN %d:%02d", math.floor(left / 60), math.floor(left % 60)), if left < 15 then C.Danger else C.Text
+	end
+	if bit32.band(flags, MF.Home) ~= 0 then
+		return "GOING HOME TO HEAL", C.TextDim
+	end
+	if bit32.band(flags, MF.Enraged) ~= 0 then
+		return "ANGRY", C.Danger
+	end
+	return "MINI-BOSS", C.TextDim
+end
+
+function EnemyRenderer:UpdatePlates()
+	local list = self.Champions
+	if not list or #list == 0 then
+		return
+	end
+	local run = self.C.RunClient
+	local now = os.clock()
+	local C = Theme.Colors
+	for _, e in list do
+		local plate = e.Plate
+		local m = run.Minis[e.Id]
+		local hp = if m and m.HP then m.HP else 1
+		plate.Fill.Size = UDim2.fromScale(math.clamp(hp, 0, 1), 1)
+		local flags = if m then m.Flags or 0 else 0
+		plate.Fill.BackgroundColor3 = if bit32.band(flags, MF.Shielded) ~= 0 then C.Gold else C.Danger
+		local text, color = self:PlateStatus(e, m, now)
+		if plate.Status.Text ~= text then
+			plate.Status.Text = text
+		end
+		plate.Status.TextColor3 = color
+	end
 end
 
 local function unlist(self, e)
@@ -108,6 +263,7 @@ end
 
 function EnemyRenderer:Remove(e, cause: number)
 	unlist(self, e)
+	detachPlate(self, e)
 	local item = e.Item
 	if not item then
 		return
@@ -172,6 +328,9 @@ function EnemyRenderer:Reskin(e)
 end
 
 function EnemyRenderer:Clear()
+	for _, e in table.clone(self.List) do
+		detachPlate(self, e)
+	end
 	for _, e in self.List do
 		if e.Item then
 			self.Pool:Release(e.Item)
@@ -310,6 +469,7 @@ function EnemyRenderer:Update(dt: number)
 	if n > 0 then
 		Workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 	end
+	self:UpdatePlates()
 end
 
 function EnemyRenderer:Count(): number

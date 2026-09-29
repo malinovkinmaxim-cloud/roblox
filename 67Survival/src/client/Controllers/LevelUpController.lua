@@ -222,8 +222,7 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 			Size = UDim2.new(1, -24, 0, 16),
 			Position = UDim2.new(0, 12, 1, -26),
 			Font = F.Bold,
-			TextScaled = false,
-			TextSize = 13,
+			MaxTextSize = 13, -- long evolution names shrink to fit the card
 			TextColor3 = C.Mythic,
 			Parent = button,
 		})
@@ -317,6 +316,7 @@ function LevelUpController:Show(offer)
 		self.C.HudController:SetCovered(true)
 		self.C.SoundController:Play(if chest then "Chest" else "LevelUp")
 		self.C.BannerController:Hide(true)
+		self.C.BannerController:SetToastsHidden(true)
 	end
 	self.C.HudController:TogglePauseMenuOff()
 end
@@ -325,6 +325,7 @@ function LevelUpController:Hide()
 	if self.Gui.Enabled then
 		Kit.Blur("levelup", 0)
 		self.C.HudController:SetCovered(false)
+		self.C.BannerController:SetToastsHidden(false)
 	end
 	self.Gui.Enabled = false
 	self.Offer = nil

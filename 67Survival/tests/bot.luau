@@ -3,11 +3,16 @@
 	Bot - a simple survivor player for headless playtests.
 
 	Movement: runs away from nearby enemies (bosses count more), steps out of telegraphs
-	(boss circles, laser lines, void zones, lit bombers, leaper landings, sniper lines),
-	dodges enemy projectiles, collects gems and pickups, chases loot crates and runaway
-	goblins, stays away from the arena walls and walks around ponds (water slows you).
+	(boss circles, laser lines, void zones, puddles, spills, lit bombers, leaper landings,
+	sniper lines), dodges enemy projectiles, collects gems and pickups, chases loot crates and
+	runaway goblins, stays away from the arena walls and walks around ponds (water slows you).
+	67 TOWN: goes for relics on the ground, open vaults, mini-bosses (while healthy) and the
+	67 RUSH zone, stays out of the sealed rift, dashes out of circles with Rocket Skates.
 	Cards: evolution > weapon level > new weapon > damage/speed passives > the rest.
 ]]
+
+local Harness = require("./harness")
+local ArenaData = Harness.Require("ReplicatedStorage.Modules.ArenaData")
 
 local Bot = {}
 
@@ -74,8 +79,43 @@ function Bot.Direction(run, skill: number?): (number, number)
 			else 4
 		consider(it.X, it.Z, v)
 	end
+	-- 67 TOWN: relics on the ground, an open vault, a mini-boss worth hunting, the 67 RUSH
+	for _, l in run.Loot or {} do
+		consider(l.X, l.Z, 45)
+	end
+	local m = run.Map
+	if m then
+		local healthy = run.HP >= run.Stats.MaxHP * 0.55
+		-- a careful player: dangerous zones wait until the build can take them
+		local function brave(zoneKey: string): boolean
+			return healthy and ArenaData.ByKey[zoneKey].Stars * 7 <= run.Level
+		end
+		for i, v in m.Vaults do
+			local def = ArenaData.Vaults[i]
+			if v.State == 1 and brave(def.Zone) then
+				consider(def.X, def.Z, 26)
+			end
+		end
+		if run.Level >= 6 then
+			for _, enc in m.Encounters do
+				if brave(enc.Zone) then
+					local x, z = enc.X, enc.Z
+					for _, body in enc.Bodies do
+						if body.Alive then
+							x, z = body.X, body.Z
+						end
+					end
+					consider(x, z, 16)
+				end
+			end
+		end
+		if m.Hot and brave(m.Hot.Zone) then
+			local r = ArenaData.ByKey[m.Hot.Zone].Rect
+			consider((r.MinX + r.MaxX) / 2, (r.MinZ + r.MaxZ) / 2, 5)
+		end
+	end
 	for _, e in run.Enemies do
-		if e.Key == "Crate" or e.Key == "Goblin67" then
+		if e.Key == "Crate" or e.Key == "Goblin67" or e.Key == "CoinStack" then
 			consider(e.X, e.Z, 10)
 		end
 	end
@@ -108,10 +148,17 @@ function Bot.Direction(run, skill: number?): (number, number)
 		end
 	end
 	for _, t in run.Telegraphs do
-		if t.Shape == 1 or t.Shape == 3 then
+		if t.Shape == 1 or t.Shape == 3 or t.Shape == 5 or t.Shape == 6 then
 			flee(t.X, t.Z, t.R)
 		elseif t.Shape == 4 then
 			sidestep(t.X, t.Z, t.Angle, t.R, t.Width)
+		end
+	end
+	-- the sealed rift: stay out (the gates are closed for real players)
+	if run.Map and not run.Map.RiftOpen then
+		local r = ArenaData.ByKey.Rift.Rect
+		if px < r.MaxX + 6 and pz < r.MaxZ + 6 then
+			mz += 2
 		end
 	end
 	for _, h in run.Hazards do
@@ -131,6 +178,12 @@ function Bot.Direction(run, skill: number?): (number, number)
 	if boss and (boss.DashAt or boss.Dashing) then
 		mx += -boss.DirZ * 2 * skill
 		mz += boss.DirX * 2 * skill
+	end
+	-- a mini-boss charge line (CARTZILLA): step off it
+	for _, t in run.Telegraphs do
+		if t.Shape == 2 then
+			sidestep(t.X, t.Z, t.Angle, t.R, t.Width)
+		end
 	end
 	-- enemy projectiles coming at us: sidestep
 	for _, p in run.EnemyProjectiles do
@@ -211,7 +264,17 @@ function Bot.Step(run, dt: number, skill: number?)
 		run:Choose(Bot.Pick(run))
 	end
 	local dx, dz = Bot.Direction(run, skill)
-	local speed = run.Stats.WalkSpeed
+	-- Rocket Skates: dash out of a telegraph we are standing in
+	local dash = run.DashState
+	if dash and dash.Charges > 0 and (dx ~= 0 or dz ~= 0) then
+		for _, t in run.Telegraphs do
+			if t.Shape == 1 and (run.PX - t.X) ^ 2 + (run.PZ - t.Z) ^ 2 < t.R * t.R and t.At - run.Time < 0.4 then
+				run:Dash(dx, dz)
+				break
+			end
+		end
+	end
+	local speed = run.Stats.WalkSpeed * run:SlowFactor()
 	run:SetPlayer(run.PX + dx * speed * dt, run.PZ + dz * speed * dt, dx, dz)
 	run:Step(dt)
 end

@@ -20,6 +20,7 @@ local WeaponData = require(Shared.WeaponData)
 
 local SpatialGrid = require(script.Parent.SpatialGrid)
 local EnemyManager = require(script.Parent.EnemyManager)
+local Relics = require(script.Parent.Relics)
 
 local CombatManager = {}
 
@@ -45,7 +46,7 @@ function CombatManager.Hit(run, e, base: number, kx: number, kz: number, knock: 
 	local dmg = base * run:DamageMult(e)
 	local flags = extraFlags or 0
 	if st.Crit > 0 and rng:NextNumber() < st.Crit then
-		dmg *= st.CritMult
+		dmg *= Relics.CritMult(run, st.CritMult)
 		flags = bit32.bor(flags, HF.Crit)
 	end
 	if run.Passives.Percent67 and rng:NextNumber() < 0.67 then
@@ -60,6 +61,7 @@ function CombatManager.Hit(run, e, base: number, kx: number, kz: number, knock: 
 		flags = bit32.bor(flags, HF.Execute)
 	end
 	EnemyManager.Damage(run, e, dmg, flags, kx, kz, knock)
+	Relics.OnHit(run, e, dmg)
 end
 
 -- sets an enemy on fire (damage per second for `duration`)

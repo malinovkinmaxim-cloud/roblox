@@ -54,6 +54,14 @@ local RECORDS = {
 	{ "ZoneEnd", { "u16" } }, -- zone gone
 	{ "Clone", { "q", "q", "s" } }, -- decoy clone: x, z, duration
 	{ "Burn", { "u16", "s" } }, -- enemy id starts burning for n seconds (visual)
+	-- 67 TOWN: mini-bosses, relic loot, zones (Sim/ArenaDirector, Sim/MiniBosses, Sim/Relics)
+	{ "MiniHP", { "u16", "u16", "u8" } }, -- mini-boss id, hp fraction (0..65535), flags (Protocol.MiniFlags)
+	{ "LootSpawn", { "u16", "u8", "q", "q" } }, -- relic loot id, relic id (shared/RelicData), x, z
+	{ "LootTake", { "u16" } }, -- picked up
+	{ "LootGone", { "u16" } }, -- removed without a pickup
+	{ "Threat", { "u8", "u8" } }, -- zone index, threat percent (0..100)
+	{ "Vault", { "u8", "u8", "u8" } }, -- vault index, state (Protocol.VaultState), capture percent
+	{ "Dash", { "u8", "u8", "s" } }, -- dash charges, max charges, seconds to the next charge
 }
 
 Protocol.Records = {} :: { [string]: { Id: number, Fields: { string } } }
@@ -70,6 +78,7 @@ Protocol.Flags = {
 	Boss = 8,
 	Elite = 16,
 	Giant = 32, -- 67 MODE: GIANT
+	Champion = 64, -- a mini-boss of 67 TOWN
 	Paused = 1, -- State flags
 	Dead = 2,
 	Event67 = 4, -- a 67 event is running
@@ -86,6 +95,21 @@ Protocol.EState = {
 	Phased = 4, -- Ghost: faded out, can't hurt or be hurt
 	Dormant = 5, -- Mimic: still pretending to be a loot box
 	Lit = 6, -- Bomber: fuse is burning
+}
+
+-- mini-boss flags (MiniHP record)
+Protocol.MiniFlags = {
+	Shielded = 1, -- can't be hurt (JACKPOT JIMMY's tilt)
+	Stunned = 2, -- JACKPOT! (takes more damage)
+	Enraged = 4,
+	Home = 8, -- walking home to heal
+}
+
+-- 67 VAULT states (Vault record)
+Protocol.VaultState = {
+	Asleep = 0,
+	Awake = 1, -- stand on the pad to open it
+	Opened = 2,
 }
 
 -- Hit flags
@@ -125,7 +149,25 @@ Protocol.Fx = {
 	Hazard = 26, -- a void zone tick
 	Execute = 27,
 	Evolve = 28, -- an ability evolved
+	MiniSpawn = 29, -- a mini-boss arrives (p1 = radius)
+	Trail = 30, -- a fire patch of the Hot Sauce Socks (p1 = radius, p2 = life)
+	Dash = 31, -- the player dashed (x, z = from; angle; p1 = distance)
+	VaultOpen = 32, -- a 67 VAULT cracked open
+	Jackpot = 33, -- JACKPOT JIMMY hit 7-7-7 (coins burst)
+	RelicTake = 34, -- a relic picked up (p2 = relic id)
+	TwinRevive = 35, -- SIX or SEVEN came back
+	Alarm = 36, -- TICK TOCK's alarm: it escapes
+	Zap = 37, -- a Static Sock zap from (x, z) along angle for p1 studs
+	TimeStop = 38, -- the Pocket Watch (p1 = radius)
 }
+
+--[[
+	Telegraph shapes (Telegraph record):
+	  1 circle   2 dash line (visual)   3 lingering void zone (width = duration)
+	  4 laser line   5 slippery puddle (lingering, slows you; width = duration)
+	  6 spill (lingering, small, hurts; width = duration)
+]]
+Protocol.Shapes = { Circle = 1, DashLine = 2, Void = 3, Laser = 4, Puddle = 5, Spill = 6 }
 
 local SIZES = { u8 = 1, u16 = 2, u32 = 4, i16 = 2, f32 = 4, q = 2, a = 2, s = 2, v = 2 }
 

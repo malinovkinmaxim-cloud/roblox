@@ -15,6 +15,10 @@
 
 	In a party, members' runs are Followers: their events come from the leader's run
 	(GameManager calls WaveManager.TriggerEvent on them) so everyone sees the same moment.
+
+	67 TOWN: the zone you stand in scales the horde spawned around you (HP, damage, elites and
+	a little more of its own enemies) and the map's director runs after the timeline
+	(Sim/ArenaDirector: mini-bosses, threat, the rift, 67 RUSH, vaults).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,6 +32,7 @@ local Protocol = require(Shared.Protocol)
 local EnemyManager = require(script.Parent.EnemyManager)
 local CombatManager = require(script.Parent.CombatManager)
 local Pickups = require(script.Parent.Pickups)
+local ArenaDirector = require(script.Parent.ArenaDirector)
 
 local WaveManager = {}
 
@@ -114,11 +119,13 @@ local function spawnKind(run, key: string, entry)
 		return EnemyManager.Spawn(run, "Goblin67", x, z, { Force = true, NoScale = true })
 	end
 	local invasion = now < run.Wave.InvasionUntil
+	local zone = ArenaDirector.Zone(run)
 	-- ELITE INVASION difficulty: elites a minute sooner; every tier scales how many
 	local eliteFrom = if run.Mods and run.Mods.EliteInvasion then 90 else GameConfig.Drops.EliteFrom
-	local eliteChance = GameConfig.Drops.EliteChance * (if run.Diff then run.Diff.Elite else 1)
+	local eliteChance = GameConfig.Drops.EliteChance * (if run.Diff then run.Diff.Elite else 1) * zone.Elite
 	local elite = not invasion and now >= eliteFrom and key ~= "Skitter" and rng:NextNumber() < eliteChance
-	local opts = if elite then { Elite = true } elseif invasion then { HPMult = 0.4 } else nil
+	-- the zone's danger
+	local opts = { Elite = elite or nil, HPMult = zone.HP * (if invasion then 0.4 else 1), DamageMult = zone.Damage }
 	local e = EnemyManager.Spawn(run, key, x, z, opts)
 	-- packs: some enemies come in groups
 	local pack = entry.Pack and entry.Pack[key]
@@ -541,8 +548,9 @@ function WaveManager.Step(run, dt: number)
 			w.Acc = min(w.Acc, 3)
 			break
 		end
+		local flavor = ArenaDirector.Zone(run).Flavor
 		local pick = pickWeighted(run.Rng, WaveManager.MixList(entry), function(m)
-			return m[2]
+			return m[2] * (if flavor then flavor[m[1]] or 1 else 1)
 		end)
 		spawnKind(run, pick[1], entry)
 	end
@@ -556,6 +564,7 @@ function WaveManager.Step(run, dt: number)
 
 	stepEvents(run, dt)
 	stepSecrets(run)
+	ArenaDirector.Step(run, dt)
 end
 
 -- timeline mixes as arrays (cached)

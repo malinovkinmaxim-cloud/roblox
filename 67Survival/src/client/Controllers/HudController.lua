@@ -1,10 +1,13 @@
 --[[
 	HudController - the in-run HUD. Minimal: the arena is the show.
 
-	  top centre   level chip + thin XP bar, timer under it
-	  top left     HP, the run's difficulty under it
-	  top right    coins (small) + pause
-	  right        boss HP - only while a boss is alive
+	  top centre   level chip + thin XP bar, timer under it, the ZONE you are in under that
+	               (danger stars, what it pays, its threat meter: fill it to wake its mini-boss)
+	  top left     HP, the run's difficulty under it, your RELICS under that
+	  top right    coins (small) + pause; the minimap under them (MinimapController)
+	  right        boss HP under the minimap - only while a boss is alive
+	  centre       a card when you pick up a relic
+	  bottom right DASH (only with the Rocket Skates relic): charges, recharge, tap to dash
 	  bottom       small ability icons (level, MAX, EVO) + active buffs above them
 	               + "EVOLUTION AVAILABLE" when an evolution can be picked
 	  pause menu   RESUME / SETTINGS / GIVE UP + your current build
@@ -20,6 +23,11 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local WeaponData = require(Shared.WeaponData)
 local UpgradeData = require(Shared.UpgradeData)
 local DifficultyData = require(Shared.DifficultyData)
+local ArenaData = require(Shared.ArenaData)
+local RelicData = require(Shared.RelicData)
+local MiniBossData = require(Shared.MiniBossData)
+local GameConfig = require(Shared.GameConfig)
+local Rarity = require(Shared.Rarity)
 local Format = require(Shared.Util.Format)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
@@ -312,7 +320,267 @@ function HudController:Init(controllers)
 		Parent = safe,
 	})
 
+	self:BuildTown(safe)
 	self:BuildPauseMenu(root)
+end
+
+---------------------------------------------------------------------------
+-- 67 TOWN: zone chip, relics, relic card, dash
+---------------------------------------------------------------------------
+function HudController:BuildTown(safe: Frame)
+	-- the zone you are in (under the timer)
+	local zone = Kit.Panel({
+		Name = "Zone",
+		Size = UDim2.fromOffset(260, 26),
+		Position = UDim2.new(0.5, 0, 0, 66),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Radius = 13,
+		Parent = safe,
+	})
+	self.ZoneStroke = zone:FindFirstChildOfClass("UIStroke") :: UIStroke
+	self.ZoneName = Kit.Label({
+		Name = "ZoneName",
+		Text = "",
+		Size = UDim2.new(0.62, -12, 0, 16),
+		Position = UDim2.fromOffset(12, 4),
+		Font = F.Title,
+		MaxTextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = zone,
+	})
+	self.ZoneInfo = Kit.Label({
+		Name = "ZoneInfo",
+		Text = "",
+		Size = UDim2.new(0.38, -12, 0, 16),
+		Position = UDim2.new(1, -12, 0, 4),
+		AnchorPoint = Vector2.new(1, 0),
+		Font = F.Bold,
+		MaxTextSize = 12,
+		TextColor3 = C.TextDim,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = zone,
+	})
+	local threat = Kit.New("Frame", {
+		Name = "Threat",
+		Size = UDim2.new(1, -24, 0, 3),
+		Position = UDim2.new(0.5, 0, 1, -4),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundColor3 = C.SurfaceDark,
+		BackgroundTransparency = 0.2,
+		BorderSizePixel = 0,
+		Parent = zone,
+	})
+	Kit.Corner(threat, 2)
+	self.ThreatFill = Kit.New("Frame", { Name = "Fill", Size = UDim2.fromScale(0, 1), BorderSizePixel = 0, Parent = threat })
+	Kit.Corner(self.ThreatFill, 2)
+	self.ThreatBar = threat
+	self.ZoneChip = zone
+
+	-- your relics (under the difficulty chip)
+	local relics = Kit.New("Frame", {
+		Name = "Relics",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(320, 26),
+		Position = UDim2.fromOffset(0, 58),
+		Parent = safe,
+	})
+	Kit.New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = relics })
+	self.RelicRow = relics
+
+	-- the card of a relic you just picked up
+	local card = Kit.Panel({
+		Name = "RelicCard",
+		Size = UDim2.fromOffset(340, 80),
+		Position = UDim2.new(0.5, 0, 1, -(SLOT + 104)),
+		AnchorPoint = Vector2.new(0.5, 1),
+		BackgroundTransparency = Theme.GlassStrong,
+		Radius = 16,
+		Visible = false,
+		Parent = safe,
+	})
+	self.RelicCardStroke = card:FindFirstChildOfClass("UIStroke") :: UIStroke
+	self.RelicCardIcon = Kit.New("Frame", { Name = "IconHolder", BackgroundTransparency = 1, Size = UDim2.fromOffset(46, 46), Position = UDim2.fromOffset(12, 12), Parent = card })
+	self.RelicCardTag = Kit.Label({
+		Name = "Tag",
+		Text = "",
+		Size = UDim2.new(1, -80, 0, 14),
+		Position = UDim2.fromOffset(68, 8),
+		Font = F.Bold,
+		MaxTextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = card,
+	})
+	self.RelicCardName = Kit.Label({
+		Name = "RelicName",
+		Text = "",
+		Size = UDim2.new(1, -80, 0, 20),
+		Position = UDim2.fromOffset(68, 22),
+		Font = F.Title,
+		MaxTextSize = 18,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = card,
+	})
+	self.RelicCardDesc = Kit.Label({
+		Name = "Desc",
+		Text = "",
+		Size = UDim2.new(1, -80, 0, 30),
+		Position = UDim2.fromOffset(68, 44),
+		Font = F.Medium,
+		TextScaled = false,
+		TextSize = 13,
+		TextWrapped = true,
+		TextColor3 = C.TextDim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Parent = card,
+	})
+	self.RelicCard = card
+
+	-- DASH (Rocket Skates): a round button with its charges and recharge
+	local dash = Kit.New("TextButton", {
+		Name = "Dash",
+		Text = "",
+		AutoButtonColor = false,
+		Size = UDim2.fromOffset(62, 62),
+		Position = UDim2.new(1, 0, 1, -(SLOT + 56)),
+		AnchorPoint = Vector2.new(1, 1),
+		BackgroundColor3 = C.Surface,
+		BackgroundTransparency = Theme.Glass,
+		Visible = false,
+		Parent = safe,
+	})
+	Kit.Corner(dash, 31)
+	self.DashStroke = Kit.Stroke(dash, 2, Color3.fromRGB(150, 230, 255), 0.1)
+	self.DashFill = Kit.New("Frame", {
+		Name = "Recharge",
+		BackgroundColor3 = Color3.fromRGB(150, 230, 255),
+		BackgroundTransparency = 0.75,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 0),
+		Position = UDim2.fromScale(0, 1),
+		AnchorPoint = Vector2.new(0, 1),
+		Parent = dash,
+	})
+	Kit.Corner(self.DashFill, 31)
+	self.DashLabel = Kit.Label({ Name = "Label", Text = "DASH", Size = UDim2.new(1, -10, 0, 18), Position = UDim2.fromScale(0.5, 0.36), AnchorPoint = Vector2.new(0.5, 0.5), Font = F.Title, MaxTextSize = 15, Parent = dash })
+	self.DashDots = Kit.Label({ Name = "Charges", Text = "", Size = UDim2.new(1, -10, 0, 14), Position = UDim2.fromScale(0.5, 0.68), AnchorPoint = Vector2.new(0.5, 0.5), Font = F.Bold, MaxTextSize = 12, TextColor3 = Color3.fromRGB(150, 230, 255), Parent = dash })
+	dash.Activated:Connect(function()
+		self.C.RunClient:RequestDash()
+	end)
+	self.DashButton = dash
+end
+
+-- the zone chip: name + stars, what it pays, its threat meter
+function HudController:UpdateZone(now: number)
+	local run = self.C.RunClient
+	local x, z = run:LocalXZ()
+	if not x or not z then
+		return
+	end
+	local zone = ArenaData.ZoneAt(x, z)
+	local last = self.Last
+	if last.Zone ~= zone.Key then
+		last.Zone = zone.Key
+		local stars = if zone.Stars > 0 then "  " .. string.rep("★", zone.Stars) else "  SAFE"
+		self.ZoneName.Text = zone.Name .. stars
+		self.ZoneName.TextColor3 = zone.Color
+		self.ZoneStroke.Color = zone.Color
+		self.ThreatFill.BackgroundColor3 = zone.Color
+		self.ThreatBar.Visible = zone.Threat ~= nil
+	end
+	-- what the zone pays right now (the square pays less after a while; the 67 RUSH pays more)
+	local xp = zone.XP
+	if zone.Decay and run:Now() >= zone.Decay.After then
+		xp = zone.Decay.XP
+	end
+	local rush = run.Map.Hot == zone.Key
+	local mini = MiniBossData.ByZone[zone.Key]
+	local awake = mini ~= nil and run.Encounters[mini.Key] ~= nil
+	local info
+	if awake then
+		info = "⚠ MINI-BOSS OUT"
+	elseif rush then
+		info = "RUSH  XP x" .. tostring(math.floor(xp * GameConfig.Map.HotXP * 100 + 0.5) / 100)
+	else
+		info = "XP x" .. tostring(math.floor(xp * 100 + 0.5) / 100)
+	end
+	if last.ZoneInfo ~= info then
+		last.ZoneInfo = info
+		self.ZoneInfo.Text = info
+		self.ZoneInfo.TextColor3 = if awake then Color3.fromRGB(255, 130, 90) elseif rush then C.Gold else C.TextDim
+	end
+	if zone.Threat then
+		local pct = if awake then 100 else run.Map.Threat[zone.Index] or 0
+		self.ThreatFill.Size = UDim2.fromScale(pct / 100, 1)
+		self.ThreatFill.BackgroundColor3 = if awake then Color3.fromRGB(255, 90, 70):Lerp(C.Text, (math.sin(now * 6) + 1) * 0.15) elseif pct >= 100 then Color3.fromRGB(255, 130, 90) else zone.Color
+	end
+end
+
+-- walking into a zone: the zone chip pops; the first time, a toast with its tagline (and the
+-- server drops a little XP). Never over the level-up cards.
+function HudController:ZoneEntered(zone, first: boolean)
+	Kit.Pop(self.ZoneChip, 0.12)
+	if first and not self.C.LevelUpController:IsOpen() then
+		local stars = if zone.Stars > 0 then " " .. string.rep("★", zone.Stars) else ""
+		self.C.BannerController:Toast("NEW ZONE: " .. zone.Name .. stars, "Reward", zone.Tagline)
+	end
+end
+
+function HudController:SetRelics(relics: { any })
+	Widgets.Clear(self.RelicRow)
+	for i, r in relics do
+		local tile = Icons.Make(self.RelicRow, "Relic", r.Key, 24, { LayoutOrder = i })
+		if r.Stacks and r.Stacks > 1 then
+			Kit.Label({
+				Name = "Stacks",
+				Text = "x" .. r.Stacks,
+				Size = UDim2.fromOffset(18, 11),
+				Position = UDim2.new(1, 2, 1, 1),
+				AnchorPoint = Vector2.new(1, 1),
+				Font = F.Title,
+				MaxTextSize = 10,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				StrokeThickness = 1,
+				StrokeTransparency = 0.2,
+				ZIndex = 3,
+				Parent = tile,
+			})
+		end
+	end
+end
+
+-- you picked up a relic: its card for a few seconds
+function HudController:RelicGained(p)
+	local def = RelicData.ByKey[p.Key]
+	if not def then
+		return
+	end
+	if p.Maxed then
+		self.C.BannerController:Toast(def.Name .. " is maxed: +25 coins", "Reward")
+		return
+	end
+	local color = Rarity.Colors[def.Rarity] or C.Text
+	Widgets.Clear(self.RelicCardIcon)
+	Icons.Make(self.RelicCardIcon, "Relic", def.Key, 46)
+	self.RelicCardTag.Text = string.upper(def.Rarity) .. " RELIC" .. (if (p.Stacks or 1) > 1 then "  ·  x" .. p.Stacks else "")
+	self.RelicCardTag.TextColor3 = color
+	self.RelicCardName.Text = def.Name
+	self.RelicCardDesc.Text = def.Desc
+	self.RelicCardStroke.Color = color
+	self.RelicCardStroke.Transparency = 0.1
+	self.RelicCard.Visible = true
+	Kit.Appear(self.RelicCard)
+	self.RelicCardUntil = os.clock() + 3.6
+	self.C.EffectsController:Flash(color, 0.12)
+end
+
+function HudController:SetDash(dash)
+	local has = dash ~= nil and dash.Max > 0
+	self.DashButton.Visible = has
+	if has then
+		local dots = string.rep("●", dash.Charges) .. string.rep("○", dash.Max - dash.Charges)
+		self.DashDots.Text = if Kit.IsTouch() then dots else "SPACE " .. dots
+	end
 end
 
 function HudController:BuildPauseMenu(root: Frame)
@@ -392,6 +660,17 @@ function HudController:Show()
 	for _, row in { self.WeaponRow, self.BuffRow } do
 		(row:FindFirstChildOfClass("UIListLayout") :: UIListLayout).HorizontalAlignment = if touch then Enum.HorizontalAlignment.Right else Enum.HorizontalAlignment.Center
 	end
+	-- the right column: the minimap under the coins, the boss bar under the minimap
+	local Minimap = self.C.MinimapController
+	local mapSize = Minimap.SizeFor(touch)
+	self.BossPanel.Position = UDim2.new(1, 0, 0, Minimap.Top + mapSize + 10)
+	self.FragmentToast.Position = UDim2.new(1, -(mapSize + 12), 0, Minimap.Top + 2)
+	-- the dash button sits above the abilities (the stick keeps the left side on phones)
+	self.DashButton.Position = UDim2.new(1, 0, 1, -(SLOT + if touch then 76 else 56))
+	self.RelicCard.Visible = false
+	self:SetDash(nil)
+	Widgets.Clear(self.RelicRow)
+	table.clear(self.Last)
 end
 
 function HudController:Hide()
@@ -477,6 +756,7 @@ function HudController:SetLoadout(loadout)
 		weaponSlot(self.WeaponRow, i, nil, 0, 1, false)
 	end
 	self.EvoPill.Visible = next(ready) ~= nil
+	self:SetRelics(loadout.Relics or {})
 	-- the full build (weapons + passives + rares) is shown in the pause menu only
 	Widgets.Clear(self.BuildGrid)
 	local order = 0
@@ -489,6 +769,10 @@ function HudController:SetLoadout(loadout)
 			order += 1
 			Icons.Make(self.BuildGrid, "Stat", p.Key, 32, { LayoutOrder = order })
 		end
+	end
+	for _, r in loadout.Relics or {} do
+		order += 1
+		Icons.Make(self.BuildGrid, "Relic", r.Key, 32, { LayoutOrder = order })
 	end
 	Kit.Pop(self.WeaponRow, 0.05)
 end
@@ -622,6 +906,19 @@ function HudController:Update()
 		else
 			b.Label.Text = string.format("%s  %ds", b.Name, math.ceil(left))
 		end
+	end
+	-- 67 TOWN
+	self:UpdateZone(now)
+	if self.RelicCardUntil and now >= self.RelicCardUntil then
+		self.RelicCardUntil = nil
+		self.RelicCard.Visible = false
+	end
+	local dash = run.Dash
+	if dash and self.DashButton.Visible then
+		local charging = dash.Charges < dash.Max
+		local frac = if charging then math.clamp(1 - (dash.ReadyAt - now) / math.max(0.1, dash.Recharge), 0, 1) else 1
+		self.DashFill.Size = UDim2.fromScale(1, frac)
+		self.DashStroke.Transparency = if dash.Charges > 0 then 0.1 else 0.6
 	end
 end
 

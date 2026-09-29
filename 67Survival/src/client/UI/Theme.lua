@@ -99,6 +99,11 @@ Theme.BannerStyles = {
 	Reward = { SuccessDark, SurfaceDark },
 	Evolution = { rgb(0, 140, 130), SurfaceDark },
 	Event67 = { rgb(150, 110, 20), rgb(60, 20, 90) },
+	-- 67 TOWN
+	MiniBoss = { rgb(200, 60, 30), SurfaceDark },
+	Rush = { rgb(190, 120, 20), SurfaceDark },
+	Vault = { rgb(150, 110, 30), rgb(40, 30, 60) },
+	Rift = { rgb(110, 60, 190), SurfaceDark },
 }
 
 Theme.ToastColors = {

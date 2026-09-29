@@ -75,6 +75,10 @@ AchievementData.List = {
 	{ Key = "UnderBridge", Name = "Bridge Toll", Desc = "Find what lives under the bridge to THE 67", Coins = 67, Secret = true, Flag = true },
 	{ Key = "Throne67", Name = "Not Your Throne", Desc = "Sit on the throne of 67", Coins = 67, Secret = true, Flag = true },
 	{ Key = "Button67", Name = "Do Not Press", Desc = "Press the button. 67 times.", Coins = 67, Secret = true, Flag = true },
+	-- secrets of 67 TOWN (the battle map)
+	{ Key = "Parked67", Name = "Perfect Parking", Desc = "Find parking space 67 in the Horde Mart Lot", Coins = 67, Secret = true, Flag = true },
+	{ Key = "RiftCrack", Name = "Mind the Gap", Desc = "Find the crack in THE RIFT", Coins = 167, Secret = true, Flag = true },
+	{ Key = "OnTime", Name = "Right On Time", Desc = "Defeat TICK TOCK before its alarm rings", Coins = 167, Secret = true, Flag = true },
 } :: { AchievementDef }
 
 AchievementData.ByKey = {} :: { [string]: AchievementDef }
@@ -83,7 +87,7 @@ for _, def in AchievementData.List do
 end
 
 -- secrets of the Collection Book (achievement keys)
-AchievementData.Secrets = { "Secret67", "SigmaStare", "GoldenGoober", "TouchGrass", "Backrooms", "OneHP", "DefeatThe67", "Untouchable", "Nowhere", "UnderBridge", "Throne67", "Button67" }
+AchievementData.Secrets = { "Secret67", "SigmaStare", "GoldenGoober", "TouchGrass", "Backrooms", "OneHP", "DefeatThe67", "Untouchable", "Nowhere", "UnderBridge", "Throne67", "Button67", "Parked67", "RiftCrack", "OnTime" }
 
 --[[
 	Daily quests: 3 per UTC day, picked deterministically from the pool per player.

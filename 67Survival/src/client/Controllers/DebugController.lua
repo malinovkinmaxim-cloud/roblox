@@ -18,6 +18,11 @@ local COMMANDS = {
 	{ "2:55 BOSS", "time", "175" },
 	{ "5:55 BOSS", "time", "355" },
 	{ "11:55 FINAL", "time", "715" },
+	{ "4:25 RIFT", "time", "265" },
+	{ "MINI-BOSS", "miniboss", "" },
+	{ "RELIC", "relic", "" },
+	{ "67 VAULT", "vault", "" },
+	{ "67 RUSH", "rush", "" },
 	{ "67%", "event", "Percent67" },
 	{ "67 CHEST", "event", "Chest67" },
 	{ "67 INVASION", "event", "Invasion67" },
@@ -52,14 +57,14 @@ function DebugController:Build()
 	local gui, root = Kit.ScreenGui("S67Debug", 60, Players.LocalPlayer:WaitForChild("PlayerGui"))
 	self.Gui = gui
 	local panel = Kit.Panel({
-		Size = UDim2.fromOffset(470, 430),
+		Size = UDim2.fromOffset(612, 420),
 		Position = UDim2.new(1, -8, 1, -46),
 		AnchorPoint = Vector2.new(1, 1),
 		Visible = false,
 		Parent = root,
 	})
 	local grid = Kit.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -16, 1, -16), Position = UDim2.fromOffset(8, 8), Parent = panel })
-	Kit.New("UIGridLayout", { CellSize = UDim2.fromOffset(146, 44), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = grid })
+	Kit.New("UIGridLayout", { CellSize = UDim2.fromOffset(143, 44), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = grid })
 	for i, cmd in COMMANDS do
 		Kit.Button({
 			Text = cmd[1],

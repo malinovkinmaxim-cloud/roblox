@@ -6,6 +6,7 @@
 	  Event67                   the 67 EVENT sequence: screen dims, "6"... "7"... camera
 	                            punch, "67", then the event's name (67 LUCK, 67 MODE...)
 	  Secret                    golden banner
+	  MiniBoss                  "⚠ MINI-BOSS" -> "<NAME> APPEARED" + the zone (67 TOWN)
 	  Toasts (Notify remote)    small stacked messages: achievements, unlocks, rewards, errors
 	  Invite (Party remote)     a party invite with JOIN / NO (expires by itself)
 ]]
@@ -122,7 +123,7 @@ function BannerController:PlaceToasts()
 	self.ToastWidth = if inRun then 400 else 330 -- narrower in the hub: clear of the logo
 	if inRun then
 		-- (over the results panel: at the very top, above its title)
-		self.Toasts.Position = UDim2.new(0.5, 0, 0, if results then 6 else 90)
+		self.Toasts.Position = UDim2.new(0.5, 0, 0, if results then 6 else 116) -- under the zone chip
 		self.Toasts.AnchorPoint = Vector2.new(0.5, 0)
 		self.ToastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	else
@@ -147,9 +148,10 @@ function BannerController:Next()
 	if self.Showing then
 		return
 	end
-	-- the run is paused while the level-up cards are up: banners wait so they never cover the cards
+	-- the run is paused while the level-up cards are up: banners wait so they never cover the
+	-- cards (nor the giant WARNING / MINI-BOSS / 67 text: they come right after it)
 	local levelUp = self.C.LevelUpController
-	if levelUp and levelUp:IsOpen() then
+	if (levelUp and levelUp:IsOpen()) or self.Giant.Visible then
 		if not self.Waiting and #self.Queue > 0 then
 			self.Waiting = true
 			task.delay(0.3, function()
@@ -171,8 +173,10 @@ function BannerController:Next()
 	self.BannerGradient.Color = ColorSequence.new(colors[1], colors[2])
 	self.BannerTitle.Text = item.Title
 	self.BannerSub.Text = item.Sub
-	self.BannerTitle.TextColor3 = if item.Style == "Secret" or item.Style == "Victory" or item.Style == "Event67" then C.Gold
+	self.BannerTitle.TextColor3 = if item.Style == "Secret" or item.Style == "Victory" or item.Style == "Event67" or item.Style == "Vault" or item.Style == "Rush" then C.Gold
 		elseif item.Style == "Evolution" then C.Mythic
+		elseif item.Style == "MiniBoss" then Color3.fromRGB(255, 150, 100)
+		elseif item.Style == "Rift" then Color3.fromRGB(210, 160, 255)
 		else C.Text
 	local banner = self.Banner
 	banner.Visible = true
@@ -224,6 +228,8 @@ end
 function BannerController:GiantText(text: string, color: Color3, hold: number, meme: boolean?)
 	local giant = self.Giant
 	giant.Font = if meme then Theme.Fonts.Meme else Theme.Fonts.Title
+	-- a banner already up stays readable: the giant text goes under it
+	giant.Position = UDim2.fromScale(0.5, if self.Showing then 0.62 else 0.45)
 	giant.Text = text
 	giant.TextColor3 = color
 	giant.Visible = true
@@ -286,6 +292,15 @@ function BannerController:Event67(p)
 	end)
 end
 
+-- "⚠ MINI-BOSS APPEARED": a short flash of the warning, then who and where (and how to beat it)
+function BannerController:MiniBoss(p)
+	self.C.SoundController:Play("MiniBoss")
+	self.C.EffectsController:Flash(Color3.fromRGB(255, 110, 60), 0.18)
+	self:GiantText("⚠ MINI-BOSS", Color3.fromRGB(255, 120, 70), 0.8)
+	local where = if p.ZoneName then p.ZoneName else "somewhere"
+	self:Show(p.Title .. " APPEARED", where .. " · follow the ⚠ arrow", "MiniBoss")
+end
+
 function BannerController:Secret(p)
 	self.C.SoundController:Play("Secret")
 	self.C.EffectsController:Flash(C.Gold, 0.45)
@@ -298,7 +313,7 @@ end
 ---------------------------------------------------------------------------
 -- toasts
 ---------------------------------------------------------------------------
-function BannerController:Toast(text: string, kind: string?)
+function BannerController:Toast(text: string, kind: string?, sub: string?)
 	if (kind == "Achievement" or kind == "Unlock") and self.C.ResultsController:IsOpen() then
 		return -- the results screen already lists them
 	end
@@ -306,7 +321,7 @@ function BannerController:Toast(text: string, kind: string?)
 	self:PlaceToasts()
 	self.ToastOrder += 1
 	local frame = Kit.Panel({
-		Size = UDim2.fromOffset(self.ToastWidth or 400, 40),
+		Size = UDim2.fromOffset(self.ToastWidth or 400, if sub then 56 else 40),
 		BackgroundTransparency = Theme.GlassStrong,
 		LayoutOrder = self.ToastOrder,
 		Radius = 12,
@@ -325,13 +340,25 @@ function BannerController:Toast(text: string, kind: string?)
 	Kit.Label({
 		Text = text,
 		Size = UDim2.new(1, -52, 0, 20),
-		Position = UDim2.new(0, 34, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 34, if sub then 0 else 0.5, if sub then 9 else 0),
+		AnchorPoint = Vector2.new(0, if sub then 0 else 0.5),
 		Font = Theme.Fonts.Bold,
 		MaxTextSize = 16,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = frame,
 	})
+	if sub then
+		Kit.Label({
+			Text = sub,
+			Size = UDim2.new(1, -52, 0, 16),
+			Position = UDim2.fromOffset(34, 31),
+			Font = Theme.Fonts.Medium,
+			MaxTextSize = 14,
+			TextColor3 = C.TextDim,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = frame,
+		})
+	end
 	Kit.Appear(frame)
 	local count = 0
 	for _, child in self.Toasts:GetChildren() do
@@ -360,6 +387,11 @@ function BannerController:Toast(text: string, kind: string?)
 			frame:Destroy()
 		end
 	end)
+end
+
+-- the level-up cards are one screen, one choice: the toasts step aside while they are up
+function BannerController:SetToastsHidden(hidden: boolean)
+	self.Toasts.Visible = not hidden
 end
 
 -- removes the achievement / unlock toasts (the results screen lists them itself)

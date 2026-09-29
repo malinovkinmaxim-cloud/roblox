@@ -6,6 +6,12 @@
 	Interpolation: every enemy keeps two samples (T0, X0, Z0) -> (T1, X1, Z1) in server run time.
 	The renderers draw at RenderTime() = estimated server time - DELAY, so movement stays smooth
 	between 10 Hz frames.
+
+	67 TOWN state for the map / HUD / minimap / pointers:
+	  Encounters  mini-bosses out right now (by MiniBossData key): where, stage, bodies, timer
+	  Minis       per mini-boss body (enemy id): HP fraction, flags, reels, revive countdown
+	  Map         the rift, the 67 RUSH zone, vaults, the threat of each zone, visited zones
+	  Relics      the relics you carry (Loadout), Dash (charges / recharge)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,6 +22,7 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local Protocol = require(Shared.Protocol)
 local GameConfig = require(Shared.GameConfig)
 local EnemyData = require(Shared.EnemyData)
+local ArenaData = require(Shared.ArenaData)
 local Signal = require(Shared.Util.Signal)
 
 local RunClient = {}
@@ -35,6 +42,7 @@ function RunClient:Init(controllers)
 	self.Paused, self.Dead, self.Event67, self.XPBoost, self.Shield = false, false, false, false, false
 	self.Loadout = nil
 	self.Boss = nil
+	self:ResetTown()
 	self.Center = GameConfig.Arena.Center
 	self.GroundY = GameConfig.Arena.GroundY
 	self.Changed = Signal.new()
@@ -43,6 +51,46 @@ function RunClient:Init(controllers)
 	self.Stats = { Frames = 0, Bytes = 0, Records = 0 }
 	self.Handlers = self:BuildHandlers()
 	self.EventHandlers = self:BuildEventHandlers()
+end
+
+-- 67 TOWN state of a fresh run
+function RunClient:ResetTown()
+	self.Encounters = {} :: { [string]: any }
+	self.Minis = {} :: { [number]: any }
+	self.Map = { Rift = false, Hot = nil, HotUntil = 0, Vaults = {}, Threat = {}, Visited = {}, Zone = nil }
+	self.Relics = {}
+	self.Dash = nil :: any
+end
+
+-- the zone the local character stands in (arena coordinates of the character)
+function RunClient:LocalXZ(): (number?, number?)
+	local character = Players.LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return nil, nil
+	end
+	local c = self.Center
+	return root.Position.X - c.X, root.Position.Z - c.Z
+end
+
+-- asks for a DASH (Rocket Skates) in the direction you are walking
+function RunClient:RequestDash(): boolean
+	local dash = self.Dash
+	if not self.Active or self.Paused or self.Dead or not dash or dash.Charges < 1 then
+		return false
+	end
+	local character = Players.LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local ok, moving = pcall(function()
+		return (humanoid :: Humanoid).MoveDirection
+	end)
+	local dir = if ok and typeof(moving) == "Vector3" then moving else Vector3.zero
+	if dir.Magnitude < 0.1 then
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		dir = if root then root.CFrame.LookVector else Vector3.new(0, 0, -1)
+	end
+	self.C.ClientData:Fire("Dash", dir.X, dir.Z)
+	return true
 end
 
 function RunClient:World(x: number, z: number, y: number?): Vector3
@@ -276,6 +324,38 @@ function RunClient:BuildHandlers()
 			C.EnemyRenderer:Burn(e, seconds)
 		end
 	end
+	-- 67 TOWN
+	function h.MiniHP(id, frac, flags)
+		local m = self.Minis[id]
+		if not m then
+			m = { Id = id }
+			self.Minis[id] = m
+		end
+		m.HP = frac / 65535
+		m.Flags = flags
+	end
+	function h.LootSpawn(id, relicId, x, z)
+		C.LootRenderer:Add(id, relicId, x, z)
+	end
+	function h.LootTake(id)
+		C.LootRenderer:Take(id, true)
+	end
+	function h.LootGone(id)
+		C.LootRenderer:Take(id, false)
+	end
+	function h.Threat(zoneIndex, pct)
+		self.Map.Threat[zoneIndex] = pct
+	end
+	function h.Vault(index, state, pct)
+		local v = self.Map.Vaults[index] or {}
+		v.State, v.Pct = state, pct
+		self.Map.Vaults[index] = v
+		C.ArenaController:Refresh()
+	end
+	function h.Dash(charges, max, left)
+		self.Dash = { Charges = charges, Max = max, ReadyAt = os.clock() + left, Recharge = if left > 0 then left else (self.Dash and self.Dash.Recharge or 3) }
+		C.HudController:SetDash(self.Dash)
+	end
 	return h
 end
 
@@ -301,6 +381,7 @@ function RunClient:BuildEventHandlers()
 	end
 	function e.Loadout(p)
 		self.Loadout = p
+		self.Relics = p.Relics or {}
 		C.HudController:SetLoadout(p)
 		C.WeaponFx:SetLoadout(p)
 	end
@@ -369,7 +450,111 @@ function RunClient:BuildEventHandlers()
 	function e.Results(p)
 		self:Finish(p)
 	end
+	-- 67 TOWN
+	function e.MiniBoss(p)
+		self:OnMiniBoss(p)
+	end
+	function e.Reels(p)
+		local m = self.Minis[p.Id] or { Id = p.Id }
+		self.Minis[p.Id] = m
+		m.Reels = { Result = p.Result, Until = os.clock() + (p.Time or 1) }
+	end
+	function e.Relic(p)
+		C.HudController:RelicGained(p)
+		C.SoundController:Play(if p.Maxed then "Coin" else "Relic")
+	end
+	function e.Map(p)
+		local m = self.Map
+		if p.Rift then
+			m.Rift = true
+		end
+		if p.Hot ~= nil then
+			m.Hot = if p.Hot == false then nil else p.Hot
+			m.HotUntil = os.clock() + (p.Time or 0)
+		end
+		if p.Vault then
+			local v = m.Vaults[p.Vault] or {}
+			v.Event = p.State
+			if p.State == "Awake" then
+				v.Until = os.clock() + (p.Time or 60)
+				v.Seen = true
+			end
+			m.Vaults[p.Vault] = v
+		end
+		C.ArenaController:Refresh()
+	end
+	function e.Zone(p)
+		local zone = ArenaData.ByKey[p.Key]
+		if zone then
+			local first = not self.Map.Visited[zone.Key]
+			self.Map.Visited[zone.Key] = true
+			self.Map.Zone = zone
+			C.HudController:ZoneEntered(zone, first)
+		end
+	end
 	return e
+end
+
+-- the life of a mini-boss encounter (Sim/MiniBosses): Warn -> Spawn -> Defeated / Left / Escaped
+function RunClient:OnMiniBoss(p)
+	local C = self.C
+	local phase = p.Phase
+	local enc = self.Encounters[p.Key]
+	if phase == "Warn" then
+		self.Encounters[p.Key] = { Key = p.Key, Title = p.Title, X = p.X, Z = p.Z, Zone = p.Zone, ZoneName = p.ZoneName, Stage = "Warn", Ids = {}, Hint = p.Hint, Since = os.clock() }
+		C.BannerController:MiniBoss(p)
+	elseif phase == "Spawn" and enc then
+		enc.Stage = "Fight"
+		enc.Ids = p.Ids or {}
+		if p.Timer then
+			enc.TimerEnd = os.clock() + p.Timer
+		end
+		for _, id in enc.Ids do
+			self.Minis[id] = self.Minis[id] or { Id = id, HP = 1, Flags = 0 }
+			self.Minis[id].Encounter = p.Key
+		end
+		if p.Hint and p.Hint ~= "" then
+			C.BannerController:Toast(p.Title, "Info", p.Hint)
+		end
+	elseif phase == "Bond" then
+		local m = self.Minis[p.Id]
+		if m then
+			m.ReviveUntil = os.clock() + (p.Delay or 6.7)
+			m.ReviveBody = p.Body
+		end
+	elseif phase == "Revived" and enc then
+		enc.Ids = p.Ids or enc.Ids
+		for _, id in enc.Ids do
+			local m = self.Minis[id] or { Id = id, HP = 0.5, Flags = 0 }
+			m.Encounter = p.Key
+			m.ReviveUntil = nil
+			self.Minis[id] = m
+		end
+		C.BannerController:Toast(tostring(p.Body or "IT") .. " IS BACK. Together, remember?", "Error")
+	elseif phase == "Shield" then
+		local m = self.Minis[p.Id]
+		if m then
+			m.Pylons = p.Pylons
+		end
+	elseif phase == "ShieldDown" then
+		C.BannerController:Toast("SHIELD DOWN! Hit it!", "Success")
+	elseif phase == "Jackpot" then
+		local m = self.Minis[p.Id]
+		if m then
+			m.JackpotUntil = os.clock() + (p.Time or 3)
+		end
+	elseif phase == "Defeated" or phase == "Left" or phase == "Escaped" then
+		if enc then
+			for _, id in enc.Ids do
+				self.Minis[id] = nil
+			end
+		end
+		self.Encounters[p.Key] = nil
+		if phase == "Defeated" then
+			C.SoundController:Play("BossDeath", 1.15, 0.7)
+		end
+	end
+	C.ArenaController:Refresh()
 end
 
 function RunClient:OnEvents(list: any)
@@ -411,13 +596,19 @@ function RunClient:ClearWorld()
 	table.clear(self.Enemies)
 	C.EnemyRenderer:Clear()
 	C.PickupRenderer:Clear()
+	C.LootRenderer:Clear()
 	C.WeaponFx:Clear()
 	self.Boss = nil
+	self:ResetTown()
+	C.ArenaController:Refresh()
 end
 
 function RunClient:Begin(p)
 	local C = self.C
 	self:ClearWorld()
+	local startZone = ArenaData.ZoneAt(p.StartX or 0, p.StartZ or 0)
+	self.Map.Visited[startZone.Key] = true
+	self.Map.Zone = startZone
 	self.Active = true
 	self.Offset = nil
 	self.Time = 0

@@ -105,7 +105,9 @@ local ws = server.Game:GetService("Workspace")
 local map = ws:FindFirstChild("Map")
 check("map is built (arena + lobby)", map and map:FindFirstChild("Arena") and map:FindFirstChild("Lobby"))
 local parts = Engine.Count(map, "BasePart")
-check("map part budget < 1200", parts < 1200, parts .. " parts")
+-- 67 TOWN (five zones, lairs, vaults) + 67 LAND: static, anchored, no shadows; kept well under
+-- what a phone draws comfortably next to a full horde
+check("map part budget < 1500", parts < 1500, parts .. " parts")
 print("       map: " .. parts .. " parts, " .. MB.Colliders.Count .. " enemy colliders, " .. #MB.Regions .. " secret regions")
 check("enemy colliders extracted from the map", MB.Colliders.Count >= 30, MB.Colliders.Count)
 check("secret regions found", #MB.Regions >= 2, #MB.Regions)
@@ -361,8 +363,16 @@ do
 	local MB = Engine.Module(server, "ServerScriptService.Server.Services.MapBuilder")
 	local GameConfig = Engine.Module(server, "ReplicatedStorage.Modules.GameConfig")
 	local ponds = MB.Colliders.Water
+	local ArenaData = Engine.Module(server, "ReplicatedStorage.Modules.ArenaData")
+	-- the big duck pond of Goober Gardens (open from the start; visited, so no first-visit bonus)
 	local pond = ponds[1]
-	check("the arena ponds are water in the simulation", #ponds == 2 and run:InWater(pond.X, pond.Z) and not run:InWater(pond.X + pond.R + 1, pond.Z))
+	for _, w in ponds do
+		if w.R > pond.R then
+			pond = w
+		end
+	end
+	run.Map.Visited[ArenaData.ZoneAt(pond.X, pond.Z).Key] = true
+	check("the arena ponds are water in the simulation", #ponds >= 2 and run:InWater(pond.X, pond.Z) and not run:InWater(pond.X + pond.R + 1, pond.Z))
 	local humanoid = alicePlayer.Character:FindFirstChildOfClass("Humanoid")
 	local backX, backZ = entry.LastX, entry.LastZ
 	entry.LastX, entry.LastZ = pond.X, pond.Z
@@ -468,6 +478,125 @@ check("invasion cap restored afterwards", run.MaxEnemies <= GM.Entries[alicePlay
 cd:Fire("Admin", "killall", "")
 play(alice, run, 3)
 check("no errors during 67 events", errorsSince(mark) == 0, Engine.Errors[mark + 1])
+
+---------------------------------------------------------------------------
+section("67 TOWN: zones, minimap, mini-bosses, relics")
+---------------------------------------------------------------------------
+mark = #Engine.Errors
+do
+	local ArenaData = Engine.Module(server, "ReplicatedStorage.Modules.ArenaData")
+	local RelicData = Engine.Module(server, "ReplicatedStorage.Modules.RelicData")
+	local Relics = Engine.Module(server, "ServerScriptService.Server.Sim.Relics")
+	local minimap = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.MinimapController")
+	local arenaC = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.ArenaController")
+	local loot = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.LootRenderer")
+	local entryA = GM.Entries[alicePlayer]
+	-- puts Alice somewhere in the arena (the server's speed check is told first)
+	local function teleport(x: number, z: number)
+		entryA.LastX, entryA.LastZ = x, z
+		Engine.MoveCharacter("Alice", roblox.Vector3.new(x, ARENA_Y, z))
+		Engine.Step(0.2)
+	end
+	check("the battle map is 67 TOWN", map.Arena:GetAttribute("MapName") == "67 TOWN")
+	check("the minimap shows in a run", minimap.Gui.Enabled == true)
+	check("the zone chip names the zone you are in", string.find(hud.ZoneName.Text, ArenaData.ZoneAt(run.PX, run.PZ).Name, 1, true) ~= nil, hud.ZoneName.Text)
+	check("the rift gates are sealed for you until the rift opens", #arenaC.Seals == 3 and (run.Map.RiftOpen or arenaC.Seals[1].Part.CanCollide == true), #arenaC.Seals)
+
+	-- a mini-boss: the warning, its lair lights up, it arrives with a name plate
+	teleport(-100, 40)
+	cd:Fire("Admin", "miniboss", "BigQuack")
+	Engine.Step(0.3)
+	local enc = nil
+	for _, e in run.Map.Encounters do
+		if e.Def.Key == "BigQuack" then
+			enc = e
+		end
+	end
+	check("server: THE BIG QUACK is coming (to its lair)", enc ~= nil and enc.Lair ~= nil and enc.Lair.Key == "DuckPond")
+	check("client: MINI-BOSS APPEARED", runClient.Encounters.BigQuack ~= nil and string.find(banner.Giant.Text, "MINI-BOSS", 1, true) ~= nil, banner.Giant.Text)
+	check("its lair lights up", arenaC.Lit.DuckPond == true)
+	Engine.Step(3.5)
+	local quack = enc and enc.Bodies[1]
+	check("it arrived at its lair", quack ~= nil and quack.Alive and quack.Key == "BigQuack")
+	local drawn = quack and runClient.Enemies[quack.Id]
+	check("client: its name plate and HP bar", drawn ~= nil and drawn.Plate ~= nil and drawn.Plate.Fill ~= nil)
+	local arrow = false
+	for _, t in pointer:Targets() do
+		if t.Icon == "⚠" and string.find(t.Tag or "", "MINI-BOSS", 1, true) then
+			arrow = true
+		end
+	end
+	check("an arrow points to it: MINI-BOSS + distance", arrow)
+	local marked = false
+	for _, t in minimap:Targets(os.clock()) do
+		if t.Glyph == "!" then
+			marked = true
+		end
+	end
+	check("the minimap marks it", marked)
+	-- walk up to it: it fights (telegraphed flops)
+	teleport(-150, 140)
+	Engine.Step(1.6)
+	check("it fights you when you are close", quack ~= nil and quack.Engaged == true and (#run.Telegraphs + #run.Hazards + #run.EnemyProjectiles) > 0)
+	local mini = quack and runClient.Minis[quack.Id]
+	check("the name plate follows its HP", drawn ~= nil and drawn.Plate ~= nil and mini ~= nil and mini.HP ~= nil and mini.HP < 1, mini and mini.HP)
+	-- defeat it: relic loot on the ground
+	cd:Fire("Admin", "killall", "")
+	Engine.Step(0.5)
+	check("defeated: the encounter is over", runClient.Encounters.BigQuack == nil and #run.Result.Bosses >= 0 and run.Result.MiniBosses >= 1, run.Result.MiniBosses)
+	check("it dropped a relic on the ground", #run.Loot >= 1, #run.Loot)
+	check("client draws the relic (beam + name)", next(loot.Items) ~= nil)
+	local l = run.Loot[1]
+	if l then
+		teleport(l.X, l.Z)
+		Engine.Step(0.3)
+	end
+	check("walked over it: the relic is yours", #run.RelicOrder >= 1, #run.RelicOrder)
+	check("HUD: the relic card and your relics row", hud.RelicCard.Visible == true and #hud.RelicRow:GetChildren() >= 2)
+	local key = run.RelicOrder[1]
+	check("the relic counts in your stats", key ~= nil and RelicData.ByKey[key] ~= nil)
+
+	-- the DASH of the Rocket Skates
+	Relics.Gain(run, "RocketSkates")
+	Engine.Step(0.3)
+	check("dash button appears with the Rocket Skates", hud.DashButton.Visible == true)
+	local bx, bz = run.PX, run.PZ
+	runClient:RequestDash()
+	Engine.Step(0.4)
+	check("dash: the server moved you and spent the charge", (run.PX - bx) ^ 2 + (run.PZ - bz) ^ 2 > 9 and run.DashState.Charges == 0, string.format("%.1f,%.1f", run.PX - bx, run.PZ - bz))
+	Engine.Step(4)
+	check("the dash charge comes back", run.DashState.Charges == 1)
+
+	-- a 67 VAULT and the 67 RUSH
+	cd:Fire("Admin", "vault", "")
+	cd:Fire("Admin", "rush", "")
+	Engine.Step(0.5)
+	local awake = nil
+	for i, v in run.Map.Vaults do
+		if v.State == 1 then
+			awake = i
+		end
+	end
+	check("a 67 VAULT woke up and glows for you", awake ~= nil and arenaC.Lit["vault:" .. awake] == true)
+	check("a 67 RUSH zone is on (the client knows which)", run.Map.Hot ~= nil and runClient.Map.Hot == run.Map.Hot.Zone, runClient.Map.Hot)
+	if awake then
+		local v = ArenaData.Vaults[awake]
+		teleport(v.X, v.Z)
+		Engine.Step(4.8)
+		check("stand on the vault: it cracks open (a relic pops out)", run.Result.Vaults >= 1 and #run.Loot >= 1, run.Result.Vaults)
+	end
+
+	-- the rift opens
+	if not run.Map.RiftOpen then
+		cd:Fire("Admin", "time", tostring(ArenaData.RiftOpensAt - 1))
+		Engine.Step(1.5)
+	end
+	check("THE RIFT opens: the gates let you through", run.Map.RiftOpen == true and runClient.Map.Rift == true and arenaC.Seals[1].Part.CanCollide == false)
+	teleport(0, 0)
+	cd:Fire("Admin", "killall", "")
+	Engine.Step(0.5)
+end
+check("no errors in 67 TOWN", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
 section("every ability kind + evolution")

@@ -45,9 +45,9 @@ local function list(): { Category }
 	local bosses, enemies = {}, {}
 	for _, def in EnemyData.List do
 		if def.Collection then
-			local rarity = if def.Secret then "Secret" elseif def.Rare then "Legendary" elseif def.Boss or def.MiniBoss then "Epic" else "Common"
+			local rarity = if def.Secret then "Secret" elseif def.Rare then "Legendary" elseif def.Boss or def.MiniBoss then "Epic" elseif def.Champion then "Rare" else "Common"
 			local entry = { Key = def.Key, Name = def.Name, Desc = def.Desc, Rarity = rarity, Secret = def.Secret or def.Key == "The67" }
-			if def.Boss or def.MiniBoss then
+			if def.Boss or def.MiniBoss or def.Champion then
 				table.insert(bosses, entry)
 			else
 				table.insert(enemies, entry)

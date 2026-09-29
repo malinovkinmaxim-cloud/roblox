@@ -76,6 +76,12 @@ local CUES = {
 	Chest = { { "Ping", st(12), 0.4 }, { "Ping", st(16), 0.4, 0.06 }, { "Ping", st(19), 0.4, 0.12 } },
 	Beat = { { "Thump", 0.55, 0.35 } },
 	Splash = { { "Splash", 1.2, 0.35 } },
+	-- 67 TOWN
+	MiniBoss = { { "Thump", 0.3, 0.9 }, { "Ping", st(0), 0.45, 0.05 }, { "Ping", st(6), 0.45, 0.3 }, { "Ping", st(0), 0.5, 0.55 } },
+	Relic = { { "Swoosh", 1.1, 0.35 }, { "Ping", st(12), 0.45 }, { "Ping", st(19), 0.45, 0.07 }, { "Ping", st(24), 0.5, 0.14 }, { "Ping", st(31), 0.45, 0.21 } },
+	Dash = { { "Swoosh", 1.7, 0.45 } },
+	Jackpot = { { "Ping", st(24), 0.4 }, { "Ping", st(19), 0.4, 0.06 }, { "Ping", st(24), 0.4, 0.12 }, { "Ping", st(31), 0.45, 0.18 } },
+	Alarm = { { "Ping", st(24), 0.5 }, { "Ping", st(24), 0.5, 0.08 }, { "Ping", st(24), 0.5, 0.16 }, { "Ping", st(24), 0.5, 0.24 }, { "Thump", 0.4, 0.6, 0.3 } },
 }
 
 local MIN_GAP = { Hit = 0.05, Kill = 0.04, XP = 0.035, Blast = 0.08, Zap = 0.08, Coin = 0.05, CardHover = 0.05, Slash = 0.08, Boom = 0.06 }

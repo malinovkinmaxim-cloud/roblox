@@ -13,11 +13,13 @@ local ORDER = {
 	"EffectsController",
 	"EnemyRenderer",
 	"PickupRenderer",
+	"LootRenderer",
 	"WeaponFx",
 	"RunClient",
 	"HeroAnimator",
 	"HudController",
 	"PointerController",
+	"MinimapController",
 	"LevelUpController",
 	"BannerController",
 	"ResultsController",
@@ -25,6 +27,7 @@ local ORDER = {
 	"InputController",
 	"WorldController",
 	"EventMapController",
+	"ArenaController",
 	"DebugController",
 }
 

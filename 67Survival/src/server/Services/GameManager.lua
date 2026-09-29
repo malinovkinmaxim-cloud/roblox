@@ -10,6 +10,10 @@
 	    simulation never moves faster than the player's walk speed allows, so teleport hacks
 	    cannot vacuum gems or dodge damage)
 	  * level-up choices / rerolls / skips / revives / quitting (validated by the Run)
+	  * the DASH of the Rocket Skates relic (the Run checks the charge and the walls, then the
+	    character is moved like any teleport of the simulation)
+	  * walk speed: the hero's stats, slower in ponds and THE BIG QUACK's puddles
+	  * the secret places of 67 TOWN also pay inside the run (Run:EnterSecret)
 	  * run end -> RewardManager -> Results screen
 ]]
 
@@ -310,9 +314,9 @@ function GameManager:StepEntry(entry)
 		self.Services.CharacterManager:Teleport(entry.Player, CFrame.new(CENTER + Vector3.new(tp.X, 0.5, tp.Z)))
 	end
 
-	-- walk speed follows stats (slower in water); frozen while choosing / dead / paused
+	-- walk speed follows stats (slower in water and puddles); frozen while choosing / dead / paused
 	local wade = if run:InWater(run.PX, run.PZ) then GameConfig.Water.PlayerSpeed else 1
-	local speed = if run:IsPaused() then 0 else run.Stats.WalkSpeed * wade
+	local speed = if run:IsPaused() then 0 else run.Stats.WalkSpeed * wade * run:SlowFactor()
 	if speed ~= entry.WalkSpeed then
 		entry.WalkSpeed = speed
 		self.Services.CharacterManager:SetWalkSpeed(entry.Player, speed)
@@ -547,6 +551,12 @@ function GameManager:Start()
 	Guard.Connect(Net.Event("ReturnToLobby"), { Rate = 1, Burst = 2 }, function(player)
 		self:ReturnToLobby(player)
 	end)
+	Guard.Connect(Net.Event("Dash"), { Rate = 4, Burst = 4 }, function(player, dx, dz)
+		local entry = self.Entries[player]
+		if entry and type(dx) == "number" and type(dz) == "number" then
+			entry.Run:Dash(math.clamp(dx, -1, 1), math.clamp(dz, -1, 1))
+		end
+	end)
 
 	RunService.Heartbeat:Connect(function(dt)
 		self:Heartbeat(dt)
@@ -599,6 +609,10 @@ function GameManager:Start()
 					local key = self.Services.MapBuilder:RegionAt(root.Position)
 					if key then
 						self.Services.RewardManager:FoundSecret(player, key)
+						local entry = self.Entries[player]
+						if entry then
+							entry.Run:EnterSecret(key) -- the battle map's secrets pay inside the run too
+						end
 					end
 					self:CatchFall(player, root)
 				end
