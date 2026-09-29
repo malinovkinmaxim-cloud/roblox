@@ -55,6 +55,40 @@ def background(size, ground=False):
 LIGHT = render3d.Light(direction=(-0.45, -0.8, -0.35), ambient=(0.66, 0.66, 0.74), color=(1, 0.97, 0.92))
 
 
+FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+
+def surface_text(img, parts, cam, eye):
+    """the SurfaceGui text of a part (THE 67's screen) on its front face, when that face is seen"""
+    c = render3d.Camera(cam, img.size[0], img.size[1])
+    d = ImageDraw.Draw(img)
+    for part in parts:
+        text = part.get("text")
+        if not text:
+            continue
+        p, r, s = part["p"], part["r"], part["s"]
+        centre = render3d._xf(p, r, (0, 0, -s[2] / 2))
+        normal = render3d._rot(r, (0, 0, -1))
+        if sum(normal[i] * (eye[i] - centre[i]) for i in range(3)) <= 0:
+            continue
+        pts = []
+        for u, v in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+            vv = c.view(render3d._xf(p, r, (u * s[0] / 2, v * s[1] / 2, -s[2] / 2)))
+            if vv[2] <= 0.1:
+                break
+            pts.append(c.screen(vv))
+        if len(pts) < 4:
+            continue
+        xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+        w, h = max(xs) - min(xs), max(ys) - min(ys)
+        if w < 4 or h < 4:
+            continue
+        size = max(6, int(min(h * 0.8, w * 0.8 / max(1, len(text["value"])) * 1.6)))
+        font = ImageFont.truetype(FONT, size) if os.path.exists(FONT) else ImageFont.load_default()
+        col = tuple(int(v * 255) for v in text["c"]) + (255,)
+        d.text(((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2), text["value"], fill=col, font=font, anchor="mm")
+
+
 def view(parts, size, eye, target, fov, ground=False, shadow=True):
     img = background(size, ground)
     cam = look_at(eye, target, fov)
@@ -62,6 +96,7 @@ def view(parts, size, eye, target, fov, ground=False, shadow=True):
         c = render3d.Camera(cam, size[0], size[1])
         render3d.shadows(img, c, [[[0, -3, 0], 1.9]])
     layer = render3d.render_viewport(size, cam, parts, LIGHT)
+    surface_text(layer, parts, cam, eye)
     img.alpha_composite(layer)
     return img
 

@@ -4,7 +4,7 @@
 	anchored like a menu preview) and writes build/heroes/<Key>.json (every part: position,
 	rotation, size, colour, material, shape, mesh) for tools/hero_sheet.py.
 
-	lune run tools/hero_sheet.luau -- [Key ...] [--skin Name]      (default: every hero)
+	lune run tools/hero_sheet.luau -- [Key ...] [--skin Name] [--hat Name]      (default: every hero)
 ]]
 
 local fs = require("@lune/fs")
@@ -39,6 +39,11 @@ local function partInfo(d)
 		mat = d.Material.Name,
 		neon = d.Material.Name == "Neon",
 	}
+	local gui = d:FindFirstChildOfClass("SurfaceGui")
+	local label = gui and gui:FindFirstChildOfClass("TextLabel")
+	if label then
+		info.text = { value = label.Text, c = { label.TextColor3.R, label.TextColor3.G, label.TextColor3.B } }
+	end
 	local mesh = d:FindFirstChildOfClass("SpecialMesh")
 	if mesh then
 		info.mesh = { type = mesh.MeshType.Name, scale = { mesh.Scale.X, mesh.Scale.Y, mesh.Scale.Z }, offset = { mesh.Offset.X, mesh.Offset.Y, mesh.Offset.Z } }
@@ -46,12 +51,15 @@ local function partInfo(d)
 	return info
 end
 
-local keys, skin = {}, nil
+local keys, skin, hat = {}, nil, nil
 local i = 1
 while i <= #process.args do
 	local a = process.args[i]
 	if a == "--skin" then
 		skin = process.args[i + 1]
+		i += 1
+	elseif a == "--hat" then
+		hat = process.args[i + 1]
 		i += 1
 	else
 		table.insert(keys, a)
@@ -76,7 +84,7 @@ end
 
 for _, key in keys do
 	local folder = Engine.Wrap(roblox.Instance.new("Folder"), server)
-	local parts = HeroModels.Build(key, roblox.CFrame.new(), folder, { Skin = skin, Ring = false })
+	local parts = HeroModels.Build(key, roblox.CFrame.new(), folder, { Skin = skin, Hat = hat, Ring = false })
 	local out = {}
 	for _, p in parts do
 		table.insert(out, partInfo(rawget(p, "__real") or p))

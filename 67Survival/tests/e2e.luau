@@ -125,6 +125,34 @@ do
 		end
 	end
 	check("all 15 hero models build (hats + skins)", ok and smallest >= 8 and #HeroData.List >= 15, smallest)
+	-- welded like a real character: every joint holds its part in place at rest, and the
+	-- floating pieces (drone rotor, goober friends, void shards, glitch pixels) get spin motors
+	local rest, floating = true, 0
+	for _, def in HeroData.List do
+		local model = Engine.Wrap(rawget(folder, "__real"), server)
+		local root = Engine.Wrap(roblox.Instance.new("Part"), server)
+		root.CFrame = roblox.CFrame.new(3, 500, 2) * roblox.CFrame.Angles(0, 0.7, 0)
+		root.Parent = model
+		local built = HeroModels.Build(def.Key, root.CFrame, model, { WeldTo = root, Ring = true })
+		for _, m in root:GetChildren() do
+			if m:IsA("Motor6D") then
+				local posed = m.Part0.CFrame * m.C0 * m.C1:Inverse()
+				local part = m.Part1.CFrame
+				if (posed.Position - part.Position).Magnitude > 1e-3 or (posed.LookVector - part.LookVector).Magnitude > 1e-3 then
+					rest = false
+					print("       " .. def.Key .. " " .. m.Name .. " moves at rest")
+				end
+				if string.sub(m.Name, 1, 4) == "Spin" then
+					floating += 1
+				end
+			end
+		end
+		for _, p in built do
+			p:Destroy()
+		end
+		root:Destroy()
+	end
+	check("welded heroes: joints hold every part at rest, floating parts spin / orbit", rest and floating >= 14, floating)
 end
 
 ---------------------------------------------------------------------------

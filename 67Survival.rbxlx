@@ -1746,8 +1746,10 @@ return HeroData
 
 	Every hero has its own silhouette + weapon + accessory + accent colour (a cap and a
 	blaster, swept hair and big sneakers, a huge round shield, a hood and a bow, a backpack
-	with a glowing jar, a kabuto and a katana, a wizard hat, beard and staff, a hardhat and a drone, a top hat and a lucky coin,
-	a blob, a hooded void, a cube head, flames, a screen that says 67, a faceless hood...).
+	with a glowing jar, a kabuto and a katana, a wizard hat, beard and staff, a hard hat and
+	a drone, a top hat and a lucky coin, a blob with tiny friends, a dark wisp with glowing
+	eyes and shards, a glitched cube head, flame hair and a visor, a screen that says 67, a
+	faceless hood...).
 
 	Used by
 	  * the server (CharacterManager): parts WELDED to an invisible character rig; arms and
@@ -1761,8 +1763,9 @@ return HeroData
 	Text?, Transparency? }. Roles are coloured by the hero palette (or the equipped hero skin):
 	  Primary Secondary Accent Glow(accent, neon) Skin Dark Metal Gold White Eye Shine Glass
 	Headgear pieces are left out when a hat cosmetic is worn (the hat replaces them).
-	The first five heroes (Rookie, Runner, Tank, Hunter, Collector) share one chibi design
-	system: face(), kitArms() and kitLegs() below.
+	Every hero but THE UNKNOWN shares one chibi design system: face(), kitArms() and
+	kitLegs() below. Floating pieces (a drone's rotor, orbiting friends / shards / pixels)
+	are turned in game by HeroAnimator through "Spin" motors (Spin / Orbit fields).
 ]]
 
 local HeroModels = {}
@@ -1788,7 +1791,8 @@ export type Piece = {
 	Text: string?,
 	TextColor: Color3?,
 	Transparency: number?,
-	Spin: number?, -- hats: turns around the hat's axis (radians per second; the client animates it)
+	Spin: number?, -- hats: turns around the hat's axis; hero pieces: turn in place (radians per second, the client animates it)
+	Orbit: number?, -- hero pieces: circle around the hero (radians per second, in game only)
 }
 
 ---------------------------------------------------------------------------
@@ -1860,26 +1864,8 @@ local function inFrame(frame: CFrame, list: { Piece }, extra: { [string]: any }?
 end
 
 ---------------------------------------------------------------------------
--- body parts shared by the humanoid heroes (proportions: big head, small body)
+-- arms for THE UNKNOWN (the other heroes use kitArms below)
 ---------------------------------------------------------------------------
-type LegOpts = { X: number?, Leg: Vector3?, LegY: number?, Shoe: Vector3?, Role: string?, ShoeRole: string?, ShoeZ: number? }
-
-local function legs(o: LegOpts?): { Piece }
-	local opt = o or {}
-	local x = opt.X or 0.43
-	local leg = opt.Leg or Vector3.new(0.62, 1.0, 0.68)
-	local legY = opt.LegY or -2.3
-	local shoe = opt.Shoe or Vector3.new(0.74, 0.46, 1.0)
-	local out = {}
-	for _, side in { -1, 1 } do
-		local limb = if side < 0 then "LegL" else "LegR"
-		local s = if side < 0 then "L" else "R"
-		table.insert(out, E("Leg" .. s, leg.X, leg.Y, leg.Z, side * x, legY, 0.02, opt.Role or "Dark", { Limb = limb }))
-		table.insert(out, E("Shoe" .. s, shoe.X, shoe.Y, shoe.Z, side * x, -3 + shoe.Y / 2, opt.ShoeZ or -0.12, opt.ShoeRole or "White", { Limb = limb }))
-	end
-	return out
-end
-
 type ArmOpts = { X: number?, Y: number?, Arm: Vector3?, Splay: number?, Hand: number?, Role: string?, HandRole: string?, Swing: number?, NoHands: boolean? }
 
 local function arms(o: ArmOpts?): { Piece }
@@ -1905,30 +1891,6 @@ local function arms(o: ArmOpts?): { Piece }
 	return out
 end
 
-type HeadOpts = { Y: number?, Z: number?, Size: Vector3?, Role: string?, EyeY: number?, Spread: number?, Eye: Vector3?, NoShine: boolean? }
-
--- head + glossy eyes (the eyes sit on the ellipsoid's surface)
-local function head(o: HeadOpts?): { Piece }
-	local opt = o or {}
-	local y = opt.Y or 0.78
-	local z0 = opt.Z or 0
-	local size = opt.Size or Vector3.new(1.8, 1.62, 1.66)
-	local out = { E("Head", size.X, size.Y, size.Z, 0, y, z0, opt.Role or "Skin") }
-	local eye = opt.Eye or Vector3.new(0.2, 0.34, 0.1)
-	local spread = opt.Spread or 0.3
-	local ey = opt.EyeY or 0.03
-	local a, b, c = size.X / 2, size.Y / 2, size.Z / 2
-	local surface = c * math.sqrt(math.max(0, 1 - (spread / a) ^ 2 - (ey / b) ^ 2))
-	for _, side in { -1, 1 } do
-		local s = if side < 0 then "L" else "R"
-		table.insert(out, E("Eye" .. s, eye.X, eye.Y, eye.Z, side * spread, y + ey, z0 - surface + 0.02, "Eye"))
-		if not opt.NoShine then
-			table.insert(out, S("Shine" .. s, eye.X * 0.42, side * spread - side * 0.035, y + ey + eye.Y * 0.22, z0 - surface - 0.03, "Shine"))
-		end
-	end
-	return out
-end
-
 ---------------------------------------------------------------------------
 -- the heroes
 ---------------------------------------------------------------------------
@@ -1936,15 +1898,17 @@ HeroModels.Heroes = {}
 local H = HeroModels.Heroes
 
 ---------------------------------------------------------------------------
--- THE FIRST FIVE (Rookie, Runner, Tank, Hunter, Collector): one design system, built from
--- scratch for 67 SURVIVAL.
+-- THE HEROES (all but THE UNKNOWN): one design system, built from scratch for 67 SURVIVAL.
 --   * a big, slightly wide head (~40% of the height), two tall glossy eyes; the mood comes
 --     from brows and lids only (no mouth, no nose)
 --   * a compact torso narrower than the head, the jacket / pants split in two big shapes
 --   * short arms with big mitten hands, short legs with chunky two-piece shoes
 --   * 2-4 colours, few large pieces, one signature silhouette each:
 --     CAP + BLASTER · SWEPT HAIR + SNEAKERS · SHOULDERS + SHIELD · HOOD + BOW + QUIVER ·
---     BACKPACK + GLOWING JAR
+--     BACKPACK + GLOWING JAR · KABUTO + KATANA · HAT + STAFF + ORB · HARD HAT + DRONE +
+--     WRENCH · TOP HAT + COIN · BLOB + BIG EYES + ANTENNA · DARK CORE + GLOWING EYES +
+--     SHARDS · BLOCK HEAD + GLITCH + CANNON · FLAME HAIR + VISOR + DASH · BOX + 67 SCREEN
+--   * creatures and robots keep the same face language (two tall eyes)
 -- Joints: arms swing from `Shoulder`, legs from `Hip` (the hero's Pivots).
 ---------------------------------------------------------------------------
 type FaceOpts = {
@@ -1955,6 +1919,9 @@ type FaceOpts = {
 	Spread: number?,
 	Eye: Vector3?,
 	Look: number?, -- both eyes shifted sideways (a curious glance)
+	EyeRole: string?, -- default Eye (glossy black); Glow = glowing eyes
+	NoShine: boolean?,
+	Fit: boolean?, -- lay the eyes and brows flat on the surface (big eyes on a flat face)
 	Brows: { number }?, -- tilt per side {left, right}: + = inner end up (soft), - = inner end down (focused)
 	BrowLift: { number }?,
 	Brow: Vector3?,
@@ -1966,6 +1933,14 @@ type FaceOpts = {
 local function surfaceZ(size: Vector3, x: number, y: number): number
 	local a, b, c = size.X / 2, size.Y / 2, size.Z / 2
 	return -c * math.sqrt(math.max(0, 1 - (x / a) ^ 2 - (y / b) ^ 2))
+end
+
+-- the rotation that lays a flat piece on an ellipsoid's surface at (x, y) (front = outwards)
+local function tangent(size: Vector3, x: number, y: number): CFrame
+	local a, b, c = size.X / 2, size.Y / 2, size.Z / 2
+	local z = surfaceZ(size, x, y)
+	local nx, ny, nz = x / (a * a), y / (b * b), z / (c * c)
+	return ang(math.atan2(ny, -nz), -math.atan2(nx, -nz), 0)
 end
 
 local function face(o: FaceOpts): { Piece }
@@ -1980,9 +1955,12 @@ local function face(o: FaceOpts): { Piece }
 		local x = side * spread + look
 		local z = z0 + surfaceZ(o.Size, x, ey)
 		local y = o.Y + ey
-		table.insert(out, E("Eye" .. s, eye.X, eye.Y, eye.Z, x, y, z + 0.01, "Eye"))
-		-- one highlight, same corner on both eyes (one light)
-		table.insert(out, S("Shine" .. s, eye.X * 0.42, x - eye.X * 0.16, y + eye.Y * 0.2, z - 0.04, "Shine"))
+		local fit = if o.Fit then tangent(o.Size, x, ey) else CFrame.identity
+		table.insert(out, E("Eye" .. s, eye.X, eye.Y, eye.Z, x, y, z + 0.01, o.EyeRole or "Eye", { R = fit }))
+		if not o.NoShine then
+			-- one highlight, same corner on both eyes (one light)
+			table.insert(out, S("Shine" .. s, eye.X * 0.42, x - eye.X * 0.16, y + eye.Y * 0.2, z - 0.04, "Shine"))
+		end
 		if o.Lid then
 			local top = y + eye.Y / 2
 			table.insert(out, E("Lid" .. s, eye.X * 1.4, eye.Y * o.Lid * 2, eye.Z * 1.3, x, top, z - 0.015, "Skin"))
@@ -1991,7 +1969,8 @@ local function face(o: FaceOpts): { Piece }
 			local brow = o.Brow or Vector3.new(0.36, 0.1, 0.08)
 			local by = ey + eye.Y / 2 + 0.13 + (if o.BrowLift then o.BrowLift[i] else 0)
 			local bz = z0 + surfaceZ(o.Size, x, by)
-			table.insert(out, E("Brow" .. s, brow.X, brow.Y, brow.Z, x, o.Y + by, bz + 0.01, o.BrowRole or "Dark", { R = ang(0, 0, o.Brows[i] * -side) }))
+			local lay = if o.Fit then tangent(o.Size, x, by) else CFrame.identity
+			table.insert(out, E("Brow" .. s, brow.X, brow.Y, brow.Z, x, o.Y + by, bz + 0.01, o.BrowRole or "Dark", { R = lay * ang(0, 0, o.Brows[i] * -side) }))
 		end
 	end
 	return out
@@ -2013,7 +1992,7 @@ local function kitArms(o: KitArms): { Piece }
 		local limb = if side < 0 then "ArmL" else "ArmR"
 		local s = if side < 0 then "L" else "R"
 		local pivot = CFrame.new(side * o.Shoulder.X, o.Shoulder.Y, o.Shoulder.Z)
-		local rot = ang(if o.Swing then -o.Swing[i] else 0, 0, side * (o.Splay or 0.12))
+		local rot = ang(if o.Swing then o.Swing[i] else 0, 0, side * (o.Splay or 0.12))
 		local arm = pivot * rot * CFrame.new(0, -o.Arm.Y / 2 + 0.12, 0)
 		local hand = pivot * rot * CFrame.new(0, -o.Arm.Y + 0.08, 0)
 		table.insert(out, mk(o.Arm, arm, "Arm" .. s, o.Role or "Primary", { Limb = limb, Mesh = "Sphere" }))
@@ -2046,6 +2025,27 @@ local function kitLegs(o: KitLegs): { Piece }
 		table.insert(out, E("Leg" .. s, o.Leg.X, top - bottom, o.Leg.Y, x, (top + bottom) / 2, 0, o.Role or "Dark", { Limb = limb }))
 		table.insert(out, E("Shoe" .. s, o.Shoe.X, o.Shoe.Y, o.Shoe.Z, x, shoeY, z, o.ShoeRole or "White", { Limb = limb }))
 		table.insert(out, E("Sole" .. s, o.Shoe.X + 0.05, sole * 2, o.Shoe.Z + 0.05, x, -3 + sole, z, o.SoleRole or "Dark", { Limb = limb }))
+	end
+	return out
+end
+
+-- the four joints (a hero's Pivots) from the right shoulder and the right hip
+local function joints(shoulder: Vector3, hip: Vector3): { [string]: Vector3 }
+	return {
+		ArmL = Vector3.new(-shoulder.X, shoulder.Y, shoulder.Z),
+		ArmR = shoulder,
+		LegL = Vector3.new(-hip.X, hip.Y, hip.Z),
+		LegR = hip,
+	}
+end
+
+-- kitArms without one of its pieces (a hand replaced by something else)
+local function withoutHand(list: { Piece }, name: string): { Piece }
+	local out = {}
+	for _, p in list do
+		if p.Name ~= name then
+			table.insert(out, p)
+		end
 	end
 	return out
 end
@@ -2265,225 +2265,391 @@ H.Collector = {
 	),
 }
 
--- THE SAMURAI: a kabuto with a golden crest, shoulder plates, a katana
-local katana = inFrame(CFrame.new(1.2, -1.6, -0.24) * ang(0.35, 0, 0), {
-	C("Handle", 0.9, 0.2, 0, 0, 0.1, "Secondary", { Axis = "Z" }),
-	C("Guard", 0.08, 0.56, 0, 0, -0.38, "Gold", { Axis = "Z" }),
-	B("Blade", 0.1, 0.26, 2.9, 0, 0, -1.86, "Metal", { Material = Enum.Material.Metal }),
-}, { Limb = "ArmR" })
+-- THE SAMURAI: red lacquered armour (a chest plate and two big shoulder plates), a dark
+-- hakama, a charcoal kabuto flaring out over the neck with golden horns, and one long thin
+-- katana with a glowing edge. Focused: brows down, eyes a little narrowed.
+local SAMURAI_HEAD = Vector3.new(2.0, 1.78, 1.86)
 H.Samurai = {
-	Palette = { Primary = rgb(204, 42, 54), Secondary = rgb(32, 32, 40), Accent = rgb(255, 96, 96), Skin = rgb(236, 196, 152), Gold = rgb(255, 202, 72), Dark = rgb(32, 32, 40) },
-	HatAt = Vector3.new(0, 1.58, 0),
-	Top = 2.3,
-	Pieces = join({
-		E("LegL", 0.5, 0.62, 0.5, -0.4, -2.6, 0, "Secondary", { Limb = "LegL" }),
-		E("LegR", 0.5, 0.62, 0.5, 0.4, -2.6, 0, "Secondary", { Limb = "LegR" }),
-		E("SandalL", 0.64, 0.3, 0.96, -0.4, -2.85, -0.18, "Dark", { Limb = "LegL" }),
-		E("SandalR", 0.64, 0.3, 0.96, 0.4, -2.85, -0.18, "Dark", { Limb = "LegR" }),
-		E("Hakama", 2.0, 1.36, 1.46, 0, -2.2, 0, "Secondary"),
-		E("Body", 1.8, 1.72, 1.3, 0, -0.95, 0, "Primary"),
-		E("CollarL", 0.16, 1.0, 0.1, -0.2, -0.62, -0.63, "White", { R = ang(0, 0, -0.45) }),
-		E("CollarR", 0.16, 1.0, 0.1, 0.2, -0.62, -0.63, "White", { R = ang(0, 0, 0.45) }),
-		E("Obi", 1.86, 0.36, 1.36, 0, -1.55, 0, "Secondary"),
-		E("Knot", 0.36, 0.3, 0.2, 0, -1.55, -0.7, "Gold"),
-		E("SodeL", 1.06, 0.3, 1.36, -1.22, -0.2, 0, "Primary", { R = ang(0, 0, 0.42) }),
-		E("SodeR", 1.06, 0.3, 1.36, 1.22, -0.2, 0, "Primary", { R = ang(0, 0, -0.42) }),
-	}, arms(), head({ Eye = Vector3.new(0.26, 0.17, 0.1) }), {
-		E("Kabuto", 1.9, 1.06, 1.9, 0, 1.24, 0, "Secondary", { Headgear = true }),
-		E("NeckGuard", 2.46, 0.22, 2.3, 0, 0.98, 0.1, "Secondary", { Headgear = true, R = ang(0.1, 0, 0) }),
-		E("CrestL", 0.14, 0.96, 0.12, -0.3, 1.94, -0.72, "Gold", { Headgear = true, R = ang(0, 0, 0.45) }),
-		E("CrestR", 0.14, 0.96, 0.12, 0.3, 1.94, -0.72, "Gold", { Headgear = true, R = ang(0, 0, -0.45) }),
-		C("CrestDisc", 0.08, 0.36, 0, 1.52, -0.9, "Gold", { Headgear = true, Axis = "Z" }),
-	}, katana),
-}
-
--- THE MAGE: a tall bent wizard hat, a white beard, a robe and a staff with an arcane orb
-H.Mage = {
-	Palette = { Primary = rgb(122, 72, 222), Secondary = rgb(140, 96, 62), Accent = rgb(92, 232, 255), Skin = rgb(242, 206, 166), Gold = rgb(255, 206, 84), Dark = rgb(40, 34, 60) },
-	HatAt = Vector3.new(0, 1.4, 0.04),
-	Top = 3.2,
-	Pieces = join({
-		E("ShoeL", 0.6, 0.32, 0.9, -0.38, -2.86, -0.26, "Dark", { Limb = "LegL" }),
-		E("ShoeR", 0.6, 0.32, 0.9, 0.38, -2.86, -0.26, "Dark", { Limb = "LegR" }),
-		E("Robe", 2.2, 1.9, 1.8, 0, -2.02, 0, "Primary"),
-		E("Chest", 1.66, 1.42, 1.26, 0, -0.76, 0, "Primary"),
-		E("Belt", 1.72, 0.22, 1.32, 0, -1.3, 0, "Gold"),
-	}, arms({ Y = -0.86, Arm = Vector3.new(0.62, 1.14, 0.66), Role = "Primary", Hand = 0.46 }), head({ Y = 0.62, Size = Vector3.new(1.6, 1.5, 1.56) }), {
-		E("Beard", 1.08, 0.94, 0.5, 0, 0.18, -0.6, "White"),
-		E("Brim", 2.72, 0.16, 2.72, 0, 1.2, 0.05, "Primary", { Headgear = true }),
-		E("HatBand", 1.62, 0.26, 1.62, 0, 1.38, 0.06, "Gold", { Headgear = true }),
-		E("HatA", 1.56, 0.82, 1.56, 0, 1.56, 0.08, "Primary", { Headgear = true }),
-		E("HatB", 1.1, 0.82, 1.1, 0, 2.12, 0.2, "Primary", { Headgear = true, R = ang(-0.12, 0, 0) }),
-		E("HatC", 0.64, 0.76, 0.64, 0, 2.64, 0.4, "Primary", { Headgear = true, R = ang(-0.34, 0, 0) }),
-		S("HatTip", 0.26, 0, 2.98, 0.6, "Gold", { Headgear = true }),
-	}, inFrame(CFrame.new(1.32, -0.76, -0.28), {
-		C("Staff", 4.5, 0.24, 0, 0, 0, "Secondary"),
-		E("Cradle", 0.56, 0.36, 0.56, 0, 2.28, 0, "Gold"),
-		S("Orb", 0.8, 0, 2.66, 0, "Glow"),
-	}, { Limb = "ArmR" })),
-}
-
--- THE ENGINEER: overalls, a hardhat with goggles, a generator backpack, a drone
-H.Engineer = {
-	Palette = { Primary = rgb(255, 150, 42), Secondary = rgb(52, 72, 122), Accent = rgb(92, 222, 255), Skin = rgb(236, 192, 152), Gold = rgb(255, 214, 64), Dark = rgb(40, 44, 58) },
-	HatAt = Vector3.new(0, 1.66, 0),
-	Top = 1.95,
-	Pieces = join(legs({ Role = "Primary", ShoeRole = "Dark" }), {
-		E("Body", 1.84, 1.84, 1.3, 0, -1.02, 0, "Secondary"),
-		E("Bib", 1.3, 1.18, 0.32, 0, -1.12, -0.54, "Primary"),
-		E("StrapL", 0.22, 0.9, 0.12, -0.46, -0.44, -0.55, "Primary"),
-		E("StrapR", 0.22, 0.9, 0.12, 0.46, -0.44, -0.55, "Primary"),
-		E("ToolBelt", 1.9, 0.3, 1.4, 0, -1.62, 0, "Dark"),
-		E("Generator", 1.3, 1.46, 0.8, 0, -0.76, 0.9, "Metal"),
-		C("Antenna", 1.2, 0.08, 0.4, 0.34, 1.05, "Dark"),
-		S("AntennaTip", 0.22, 0.4, 0.96, 1.05, "Glow"),
-	}, arms({ Role = "Secondary" }), head(), {
-		E("Hardhat", 1.86, 1.0, 1.86, 0, 1.22, 0, "Hard", { Headgear = true }),
-		E("HatBrim", 2.16, 0.14, 2.2, 0, 1.0, -0.08, "Hard", { Headgear = true }),
-		E("HatRidge", 0.26, 0.36, 1.7, 0, 1.6, 0, "Hard", { Headgear = true }),
-		C("LensL", 0.14, 0.44, -0.32, 1.2, -0.9, "Glass", { Headgear = true, Axis = "Z" }),
-		C("LensR", 0.14, 0.44, 0.32, 1.2, -0.9, "Glass", { Headgear = true, Axis = "Z" }),
-		E("DroneBody", 1.0, 0.4, 1.0, 1.62, 1.2, 0.3, "Metal"),
-		C("Rotor", 0.05, 1.36, 1.62, 1.46, 0.3, "Dark", { Transparency = 0.35 }),
-		S("DroneEye", 0.26, 1.62, 1.18, -0.16, "Glow"),
-	}, inFrame(CFrame.new(-1.24, -1.62, -0.3), {
-		C("WrenchHandle", 1.2, 0.18, 0, -0.34, 0, "Metal"),
-		E("WrenchHead", 0.56, 0.3, 0.2, 0, 0.28, 0, "Metal"),
-	}, { Limb = "ArmL" })),
-}
-
--- THE LUCKY: a round body, a top hat with a clover, a bow tie, a shiny lucky coin
-H.Lucky = {
-	Palette = { Primary = rgb(62, 190, 94), Secondary = rgb(32, 32, 40), Accent = rgb(255, 216, 84), Skin = rgb(242, 206, 166), Gold = rgb(255, 204, 62), Dark = rgb(40, 44, 52) },
-	HatAt = Vector3.new(0, 1.58, 0),
-	Top = 2.8,
-	Pieces = join(legs({ ShoeRole = "Secondary" }), {
-		E("Body", 2.3, 2.2, 2.0, 0, -1.14, 0, "Primary"),
-		S("ButtonA", 0.2, 0, -0.9, -0.99, "Gold"),
-		S("ButtonB", 0.2, 0, -1.4, -0.99, "Gold"),
-		E("BowL", 0.44, 0.32, 0.16, -0.21, -0.12, -0.92, "Accent"),
-		E("BowR", 0.44, 0.32, 0.16, 0.21, -0.12, -0.92, "Accent"),
-		S("BowKnot", 0.17, 0, -0.12, -1.0, "Accent"),
-	}, arms({ X = 1.2, Y = -1.05 }), head({ Y = 0.8, Size = Vector3.new(1.62, 1.5, 1.56) }), {
-		E("Smile", 0.44, 0.09, 0.06, 0, 0.44, -0.72, "Eye"),
-		E("HatBrim", 2.1, 0.14, 2.1, 0, 1.5, 0, "Secondary", { Headgear = true }),
-		C("HatCrown", 1.2, 1.3, 0, 2.12, 0, "Secondary", { Headgear = true }),
-		C("HatBand", 0.28, 1.34, 0, 1.7, 0, "Primary", { Headgear = true }),
-		S("CloverA", 0.28, -0.14, 1.8, -0.66, "Primary", { Headgear = true }),
-		S("CloverB", 0.28, 0.14, 1.8, -0.66, "Primary", { Headgear = true }),
-		S("CloverC", 0.28, 0, 2.04, -0.66, "Primary", { Headgear = true }),
-	}, inFrame(CFrame.new(1.34, -1.62, -0.5), {
-		C("Coin", 0.12, 0.92, 0, 0.34, 0, "Gold", { Axis = "Z" }),
-		C("CoinFace", 0.14, 0.6, 0, 0.34, -0.01, "Accent", { Axis = "Z" }),
-	}, { Limb = "ArmR" })),
-}
-
--- THE GOOBER: a big friendly blob with googly eyes, an antenna and a mini goober friend
-H.Goober = {
-	Palette = { Primary = rgb(124, 222, 94), Secondary = rgb(82, 162, 62), Accent = rgb(255, 112, 192), Skin = rgb(124, 222, 94), Belly = rgb(186, 244, 156) },
-	HatAt = Vector3.new(0, -0.28, 0),
-	HatScale = 1.2,
-	Top = 1.2,
-	Pivots = { ArmL = Vector3.new(-1.4, -1.3, 0), ArmR = Vector3.new(1.4, -1.3, 0), LegL = Vector3.new(-0.72, -2.4, 0), LegR = Vector3.new(0.72, -2.4, 0) },
-	Pieces = {
-		E("FootL", 0.96, 0.5, 1.1, -0.72, -2.75, -0.24, "Secondary", { Limb = "LegL" }),
-		E("FootR", 0.96, 0.5, 1.1, 0.72, -2.75, -0.24, "Secondary", { Limb = "LegR" }),
-		E("Blob", 3.0, 2.64, 3.0, 0, -1.55, 0, "Primary"),
-		E("Belly", 2.0, 1.6, 0.6, 0, -1.84, -1.14, "Belly"),
-		E("ArmL", 0.46, 0.84, 0.46, -1.56, -1.62, -0.1, "Primary", { Limb = "ArmL", R = ang(0, 0, -0.6) }),
-		E("ArmR", 0.46, 0.84, 0.46, 1.56, -1.62, -0.1, "Primary", { Limb = "ArmR", R = ang(0, 0, 0.6) }),
-		E("EyeWhiteL", 0.86, 0.96, 0.5, -0.5, -0.86, -1.26, "White"),
-		E("EyeWhiteR", 0.86, 0.96, 0.5, 0.5, -0.86, -1.26, "White"),
-		E("PupilL", 0.38, 0.42, 0.2, -0.42, -0.92, -1.5, "Eye"),
-		E("PupilR", 0.38, 0.42, 0.2, 0.58, -0.78, -1.5, "Eye"),
-		S("ShineL", 0.12, -0.48, -0.8, -1.6, "Shine"),
-		S("ShineR", 0.12, 0.52, -0.66, -1.6, "Shine"),
-		E("Mouth", 0.7, 0.16, 0.1, 0, -1.62, -1.44, "Eye"),
-		C("Stalk", 1.0, 0.12, 0, 0.18, 0, "Secondary", { Headgear = true }),
-		S("Bobble", 0.6, 0, 0.78, 0, "Accent", { Headgear = true }),
-		E("Buddy", 0.96, 0.86, 0.96, 1.5, -0.36, 0.3, "Primary"),
-		S("BuddyEyeL", 0.22, 1.36, -0.28, -0.12, "White"),
-		S("BuddyEyeR", 0.22, 1.62, -0.28, -0.12, "White"),
+	Palette = {
+		Primary = rgb(198, 44, 52), -- lacquer red
+		Secondary = rgb(46, 44, 52), -- charcoal
+		Dark = rgb(34, 32, 40),
+		Gold = rgb(234, 184, 74),
+		Metal = rgb(214, 220, 230), -- the blade
+		Accent = rgb(255, 118, 104), -- the edge's glow
+		Skin = rgb(240, 200, 160),
 	},
+	HatAt = Vector3.new(0, 1.5, 0),
+	Top = 2.4,
+	Pivots = joints(Vector3.new(0.74, -0.34, 0), Vector3.new(0.36, -1.62, 0)),
+	Pieces = join(
+		kitLegs({ Hip = Vector3.new(0.36, -1.62, 0), Leg = Vector2.new(0.46, 0.48), Shoe = Vector3.new(0.6, 0.42, 0.9), Role = "Secondary", ShoeRole = "Dark", SoleRole = "Primary" }),
+		{
+			E("Chest", 1.56, 1.3, 1.14, 0, -0.62, 0, "Primary"),
+			E("Hakama", 1.44, 0.9, 1.08, 0, -1.44, 0, "Secondary"),
+			E("SodeL", 0.96, 0.34, 1.16, -0.92, -0.14, 0, "Primary", { R = ang(0, 0, 0.5) }),
+			E("SodeR", 0.96, 0.34, 1.16, 0.92, -0.14, 0, "Primary", { R = ang(0, 0, -0.5) }),
+		},
+		kitArms({ Shoulder = Vector3.new(0.74, -0.34, 0), Arm = Vector3.new(0.44, 0.9, 0.46), Hand = Vector3.new(0.5, 0.48, 0.52), Role = "Secondary" }),
+		{ E("Head", SAMURAI_HEAD.X, SAMURAI_HEAD.Y, SAMURAI_HEAD.Z, 0, 0.64, 0, "Skin"), E("Hair", 2.08, 1.16, 1.9, 0, 0.82, 0.2, "Dark") },
+		face({ Y = 0.64, Size = SAMURAI_HEAD, Eye = Vector3.new(0.27, 0.4, 0.1), Lid = 0.16, Brows = { -0.26, -0.26 }, Brow = Vector3.new(0.42, 0.12, 0.09), BrowLift = { -0.08, -0.08 } }),
+		{
+			E("Kabuto", 2.16, 1.22, 2.06, 0, 1.26, 0.04, "Secondary", { Headgear = true }),
+			E("Shikoro", 2.5, 0.5, 1.5, 0, 0.68, 0.44, "Secondary", { Headgear = true, R = ang(0.8, 0, 0) }),
+			E("HornL", 0.2, 1.2, 0.12, -0.34, 1.92, -0.86, "Gold", { Headgear = true, R = ang(0, 0, 0.4) }),
+			E("HornR", 0.2, 1.2, 0.12, 0.34, 1.92, -0.86, "Gold", { Headgear = true, R = ang(0, 0, -0.4) }),
+			C("Crest", 0.1, 0.42, 0, 1.4, -1.0, "Gold", { Headgear = true, Axis = "Z" }),
+		},
+		-- held low and forward, the tip out to the side
+		inFrame(CFrame.new(0.9, -1.22, -0.12) * ang(0, -0.35, 0) * ang(-0.3, 0, 0), {
+			C("Grip", 0.78, 0.2, 0, 0, 0.2, "Dark", { Axis = "Z" }),
+			C("Tsuba", 0.08, 0.5, 0, 0, -0.22, "Gold", { Axis = "Z" }),
+			B("Blade", 0.08, 0.2, 2.3, 0, 0, -1.4, "Metal"),
+			E("Kissaki", 0.08, 0.2, 0.6, 0, 0, -2.55, "Metal"),
+			B("Edge", 0.05, 0.05, 2.2, 0, -0.1, -1.4, "Glow"),
+		}, { Limb = "ArmR" })
+	),
 }
 
--- THE VOID: a faceless hooded shape with glowing slit eyes and floating shards, no legs
-H.Void = {
-	Palette = { Primary = rgb(62, 32, 104), Secondary = rgb(42, 36, 62), Accent = rgb(172, 92, 255), Skin = rgb(28, 24, 42), Dark = rgb(24, 22, 34) },
-	HatAt = Vector3.new(0, 1.78, 0.1),
+-- THE MAGE: one long purple robe (a bell down to the feet), a big soft wizard hat whose tip
+-- flops back, bushy white brows and a short white beard, and a dark staff with a cyan orb.
+-- Calm and wise: half-closed eyes.
+local MAGE_HEAD = Vector3.new(1.98, 1.76, 1.86)
+H.Mage = {
+	Palette = {
+		Primary = rgb(106, 78, 206), -- purple
+		Secondary = rgb(56, 38, 106), -- dark violet
+		Dark = rgb(56, 38, 106),
+		Accent = rgb(96, 232, 255), -- cyan magic
+		White = rgb(236, 236, 244),
+		Skin = rgb(240, 204, 168),
+	},
+	HatAt = Vector3.new(0, 1.42, 0.04),
+	Top = 3.1,
+	Pivots = joints(Vector3.new(0.74, -0.34, 0), Vector3.new(0.36, -2.3, 0)),
+	Pieces = join(
+		{
+			E("ShoeL", 0.6, 0.38, 0.9, -0.36, -2.8, -0.36, "Secondary", { Limb = "LegL" }),
+			E("ShoeR", 0.6, 0.38, 0.9, 0.36, -2.8, -0.36, "Secondary", { Limb = "LegR" }),
+			E("Chest", 1.56, 2.0, 1.2, 0, -0.9, 0, "Primary"),
+			E("Robe", 2.1, 1.9, 1.8, 0, -2.0, 0, "Primary"),
+			E("Sash", 1.64, 0.26, 1.36, 0, -1.3, 0, "Secondary"),
+			S("Gem", 0.28, 0, -1.3, -0.7, "Accent"),
+		},
+		kitArms({ Shoulder = Vector3.new(0.74, -0.34, 0), Arm = Vector3.new(0.52, 0.92, 0.54), Hand = Vector3.new(0.48, 0.46, 0.5) }),
+		{
+			E("Head", MAGE_HEAD.X, MAGE_HEAD.Y, MAGE_HEAD.Z, 0, 0.6, 0, "Skin"),
+			E("Hair", 2.04, 1.1, 1.88, 0, 0.8, 0.24, "White"),
+			E("Beard", 1.1, 1.0, 0.56, 0, -0.06, -0.66, "White"),
+		},
+		face({ Y = 0.6, Size = MAGE_HEAD, Eye = Vector3.new(0.26, 0.4, 0.1), Lid = 0.36, Brows = { 0.1, 0.1 }, Brow = Vector3.new(0.5, 0.16, 0.12), BrowRole = "White", BrowLift = { 0.02, 0.02 } }),
+		{
+			E("Brim", 2.9, 0.18, 2.8, 0, 1.18, 0.04, "Primary", { Headgear = true }),
+			E("HatBand", 1.96, 0.3, 1.9, 0, 1.33, 0.05, "Secondary", { Headgear = true }),
+			E("HatA", 1.84, 1.7, 1.8, 0, 1.5, 0.06, "Primary", { Headgear = true }),
+			E("HatB", 1.1, 1.36, 1.08, 0, 2.3, 0.2, "Primary", { Headgear = true, R = ang(0.25, 0, 0) }),
+			E("HatC", 0.56, 1.0, 0.56, 0, 2.88, 0.56, "Primary", { Headgear = true, R = ang(0.9, 0, 0) }),
+		},
+		inFrame(CFrame.new(0.9, -1.2, -0.12), {
+			C("Staff", 4.2, 0.22, 0, 0.62, 0, "Secondary"),
+			E("Cradle", 0.52, 0.34, 0.52, 0, 2.78, 0, "Secondary"),
+			S("Orb", 0.8, 0, 3.14, 0, "Glow"),
+		}, { Limb = "ArmR" })
+	),
+}
+
+-- THE ENGINEER: a yellow hard hat with goggles on it, blue overalls with a big bib pocket,
+-- a grey shirt, orange gloves, heavy boots, a wrench, and a round drone with an orange eye
+-- hovering over the shoulder (its rotor spins in game). Curious: one brow up.
+local ENGINEER_HEAD = Vector3.new(2.0, 1.78, 1.88)
+H.Engineer = {
+	Palette = {
+		Primary = rgb(246, 188, 44), -- safety yellow
+		Secondary = rgb(50, 100, 180), -- overalls blue
+		Accent = rgb(255, 134, 44), -- orange: gloves, soles, the drone's eye
+		Grey = rgb(178, 184, 194), -- shirt, drone
+		Pocket = rgb(84, 136, 212),
+		Hair = rgb(96, 64, 42),
+		Dark = rgb(50, 54, 64),
+		Metal = rgb(150, 158, 172),
+		Glass = rgb(150, 214, 240),
+		Skin = rgb(236, 194, 152),
+	},
+	HatAt = Vector3.new(0, 1.56, 0),
+	HatScale = 1.04,
 	Top = 1.95,
-	Pieces = join({
-		E("Tail", 1.12, 1.4, 0.92, 0, -2.2, 0.1, "Dark"),
-		E("Wisp", 0.6, 0.8, 0.5, 0, -2.78, 0.26, "Dark", { Transparency = 0.25 }),
-		E("Body", 1.86, 2.0, 1.32, 0, -0.86, 0, "Dark"),
-		E("Collar", 2.16, 0.46, 1.56, 0, 0.08, 0, "Primary"),
-	}, arms({ X = 1.14, Y = -0.95, Arm = Vector3.new(0.46, 1.0, 0.5), Role = "Dark", HandRole = "Primary", Hand = 0.44 }), {
-		E("Hood", 1.82, 1.72, 1.76, 0, 1.0, 0.12, "Primary"),
-		E("Head", 1.56, 1.5, 1.5, 0, 0.9, -0.02, "Dark"),
-		E("EyeL", 0.42, 0.13, 0.08, -0.3, 0.92, -0.74, "Glow"),
-		E("EyeR", 0.42, 0.13, 0.08, 0.3, 0.92, -0.74, "Glow"),
-		E("ShardA", 0.28, 0.76, 0.28, -1.66, -0.2, -0.3, "Glow", { R = ang(0, 0, 0.4) }),
-		E("ShardB", 0.28, 0.76, 0.28, 1.72, -0.5, 0.46, "Glow", { R = ang(0, 0, -0.35) }),
-		E("ShardC", 0.24, 0.62, 0.24, 1.16, 1.06, -0.56, "Glow", { R = ang(0.5, 0, 0.3) }),
-	}),
+	Pivots = joints(Vector3.new(0.76, -0.34, 0), Vector3.new(0.38, -1.62, 0)),
+	Pieces = join(
+		kitLegs({ Hip = Vector3.new(0.38, -1.62, 0), Leg = Vector2.new(0.5, 0.52), Shoe = Vector3.new(0.7, 0.54, 0.96), Sole = 0.12, Role = "Secondary", ShoeRole = "Dark", SoleRole = "Accent" }),
+		{
+			E("Chest", 1.6, 1.3, 1.16, 0, -0.62, 0, "Secondary"),
+			E("Collar", 1.3, 0.34, 1.08, 0, -0.06, 0, "Grey"),
+			E("Pocket", 0.8, 0.56, 0.36, 0, -0.62, -0.46, "Pocket"),
+			E("Belt", 1.58, 0.26, 1.18, 0, -1.14, 0, "Dark"),
+			E("Pants", 1.38, 0.86, 1.04, 0, -1.4, 0, "Secondary"),
+		},
+		kitArms({ Shoulder = Vector3.new(0.76, -0.34, 0), Arm = Vector3.new(0.48, 0.9, 0.5), Hand = Vector3.new(0.56, 0.52, 0.58), Role = "Grey", HandRole = "Accent" }),
+		{ E("Head", ENGINEER_HEAD.X, ENGINEER_HEAD.Y, ENGINEER_HEAD.Z, 0, 0.64, 0, "Skin"), E("Hair", 2.08, 1.16, 1.9, 0, 0.8, 0.2, "Hair") },
+		face({ Y = 0.64, Size = ENGINEER_HEAD, Brows = { 0.2, -0.08 }, BrowLift = { 0.08, 0 } }),
+		{
+			E("Hardhat", 2.2, 1.24, 2.1, 0, 1.14, 0.02, "Primary", { Headgear = true }),
+			E("HatBrim", 2.36, 0.16, 2.5, 0, 0.9, -0.14, "Primary", { Headgear = true }),
+			C("GoggleL", 0.18, 0.56, -0.36, 1.36, -0.96, "Glass", { Headgear = true, Axis = "Z", R = ang(0.35, 0, 0) }),
+			C("GoggleR", 0.18, 0.56, 0.36, 1.36, -0.96, "Glass", { Headgear = true, Axis = "Z", R = ang(0.35, 0, 0) }),
+		},
+		inFrame(CFrame.new(-0.9, -1.2, -0.14) * ang(-0.55, 0, 0.2), {
+			C("WrenchHandle", 1.3, 0.2, 0, 0.3, 0, "Metal"),
+			E("JawL", 0.2, 0.5, 0.24, -0.2, 1.08, 0, "Metal", { R = ang(0, 0, 0.3) }),
+			E("JawR", 0.2, 0.5, 0.24, 0.2, 1.08, 0, "Metal", { R = ang(0, 0, -0.3) }),
+		}, { Limb = "ArmL" }),
+		{
+			E("Drone", 0.96, 0.54, 0.96, 1.5, 1.4, 0.4, "Grey"),
+			S("DroneEye", 0.3, 1.5, 1.38, -0.04, "Glow"),
+			E("RotorA", 1.24, 0.05, 0.2, 1.5, 1.72, 0.4, "Dark", { Spin = 14 }),
+			E("RotorB", 0.2, 0.05, 1.24, 1.5, 1.72, 0.4, "Dark", { Spin = 14 }),
+		}
+	),
 }
 
--- THE GLITCH: a cube head with pixel eyes and an RGB split, a body with a missing chunk
+-- THE LUCKY: an emerald suit over a white shirt with a black bow tie, white gloves, black
+-- and white shoes, a black top hat worn at an angle with a golden four-leaf clover, and a
+-- big gold coin balanced on the right hand. Sly and pleased: lazy lids, one brow up.
+local LUCKY_HEAD = Vector3.new(2.0, 1.78, 1.88)
+H.Lucky = {
+	Palette = {
+		Primary = rgb(30, 164, 98), -- emerald
+		Secondary = rgb(34, 34, 42), -- black
+		Dark = rgb(34, 34, 42),
+		Gold = rgb(240, 192, 64),
+		Accent = rgb(255, 228, 132), -- the coin's face
+		White = rgb(246, 246, 242),
+		Skin = rgb(242, 204, 164),
+	},
+	HatAt = Vector3.new(0, 1.46, 0),
+	Top = 2.86,
+	Pivots = joints(Vector3.new(0.74, -0.34, 0), Vector3.new(0.36, -1.62, 0)),
+	Pieces = join(
+		kitLegs({ Hip = Vector3.new(0.36, -1.62, 0), Leg = Vector2.new(0.46, 0.48), Shoe = Vector3.new(0.62, 0.44, 0.94), Role = "Secondary", ShoeRole = "White", SoleRole = "Secondary" }),
+		{
+			E("Jacket", 1.62, 1.32, 1.16, 0, -0.62, 0, "Primary"),
+			E("Shirt", 0.72, 1.0, 0.5, 0, -0.5, -0.37, "White"),
+			E("BowL", 0.36, 0.26, 0.14, -0.16, -0.14, -0.6, "Secondary", { R = ang(0, 0, 0.25) }),
+			E("BowR", 0.36, 0.26, 0.14, 0.16, -0.14, -0.6, "Secondary", { R = ang(0, 0, -0.25) }),
+			E("Pants", 1.32, 0.86, 1.0, 0, -1.4, 0, "Secondary"),
+		},
+		kitArms({ Shoulder = Vector3.new(0.74, -0.34, 0), Arm = Vector3.new(0.46, 0.92, 0.48), Hand = Vector3.new(0.52, 0.5, 0.54), HandRole = "White", Swing = { 0, 0.5 } }),
+		{ E("Head", LUCKY_HEAD.X, LUCKY_HEAD.Y, LUCKY_HEAD.Z, 0, 0.62, 0, "Skin"), E("Hair", 2.06, 1.12, 1.9, 0, 0.84, 0.18, "Dark") },
+		face({ Y = 0.62, Size = LUCKY_HEAD, Look = 0.06, Lid = 0.34, Brows = { 0.16, -0.1 }, BrowLift = { 0.08, 0 } }),
+		inFrame(CFrame.new(0, 1.34, 0.02) * ang(0, 0, -0.1), {
+			E("HatBrim", 2.3, 0.16, 2.2, 0, 0, 0, "Secondary"),
+			C("HatCrown", 1.4, 1.36, 0, 0.72, 0, "Secondary"),
+			C("HatBand", 0.3, 1.4, 0, 0.2, 0, "Primary"),
+			S("CloverA", 0.2, -0.3, 0.66, -0.68, "Gold"),
+			S("CloverB", 0.2, -0.3, 0.46, -0.68, "Gold"),
+			S("CloverC", 0.2, -0.4, 0.56, -0.66, "Gold"),
+			S("CloverD", 0.2, -0.2, 0.56, -0.7, "Gold"),
+		}, { Headgear = true }),
+		inFrame(CFrame.new(0.86, -0.72, -0.62) * ang(-0.8, 0, 0), {
+			C("Coin", 0.12, 0.96, 0, 0, 0, "Gold"),
+			C("CoinFace", 0.14, 0.62, 0, 0, 0, "Accent"),
+		}, { Limb = "ArmR" })
+	),
+}
+
+-- THE GOOBER: one soft gumdrop blob (no neck, no legs), a light belly, two big happy eyes,
+-- stubby arms and feet, an antenna with a bobble, and two tiny goober friends that run
+-- circles around it in game. Delighted: brows high up.
+local GOOBER_BODY = Vector3.new(3.0, 3.2, 2.8)
+H.Goober = {
+	Palette = {
+		Primary = rgb(108, 206, 86), -- green
+		Secondary = rgb(46, 130, 64), -- dark green: feet, antenna
+		Dark = rgb(38, 100, 52), -- brows
+		Accent = rgb(204, 244, 158), -- light green: belly, bobble, a friend
+		White = rgb(250, 252, 246),
+		Skin = rgb(108, 206, 86),
+	},
+	HatAt = Vector3.new(0, 0.22, 0.02),
+	HatScale = 1.25,
+	Top = 1.4,
+	Pivots = { ArmL = Vector3.new(-1.3, -1.36, 0), ArmR = Vector3.new(1.3, -1.36, 0), LegL = Vector3.new(-0.7, -2.4, 0), LegR = Vector3.new(0.7, -2.4, 0) },
+	Pieces = join(
+		{
+			E("FootL", 0.96, 0.5, 1.12, -0.7, -2.76, -0.32, "Secondary", { Limb = "LegL" }),
+			E("FootR", 0.96, 0.5, 1.12, 0.7, -2.76, -0.32, "Secondary", { Limb = "LegR" }),
+			E("Blob", GOOBER_BODY.X, GOOBER_BODY.Y, GOOBER_BODY.Z, 0, -1.38, 0, "Primary"),
+			E("Belly", 1.9, 1.5, 0.5, 0, -2.0, -1.16, "Accent"),
+			E("ArmL", 0.56, 0.9, 0.56, -1.54, -1.66, -0.1, "Primary", { Limb = "ArmL", R = ang(0, 0, -0.6) }),
+			E("ArmR", 0.56, 0.9, 0.56, 1.54, -1.66, -0.1, "Primary", { Limb = "ArmR", R = ang(0, 0, 0.6) }),
+		},
+		face({ Y = -1.38, Size = GOOBER_BODY, EyeY = 0.6, Spread = 0.56, Eye = Vector3.new(0.46, 0.7, 0.12), Brows = { 0.28, 0.28 }, BrowLift = { 0.12, 0.12 }, Brow = Vector3.new(0.46, 0.13, 0.1), Fit = true }),
+		{
+			C("Stalk", 0.9, 0.14, 0, 0.6, 0.1, "Secondary", { Headgear = true }),
+			S("Bobble", 0.52, 0, 1.12, 0.1, "Accent", { Headgear = true }),
+			E("FriendA", 0.8, 0.72, 0.8, 1.9, -2.62, -0.9, "Accent", { Orbit = 1.1 }),
+			S("FriendAEyeL", 0.14, 1.78, -2.54, -1.26, "Eye", { Orbit = 1.1 }),
+			S("FriendAEyeR", 0.14, 2.02, -2.54, -1.26, "Eye", { Orbit = 1.1 }),
+			E("FriendB", 0.62, 0.56, 0.62, -1.9, -2.7, 0.7, "White", { Orbit = 1.1 }),
+			S("FriendBEyeL", 0.12, -2.0, -2.64, 0.42, "Eye", { Orbit = 1.1 }),
+			S("FriendBEyeR", 0.12, -1.8, -2.64, 0.42, "Eye", { Orbit = 1.1 }),
+		}
+	),
+}
+
+-- THE VOID: no body to speak of. A dark round shape that thins into a wisp over the ground,
+-- two ear-like flames on top, a face that is only darkness with two glowing eyes, a small
+-- magenta heart, two floating hands and three shards circling it in game. Empty: no brows,
+-- no highlights.
+local VOID_FACE = Vector3.new(1.6, 1.3, 0.6)
+H.Void = {
+	Palette = {
+		Primary = rgb(66, 38, 112), -- dark purple
+		Secondary = rgb(30, 22, 48), -- the dark core
+		Dark = rgb(12, 8, 20), -- the face: nothing
+		Accent = rgb(186, 108, 255), -- neon purple eyes
+		Magenta = rgb(255, 72, 196), -- the heart and the shards
+		Skin = rgb(30, 22, 48),
+	},
+	HatAt = Vector3.new(0, 1.24, 0.02),
+	HatScale = 1.1,
+	Top = 2.1,
+	Pivots = { ArmL = Vector3.new(-1.2, -0.5, 0), ArmR = Vector3.new(1.2, -0.5, 0) },
+	Pieces = join(
+		{
+			E("Orb", 2.44, 2.3, 2.3, 0, 0.1, 0, "Primary"),
+			E("Mantle", 2.0, 1.7, 1.86, 0, -1.2, 0.1, "Secondary"),
+			E("Tail", 1.1, 1.3, 1.0, 0, -2.1, 0.24, "Secondary"),
+			E("Wisp", 0.5, 0.7, 0.46, 0, -2.66, 0.4, "Secondary", { Transparency = 0.3 }),
+			E("Face", VOID_FACE.X, VOID_FACE.Y, VOID_FACE.Z, 0, 0, -0.9, "Dark"),
+			E("EarL", 0.5, 1.1, 0.44, -0.72, 1.3, 0.2, "Primary", { Headgear = true, R = ang(0.3, 0, 0.4) }),
+			E("EarR", 0.5, 1.1, 0.44, 0.72, 1.3, 0.2, "Primary", { Headgear = true, R = ang(0.3, 0, -0.4) }),
+			S("Heart", 0.42, 0, -1.1, -0.9, "Magenta", { Material = NEON }),
+			E("HandL", 0.56, 0.64, 0.56, -1.56, -1.1, -0.14, "Primary", { Limb = "ArmL" }),
+			E("HandR", 0.56, 0.64, 0.56, 1.56, -1.1, -0.14, "Primary", { Limb = "ArmR" }),
+			E("ShardA", 0.24, 0.8, 0.24, 1.62, 0.5, -0.92, "Magenta", { Material = NEON, Orbit = 1.2, R = ang(0.3, 0, -0.4) }),
+			E("ShardB", 0.22, 0.66, 0.22, -1.62, -0.1, -0.92, "Magenta", { Material = NEON, Orbit = 1.2, R = ang(-0.3, 0, 0.5) }),
+			E("ShardC", 0.22, 0.7, 0.22, 0, 0.9, 1.86, "Magenta", { Material = NEON, Orbit = 1.2, R = ang(0.4, 0, 0.2) }),
+		},
+		face({ Y = 0, Z = -0.9, Size = VOID_FACE, EyeY = 0.04, Spread = 0.36, Eye = Vector3.new(0.3, 0.5, 0.1), EyeRole = "Glow", NoShine = true })
+	),
+}
+
+-- THE GLITCH: the one blocky hero on purpose. A cyan cube head with a dark screen and two
+-- pixel eyes (the right one bigger: curious) whose top slice is shifted sideways with a
+-- magenta fringe (a glitch), a grey body, an arm cannon instead of the right hand, and loose pixels that
+-- drift around it in game.
 H.Glitch = {
-	Voxel = true, -- the only blocky hero on purpose: cubes are its look
-	Palette = { Primary = rgb(42, 222, 232), Secondary = rgb(255, 62, 202), Accent = rgb(255, 62, 202), Skin = rgb(242, 242, 248), White = rgb(242, 242, 248), Dark = rgb(34, 36, 50) },
-	HatAt = Vector3.new(0, 1.66, 0),
-	Top = 1.86,
-	Pieces = join(legs({ ShoeRole = "Primary" }), {
-		E("Body", 1.84, 1.84, 1.3, 0, -1.02, 0, "Primary"),
-		B("Chunk", 0.6, 0.6, 1.4, 0.56, -0.62, 0, "Dark"),
-	}, arms({ HandRole = "White" }), {
-		B("Head", 1.6, 1.6, 1.6, 0, 0.86, 0, "White"),
-		B("Ghost", 1.62, 1.62, 1.62, 0.12, 0.92, 0.06, "Secondary", { Transparency = 0.62 }),
-		B("PixelEyeL", 0.3, 0.3, 0.1, -0.35, 0.9, -0.82, "Eye"),
-		B("PixelEyeR", 0.3, 0.3, 0.1, 0.35, 0.9, -0.82, "Eye"),
-		B("PixelA", 0.3, 0.3, 0.3, 1.26, 1.46, 0, "Glow"),
-		B("PixelB", 0.26, 0.26, 0.26, -1.36, 0.1, -0.3, "Primary", { Material = NEON }),
-		B("PixelC", 0.28, 0.28, 0.28, 0.96, -2.0, 0.4, "Glow"),
-	}),
+	Voxel = true,
+	Palette = {
+		Primary = rgb(36, 196, 236), -- cyan
+		Secondary = rgb(136, 144, 160), -- grey
+		Dark = rgb(38, 42, 56), -- the screen
+		Accent = rgb(255, 66, 198), -- magenta
+		Pixel = rgb(176, 255, 255),
+		Skin = rgb(136, 144, 160),
+	},
+	HatAt = Vector3.new(0, 1.56, 0),
+	Top = 1.9,
+	Pivots = joints(Vector3.new(0.74, -0.34, 0), Vector3.new(0.38, -1.62, 0)),
+	Pieces = join(
+		kitLegs({ Hip = Vector3.new(0.38, -1.62, 0), Leg = Vector2.new(0.44, 0.46), Shoe = Vector3.new(0.66, 0.46, 0.92), Role = "Secondary", ShoeRole = "Primary", SoleRole = "Dark" }),
+		{
+			E("Chest", 1.5, 1.26, 1.1, 0, -0.62, 0, "Secondary"),
+			E("Hips", 1.3, 0.8, 1.0, 0, -1.36, 0, "Dark"),
+		},
+		withoutHand(kitArms({ Shoulder = Vector3.new(0.74, -0.34, 0), Arm = Vector3.new(0.44, 0.9, 0.46), Hand = Vector3.new(0.52, 0.5, 0.54), Role = "Secondary", HandRole = "Primary" }), "HandR"),
+		{
+			C("Cannon", 1.1, 0.56, 0.84, -1.12, -0.3, "Primary", { Axis = "Z", Limb = "ArmR" }),
+			S("Muzzle", 0.36, 0.84, -1.12, -0.86, "Glow", { Limb = "ArmR" }),
+			B("Head", 1.9, 1.2, 1.64, 0, 0.52, 0, "Primary"),
+			B("HeadTop", 1.9, 0.44, 1.64, 0.26, 1.34, 0, "Primary"),
+			B("Fringe", 0.1, 0.44, 1.64, -0.74, 1.34, 0, "Accent"),
+			B("Screen", 1.46, 0.86, 0.06, 0, 0.52, -0.83, "Dark"),
+			B("EyeL", 0.26, 0.42, 0.06, -0.34, 0.5, -0.87, "Pixel", { Material = NEON }),
+			B("EyeR", 0.3, 0.5, 0.06, 0.34, 0.54, -0.87, "Pixel", { Material = NEON }),
+			B("PixelA", 0.3, 0.3, 0.3, 1.45, 0.9, 0.3, "Glow", { Orbit = 0.9 }),
+			B("PixelB", 0.24, 0.24, 0.24, -1.36, 0.3, -0.4, "Accent", { Orbit = 0.9 }),
+			B("PixelC", 0.22, 0.22, 0.22, 0.4, -0.3, 1.3, "Pixel", { Material = NEON, Orbit = 0.9 }),
+		}
+	),
 }
 
--- THE OVERDRIVE: a racing suit, a glowing core, a glass visor and flame hair
+-- THE OVERDRIVE: a racing suit (orange, a red stripe, a dark collar), dark gloves and
+-- boots, an amber visor over the eyes, flame hair with a glowing yellow core, leaning into a
+-- dash with both arms swept back. Aggressive: brows hard down.
+local OVERDRIVE_HEAD = Vector3.new(2.0, 1.78, 1.88)
+local OVERDRIVE_LEAN = CFrame.new(0, 0, -0.1) * ang(-0.16, 0, 0)
 H.Overdrive = {
-	Palette = { Primary = rgb(255, 112, 32), Secondary = rgb(36, 32, 42), Accent = rgb(255, 236, 84), Skin = rgb(242, 202, 158), Glass = rgb(30, 34, 50), Dark = rgb(36, 32, 42) },
-	HatAt = Vector3.new(0, 1.58, 0),
-	Top = 2.35,
-	Pieces = join(legs({ Role = "Secondary", ShoeRole = "Primary" }), {
-		E("Body", 1.84, 1.84, 1.3, 0, -1.02, 0, "Primary"),
-		E("StripeL", 0.16, 1.62, 1.3, -0.62, -1.02, 0, "Accent"),
-		E("StripeR", 0.16, 1.62, 1.3, 0.62, -1.02, 0, "Accent"),
-		S("Core", 0.6, 0, -0.86, -0.6, "Glow"),
-	}, arms({ HandRole = "Secondary" }), head({ NoShine = true }), {
-		E("Visor", 1.58, 0.38, 0.5, 0, 0.84, -0.62, "Glass"),
-		E("FlameA", 0.5, 1.22, 0.5, 0, 1.72, 0.1, "Glow", { Headgear = true, R = ang(-0.25, 0, 0) }),
-		E("FlameB", 0.42, 0.96, 0.42, -0.45, 1.55, 0.2, "Glow", { Headgear = true, R = ang(-0.2, 0, 0.45) }),
-		E("FlameC", 0.42, 0.96, 0.42, 0.45, 1.55, 0.2, "Glow", { Headgear = true, R = ang(-0.2, 0, -0.45) }),
-		E("FlameD", 0.36, 0.8, 0.36, 0, 1.5, 0.55, "Primary", { Headgear = true, R = ang(-0.7, 0, 0), Material = NEON }),
-	}),
+	Palette = {
+		Primary = rgb(246, 116, 36), -- orange
+		Secondary = rgb(206, 44, 40), -- red
+		Dark = rgb(50, 48, 58), -- dark grey
+		Accent = rgb(255, 214, 72), -- yellow heat
+		Glass = rgb(255, 140, 40), -- the amber visor
+		Skin = rgb(238, 196, 156),
+	},
+	HatAt = Vector3.new(0, 1.64, -0.3),
+	Top = 2.8,
+	Pivots = joints(Vector3.new(0.74, -0.3, -0.06), Vector3.new(0.42, -1.56, 0)),
+	Pieces = join(
+		kitLegs({ Hip = Vector3.new(0.42, -1.56, 0), Leg = Vector2.new(0.46, 0.48), Shoe = Vector3.new(0.66, 0.48, 1.04), ShoeZ = -0.14, Role = "Dark", ShoeRole = "Secondary", SoleRole = "Dark" }),
+		{ E("Pants", 1.36, 0.8, 1.0, 0, -1.32, 0, "Dark") },
+		inFrame(OVERDRIVE_LEAN, {
+			E("Chest", 1.56, 1.26, 1.12, 0, -0.56, 0, "Primary"),
+			E("Stripe", 0.36, 1.46, 1.18, 0.06, -0.56, 0, "Secondary", { R = ang(0, 0, 0.5) }),
+			E("Collar", 1.2, 0.32, 1.02, 0, 0.04, 0, "Dark"),
+		}),
+		kitArms({ Shoulder = Vector3.new(0.74, -0.3, -0.06), Arm = Vector3.new(0.46, 0.9, 0.48), Hand = Vector3.new(0.54, 0.52, 0.56), HandRole = "Dark", Splay = 0.34, Swing = { -0.5, -0.5 } }),
+		inFrame(OVERDRIVE_LEAN, join(
+			{ E("Head", OVERDRIVE_HEAD.X, OVERDRIVE_HEAD.Y, OVERDRIVE_HEAD.Z, 0, 0.7, 0, "Skin") },
+			face({ Y = 0.7, Size = OVERDRIVE_HEAD, Brows = { -0.32, -0.32 }, BrowRole = "Secondary", BrowLift = { 0.02, 0.02 } }),
+			{
+				E("Visor", 2.12, 0.6, 1.3, 0, 0.64, -0.4, "Glass", { Transparency = 0.25 }),
+				E("Hair", 2.02, 1.2, 1.9, 0, 1.12, 0.16, "Secondary", { R = ang(0.3, 0, 0) }),
+				E("FlameA", 0.9, 1.7, 0.84, 0, 1.86, 0.32, "Primary", { Headgear = true, R = ang(0.5, 0, 0) }),
+				E("FlameB", 0.64, 1.3, 0.62, -0.6, 1.62, 0.34, "Secondary", { Headgear = true, R = ang(0.45, 0, 0.4) }),
+				E("FlameC", 0.64, 1.3, 0.62, 0.6, 1.62, 0.34, "Secondary", { Headgear = true, R = ang(0.45, 0, -0.4) }),
+				E("HeatA", 0.46, 1.0, 0.44, 0, 1.8, 0.14, "Glow", { Headgear = true, R = ang(0.5, 0, 0) }),
+				E("HeatB", 0.32, 0.7, 0.3, -0.56, 1.56, 0.2, "Glow", { Headgear = true, R = ang(0.45, 0, 0.4) }),
+				E("HeatC", 0.32, 0.7, 0.3, 0.56, 1.56, 0.2, "Glow", { Headgear = true, R = ang(0.45, 0, -0.4) }),
+			}
+		))
+	),
 }
 
--- THE 67: a screen head that shows 67, gold antennas, a gold chain
+-- THE 67: a box robot. A purple boxy head whose whole front is a yellow screen showing 67
+-- (the digits are its eyes), round dark ears, two thin antennas with glowing tips, a dark box
+-- body with one small light, thin dark limbs, purple hands and feet. Nobody knows why.
 H.SixSeven = {
-	Palette = { Primary = rgb(122, 62, 202), Secondary = rgb(36, 32, 48), Accent = rgb(255, 206, 52), Skin = rgb(242, 202, 158), Gold = rgb(255, 204, 54), Dark = rgb(36, 32, 48) },
-	HatAt = Vector3.new(0, 1.64, 0),
-	Top = 2.25,
-	Pieces = join(legs({ Role = "Secondary", ShoeRole = "Primary" }), {
-		E("Body", 1.84, 1.84, 1.3, 0, -1.02, 0, "Primary"),
-		E("Chain", 1.36, 0.12, 1.0, 0, -0.3, -0.12, "Gold"),
-		C("Pendant", 0.1, 0.6, 0, -0.74, -0.66, "Gold", { Axis = "Z" }),
-	}, arms(), {
-		E("Head", 2.0, 1.6, 1.36, 0, 0.86, 0, "Secondary"),
-		B("Screen", 1.54, 1.04, 0.06, 0, 0.86, -0.66, "Glow", { Text = "67", TextColor = rgb(64, 26, 92) }),
-		C("AntennaL", 0.72, 0.1, -0.56, 1.82, 0, "Gold", { Headgear = true, R = ang(0, 0, 0.36) }),
-		C("AntennaR", 0.72, 0.1, 0.56, 1.82, 0, "Gold", { Headgear = true, R = ang(0, 0, -0.36) }),
-		S("TipL", 0.22, -0.7, 2.16, 0, "Glow", { Headgear = true }),
-		S("TipR", 0.22, 0.7, 2.16, 0, "Glow", { Headgear = true }),
-	}),
+	Palette = {
+		Primary = rgb(142, 64, 200), -- purple
+		Secondary = rgb(52, 48, 62), -- dark grey
+		Dark = rgb(36, 32, 44),
+		Accent = rgb(255, 206, 48), -- yellow: the screen, the antenna tips
+		Skin = rgb(52, 48, 62),
+	},
+	HatAt = Vector3.new(0, 1.56, 0),
+	Top = 2.45,
+	Pivots = joints(Vector3.new(0.86, -0.34, 0), Vector3.new(0.4, -1.62, 0)),
+	Pieces = join(
+		kitLegs({ Hip = Vector3.new(0.4, -1.62, 0), Leg = Vector2.new(0.36, 0.38), Shoe = Vector3.new(0.72, 0.46, 0.92), Role = "Secondary", ShoeRole = "Primary", SoleRole = "Dark" }),
+		{
+			B("Body", 1.6, 1.34, 1.14, 0, -0.66, 0, "Secondary"),
+			B("ChestLight", 0.34, 0.34, 0.06, 0, -0.5, -0.59, "Glow"),
+			E("Hips", 1.24, 0.66, 0.96, 0, -1.4, 0, "Secondary"),
+		},
+		kitArms({ Shoulder = Vector3.new(0.86, -0.34, 0), Arm = Vector3.new(0.34, 0.9, 0.36), Hand = Vector3.new(0.5, 0.5, 0.5), Role = "Secondary", HandRole = "Primary", Splay = 0.18 }),
+		{
+			B("Head", 2.14, 1.66, 1.56, 0, 0.7, 0, "Primary"),
+			B("Screen", 1.72, 1.16, 0.06, 0, 0.68, -0.79, "Glow", { Text = "67", TextColor = rgb(56, 20, 84) }),
+			C("EarL", 0.22, 0.56, -1.1, 0.7, 0, "Secondary", { Axis = "X" }),
+			C("EarR", 0.22, 0.56, 1.1, 0.7, 0, "Secondary", { Axis = "X" }),
+			C("AntennaL", 0.8, 0.1, -0.56, 1.86, 0, "Secondary", { Headgear = true, R = ang(0, 0, 0.35) }),
+			C("AntennaR", 0.8, 0.1, 0.56, 1.86, 0, "Secondary", { Headgear = true, R = ang(0, 0, -0.35) }),
+			S("TipL", 0.28, -0.7, 2.24, 0, "Glow", { Headgear = true }),
+			S("TipR", 0.28, 0.7, 2.24, 0, "Glow", { Headgear = true }),
+		}
+	),
 }
 
 -- THE UNKNOWN: a hooded robe with no face, only a question, and a pale halo
@@ -2771,7 +2937,24 @@ function HeroModels.Build(key: string, origin: CFrame, container: Instance, opts
 		if root then
 			local limb = piece.Limb
 			local main = limb and limbs[limb]
-			if limb and not main then
+			if piece.Spin or piece.Orbit then
+				-- a floating piece the client turns (HeroAnimator, like spinning hat parts):
+				-- Spin = in place around its own vertical axis, Orbit = circling the hero
+				local rel = root.CFrame:ToObjectSpace(origin * piece.At)
+				local motor = Instance.new("Motor6D")
+				motor.Name = "Spin" .. piece.Name
+				motor.Part0 = root
+				motor.Part1 = p
+				if piece.Orbit then
+					motor.C0 = CFrame.new(0, rel.Y, 0)
+					motor.C1 = (CFrame.new(rel.X, 0, rel.Z) * rel.Rotation):Inverse()
+				else
+					motor.C0 = CFrame.new(rel.Position)
+					motor.C1 = rel.Rotation:Inverse()
+				end
+				motor:SetAttribute("Speed", piece.Orbit or piece.Spin)
+				motor.Parent = root
+			elseif limb and not main then
 				-- the first piece of a limb swings on a Motor6D around the joint
 				limbs[limb] = p
 				local pivot = CFrame.new((hero.Pivots and hero.Pivots[limb]) or PIVOTS[limb])
