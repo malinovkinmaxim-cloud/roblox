@@ -246,6 +246,96 @@ lobby:ClosePanel()
 check("no errors while navigating", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
+section("67 LAND: the lobby event map")
+---------------------------------------------------------------------------
+do
+	local mapLobby = ws:FindFirstChild("Map"):FindFirstChild("Lobby")
+	local gates, npcs, special = {}, 0, {}
+	for _, d in mapLobby:GetDescendants() do
+		if d:IsA("BasePart") then
+			local g = d:GetAttribute("EventGate")
+			if g then
+				gates[g] = d
+			end
+			if d:GetAttribute("NpcKey") then
+				npcs += 1
+			end
+			for _, key in { "PlayPortal", "AfkCamp", "Leaderboard", "EventBoard", "Beacon", "Button67" } do
+				if d:GetAttribute(key) then
+					special[key] = true
+				end
+			end
+		end
+	end
+	local count = 0
+	for i = 1, 7 do
+		if gates[i] then
+			count += 1
+		end
+	end
+	check("an EVENT GATE for every difficulty tier", count == 7, count)
+	check("the lobby keeps PLAY portal, AFK camp, leaderboard (+ events board, beacon, button)", special.PlayPortal and special.AfkCamp and special.Leaderboard and special.EventBoard and special.Beacon and special.Button67)
+	check("NPCs stand in 67 LAND", npcs >= 5, npcs)
+	local keys = {}
+	for _, r in MB.Regions do
+		keys[r.Key] = true
+	end
+	check("secret places: lobby + arena", keys.TouchGrass and keys.Backrooms and keys.Nowhere and keys.UnderBridge and keys.Throne67)
+
+	-- your gates, drawn for you
+	local emc = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.EventMapController")
+	local g1, g2, g3 = emc.Gates[1], emc.Gates[2], emc.Gates[3]
+	check("gates show YOUR state: I selected, II next, III locked", g1 and g2 and g3 and g1.State == "Selected" and g2.State == "Next" and g3.State == "Locked")
+	check("an open gate is a portal, a closed one a door with a lock", g1.Portal.CanCollide == false and g2.Portal.CanCollide == true and g1.Locks[1].Transparency == 1 and g2.Locks[1].Transparency == 0)
+	local label2 = g2.Label and g2.Label:FindFirstChild("Line2")
+	check("the NEXT gate says what opens it", label2 ~= nil and string.find(label2.Text, "DEFEAT A BOSS ON CALM", 1, true) ~= nil, label2 and label2.Text)
+	local beacon = emc.Beacon
+	check("the beacon stands on your NEXT gate", beacon ~= nil and (Vector3.new(beacon.Position.X, 0, beacon.Position.Z) - Vector3.new(g2.Portal.Position.X, 0, g2.Portal.Position.Z)).Magnitude < 1)
+	local guide
+	for _, n in emc.Npcs do
+		if n.Def.Key == "Guide" then
+			guide = n
+		end
+	end
+	local home = alicePlayer.Character:GetPivot()
+	alicePlayer.Character:PivotTo(roblox.CFrame.new(guide.Marker.Position + Vector3.new(3, -4, -3)))
+	Engine.Step(0.4)
+	check("an NPC talks when you come close", guide.Bubble.Enabled and guide.Bubble:FindFirstChild("Line2").Text ~= "")
+
+	-- a locked gate does not start a run (it says why), an open one does, on its tier
+	GM:EnterGate(alicePlayer, 3)
+	Engine.Step(0.2)
+	check("a locked gate does not start a run", GM.Entries[alicePlayer] == nil)
+	local carol, carolPlayer = Engine.AddPlayer("Carol")
+	Engine.Step(1)
+	local carolData = PM:Get(carolPlayer).Data.Difficulty
+	carolData.Best[1] = { Time = 400, Bosses = 1, Wins = 0 } -- a boss on CALM opens HUNT
+	GM:EnterGate(carolPlayer, 2)
+	Engine.Step(0.5)
+	local carolEntry = GM.Entries[carolPlayer]
+	check("an open gate starts a run on its tier", carolEntry ~= nil and carolEntry.Run.Difficulty == 2 and carolData.Selected == 2, carolEntry and carolEntry.Run.Difficulty)
+	local _ = carol
+	Engine.RemovePlayer("Carol")
+	Engine.Step(0.5)
+
+	-- DO NOT PRESS: 67 presses
+	for _ = 1, 67 do
+		GM:PressButton(alicePlayer)
+	end
+	check("the button (67 presses) is a secret", session.Data.SecretsFound.Button67 == true)
+
+	-- falling off the island brings you back
+	alicePlayer.Character:PivotTo(roblox.CFrame.new(ws:FindFirstChild("SpawnPoints"):FindFirstChild("Lobby").Position + Vector3.new(200, -80, 0)))
+	Engine.Step(1.2)
+	local back = alicePlayer.Character:FindFirstChild("HumanoidRootPart").Position
+	local spawnPos = ws:FindFirstChild("SpawnPoints"):FindFirstChild("Lobby").Position
+	check("falling off 67 LAND puts you back on the spawn", (back - spawnPos).Magnitude < 12, back)
+	alicePlayer.Character:PivotTo(home)
+	Engine.Step(0.2)
+	check("no errors in 67 LAND", #Engine.Errors == 0, Engine.Errors[1])
+end
+
+---------------------------------------------------------------------------
 section("PLAY -> run starts")
 ---------------------------------------------------------------------------
 local playButton = findGui(alice, "Play")

@@ -4,7 +4,10 @@
 	Lobby (hub): a calm showcase camera. It faces your hero on the hub stage from the front,
 	keeps the hero a little right of centre (the UI sits in the middle and on the left, on
 	every screen shape), follows softly when you walk, drifts very slowly, and a shallow
-	depth of field blurs the backdrop. An idle hero turns back to face the camera.
+	depth of field blurs the backdrop. An idle hero on the stage turns back to face the camera.
+	Walk away from the stage into 67 LAND (the event map) and it eases into an EXPLORE view:
+	higher, wider, looking a little down at the map, with almost no blur. It always looks
+	north (+Z), which is why every sign of the map faces south.
 	Run: a top-down follow camera at a fixed angle (W = up the screen, the thumbstick works the
 	same way), zoom (wheel, pinch, I/O), screen shake, "absurd zoom" punches for meme moments
 	and short boss intro pans. Each difficulty tier tints the arena a little (SetMood).
@@ -30,6 +33,17 @@ local HUB_DIST = 15.5
 local HUB_EYE_Y, HUB_LOOK_Y = 1.2, -0.3 -- a low, slightly upward-feeling angle; the hero sits above the plate
 local HUB_SCREEN_X = 0.5 -- the hero sits this far right of the screen centre (fraction of half width): the right third
 local HUB_FACE_YAW = -0.15 -- idle heroes face the camera, turned a touch towards it
+-- the explore view of 67 LAND (blended in as you walk away from the stage)
+local EXPLORE_FOV = 55
+local EXPLORE_DIST = 21
+local EXPLORE_EYE_Y, EXPLORE_LOOK_Y = 7, 2.5 -- about 12 degrees down: the route and the landmarks
+local EXPLORE_SCREEN_X = 0.3
+local EXPLORE_FROM, EXPLORE_OVER = 8, 14 -- studs from the stage where it starts / is complete
+local HUB_BLUR, EXPLORE_BLUR = 0.32, 0.06
+
+local function lerp(a: number, b: number, t: number): number
+	return a + (b - a) * t
+end
 
 -- a light colour grade per difficulty tier (calm -> tense), subtle on purpose
 local MOODS = {
@@ -78,13 +92,26 @@ end
 ---------------------------------------------------------------------------
 -- hub
 ---------------------------------------------------------------------------
+-- where the hub stage is (the lobby spawn point, replicated by the server)
+function CameraController:StagePosition(): Vector3?
+	if self.Stage then
+		return self.Stage
+	end
+	local spawns = Workspace:FindFirstChild("SpawnPoints")
+	local spot = spawns and spawns:FindFirstChild("Lobby")
+	if spot and spot:IsA("BasePart") then
+		self.Stage = spot.Position
+	end
+	return self.Stage
+end
+
 function CameraController:UpdateHub(camera: Camera, dt: number)
 	if camera.CameraType ~= Enum.CameraType.Scriptable then
 		camera.CameraType = Enum.CameraType.Scriptable
 	end
-	camera.FieldOfView = HUB_FOV
 	local root = characterRoot()
 	if not root then
+		camera.FieldOfView = HUB_FOV
 		return
 	end
 	local now = os.clock()
@@ -92,17 +119,27 @@ function CameraController:UpdateHub(camera: Camera, dt: number)
 	local focus = self.HubFocus or target
 	focus = focus:Lerp(target, 1 - math.exp(-6 * dt))
 	self.HubFocus = focus
+	-- showcase on the stage, explore view out in 67 LAND (eased, never a cut)
+	local stage = self:StagePosition()
+	local away = if stage then Vector3.new(target.X - stage.X, 0, target.Z - stage.Z).Magnitude else 0
+	local goal = math.clamp((away - EXPLORE_FROM) / EXPLORE_OVER, 0, 1)
+	self.Explore = (self.Explore or 0) + (goal - (self.Explore or 0)) * (1 - math.exp(-2.5 * dt))
+	local k = self.Explore * self.Explore * (3 - 2 * self.Explore)
+	local fov = lerp(HUB_FOV, EXPLORE_FOV, k)
+	camera.FieldOfView = fov
 	-- keep the hero at the same spot on any screen shape
 	local viewport = camera.ViewportSize
 	local aspect = if viewport.Y > 1 then viewport.X / viewport.Y else 16 / 9
-	local side = HUB_DIST * math.tan(math.rad(HUB_FOV / 2)) * aspect * HUB_SCREEN_X
-	local drift = Vector3.new(math.sin(now * 0.31) * 0.22, math.sin(now * 0.23) * 0.1, 0)
-	local eye = focus + Vector3.new(side, HUB_EYE_Y, -HUB_DIST) + drift
-	camera.CFrame = CFrame.lookAt(eye, focus + Vector3.new(side, HUB_LOOK_Y, 0) + drift * 0.5)
-	-- depth of field: the hero is sharp, the backdrop soft
+	local dist = lerp(HUB_DIST, EXPLORE_DIST, k)
+	local side = dist * math.tan(math.rad(fov / 2)) * aspect * lerp(HUB_SCREEN_X, EXPLORE_SCREEN_X, k)
+	local drift = Vector3.new(math.sin(now * 0.31) * 0.22, math.sin(now * 0.23) * 0.1, 0) * (1 - k)
+	local eye = focus + Vector3.new(side, lerp(HUB_EYE_Y, EXPLORE_EYE_Y, k), -dist) + drift
+	camera.CFrame = CFrame.lookAt(eye, focus + Vector3.new(side, lerp(HUB_LOOK_Y, EXPLORE_LOOK_Y, k), 0) + drift * 0.5)
+	-- depth of field: the hero is sharp, the backdrop soft (almost none while exploring)
 	local dof = self.Dof
 	if dof then
 		dof.FocusDistance = (eye - target).Magnitude
+		dof.FarIntensity = lerp(HUB_BLUR, EXPLORE_BLUR, k)
 	end
 	-- an idle hero turns back to face the camera
 	local speed = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z).Magnitude
@@ -111,7 +148,7 @@ function CameraController:UpdateHub(camera: Camera, dt: number)
 	else
 		self.IdleFor = 0
 	end
-	if self.IdleFor > 1.2 then
+	if self.IdleFor > 1.2 and k < 0.2 then
 		local look = root.CFrame.LookVector
 		local yaw = math.atan2(-look.X, -look.Z)
 		local diff = (HUB_FACE_YAW - yaw + math.pi) % (2 * math.pi) - math.pi
@@ -130,7 +167,7 @@ function CameraController:SetMood(mode: string, tier: number?)
 		dof.Name = "S67HubFocus"
 		dof.InFocusRadius = 8
 		dof.NearIntensity = 0
-		dof.FarIntensity = 0.32
+		dof.FarIntensity = HUB_BLUR
 		dof.FocusDistance = HUB_DIST
 		dof.Parent = Lighting
 		self.Dof = dof
@@ -222,6 +259,7 @@ function CameraController:SetMode(mode: string)
 		camera.CameraType = Enum.CameraType.Scriptable
 		camera.FieldOfView = HUB_FOV
 		self.HubFocus = nil
+		self.Explore = 0
 		self.IdleFor = 0
 		self:SetMood("Hub")
 	end

@@ -70,6 +70,11 @@ AchievementData.List = {
 	{ Key = "Backrooms", Name = "No-Clip", Desc = "Find the secret room in the arena", Coins = 200, Secret = true, Flag = true },
 	{ Key = "OneHP", Name = "1 HP Club", Desc = "Survive 5 seconds at 1-2% HP", Coins = 167, Secret = true, Flag = true },
 	{ Key = "DefeatThe67", Name = "It Was Real", Desc = "Defeat THE 67 before it leaves", Coins = 670, Fragments = 5, Secret = true, Flag = true, Unlocks = "Secret hero THE UNKNOWN" },
+	-- secrets of 67 LAND (the lobby event map)
+	{ Key = "Nowhere", Name = "Stairs to Nowhere", Desc = "Climb the stairs to nowhere in 67 LAND", Coins = 67, Secret = true, Flag = true },
+	{ Key = "UnderBridge", Name = "Bridge Toll", Desc = "Find what lives under the bridge to THE 67", Coins = 67, Secret = true, Flag = true },
+	{ Key = "Throne67", Name = "Not Your Throne", Desc = "Sit on the throne of 67", Coins = 67, Secret = true, Flag = true },
+	{ Key = "Button67", Name = "Do Not Press", Desc = "Press the button. 67 times.", Coins = 67, Secret = true, Flag = true },
 } :: { AchievementDef }
 
 AchievementData.ByKey = {} :: { [string]: AchievementDef }
@@ -78,7 +83,7 @@ for _, def in AchievementData.List do
 end
 
 -- secrets of the Collection Book (achievement keys)
-AchievementData.Secrets = { "Secret67", "SigmaStare", "GoldenGoober", "TouchGrass", "Backrooms", "OneHP", "DefeatThe67", "Untouchable" }
+AchievementData.Secrets = { "Secret67", "SigmaStare", "GoldenGoober", "TouchGrass", "Backrooms", "OneHP", "DefeatThe67", "Untouchable", "Nowhere", "UnderBridge", "Throne67", "Button67" }
 
 --[[
 	Daily quests: 3 per UTC day, picked deterministically from the pool per player.

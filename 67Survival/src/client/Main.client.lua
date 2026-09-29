@@ -24,6 +24,7 @@ local ORDER = {
 	"LobbyController",
 	"InputController",
 	"WorldController",
+	"EventMapController",
 	"DebugController",
 }
 

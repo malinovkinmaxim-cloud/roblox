@@ -39,6 +39,9 @@ local CENTER = GameConfig.Arena.Center
 function GameManager:Init(services)
 	self.Services = services
 	self.Entries = {} -- [Player] = entry
+	self.GateNotified = {} :: { [Player]: number } -- a locked gate says why, not 30 times a second
+	self.Presses = {} :: { [Player]: number } -- the DO NOT PRESS button of 67 LAND
+	self.FellAt = {} :: { [Player]: number }
 	self.Acc = 0
 	self.Remotes = {
 		Frame = Net.Event("Frame"),
@@ -430,6 +433,71 @@ end
 ---------------------------------------------------------------------------
 -- remotes
 ---------------------------------------------------------------------------
+--[[
+	67 LAND (the lobby event map): walking into the EVENT GATE of a tier plays it. An open
+	gate selects the tier (the same check as the difficulty menu) and starts the run; a locked
+	one says what opens it.
+]]
+function GameManager:EnterGate(player: Player, index: number)
+	if self.Entries[player] then
+		return
+	end
+	local session = self.Services.PlayerManager:Get(player)
+	if not session then
+		return
+	end
+	local i = math.clamp(math.floor(index), 1, DifficultyData.Count)
+	if i > DifficultyData.Unlocked(session.Data.Difficulty.Best) then
+		local now = os.clock()
+		if (self.GateNotified[player] or 0) > now then
+			return
+		end
+		self.GateNotified[player] = now + 3
+		local tier = DifficultyData.Get(i)
+		self.Services.PlayerManager:Notify(player, string.format("%s is locked: %s", tier.Name, if tier.Unlock then tier.Unlock.Text else ""), "Error")
+		return
+	end
+	self.Services.PlayerManager:SelectDifficulty(player, i)
+	self:StartRun(player, nil, nil)
+end
+
+-- the DO NOT PRESS button: it does nothing. Almost.
+local PRESS_LINES = {
+	[1] = "Nothing happened.",
+	[6] = "Still nothing.",
+	[20] = "It says DO NOT PRESS.",
+	[40] = "Please stop.",
+	[60] = "Seven more. Not that anyone is counting.",
+	[66] = "One more. Probably.",
+}
+function GameManager:PressButton(player: Player)
+	local count = (self.Presses[player] or 0) + 1
+	self.Presses[player] = count
+	if count == 67 then
+		self.Services.RewardManager:FoundSecret(player, "Button67")
+	elseif PRESS_LINES[count] then
+		self.Services.PlayerManager:Notify(player, PRESS_LINES[count], "Info")
+	end
+end
+
+-- fell off the island: back to the spawn, with a word of comfort
+function GameManager:CatchFall(player: Player, root: BasePart)
+	if self.Entries[player] or root.Position.Y > GameConfig.Lobby.Center.Y - 30 then
+		return
+	end
+	local character = player.Character
+	if not character then
+		return
+	end
+	character:PivotTo(self.Services.MapBuilder:SpawnPoint("Lobby") + Vector3.new(0, 3, 0))
+	root.AssemblyLinearVelocity = Vector3.zero
+	local now = os.clock()
+	if (self.FellAt[player] or 0) < now then
+		self.FellAt[player] = now + 20
+		self.Services.PlayerManager:Notify(player, "You fell off 67 LAND. It happens to the best of us.", "Info")
+	end
+end
+
 function GameManager:Start()
 	Guard.Connect(Net.Event("StartRun"), { Rate = 0.5, Burst = 2 }, function(player, heroKey, startWeapon)
 		if Guard.Str(heroKey, 32) or heroKey == nil then
@@ -484,21 +552,42 @@ function GameManager:Start()
 		self:Heartbeat(dt)
 	end)
 
-	-- walking into the PLAY portal in the lobby starts a run
+	-- walking into the PLAY portal in the lobby starts a run; an EVENT GATE starts its tier;
+	-- the DO NOT PRESS button counts
 	local map = Workspace:FindFirstChild("Map")
 	if map then
+		local function playerOf(hit: BasePart): Player?
+			local character = hit:FindFirstAncestorOfClass("Model")
+			return character and Players:GetPlayerFromCharacter(character)
+		end
 		for _, d in map:GetDescendants() do
 			if d:IsA("BasePart") and d:GetAttribute("PlayPortal") then
 				d.Touched:Connect(function(hit)
-					local character = hit:FindFirstAncestorOfClass("Model")
-					local player = character and Players:GetPlayerFromCharacter(character)
+					local player = playerOf(hit)
 					if player and not self.Entries[player] then
 						self:StartRun(player, nil, nil)
 					end
 				end)
+			elseif d:IsA("BasePart") and type(d:GetAttribute("EventGate")) == "number" then
+				local index = d:GetAttribute("EventGate") :: number
+				d.Touched:Connect(function(hit)
+					local player = playerOf(hit)
+					if player then
+						self:EnterGate(player, index)
+					end
+				end)
+			elseif d:IsA("ProximityPrompt") and d.Parent and d.Parent:GetAttribute("Button67") then
+				d.Triggered:Connect(function(player)
+					self:PressButton(player)
+				end)
 			end
 		end
 	end
+	Players.PlayerRemoving:Connect(function(player)
+		self.GateNotified[player] = nil
+		self.Presses[player] = nil
+		self.FellAt[player] = nil
+	end)
 
 	-- secret places (checked by position, not by trusting the client)
 	task.spawn(function()
@@ -511,6 +600,7 @@ function GameManager:Start()
 					if key then
 						self.Services.RewardManager:FoundSecret(player, key)
 					end
+					self:CatchFall(player, root)
 				end
 			end
 		end

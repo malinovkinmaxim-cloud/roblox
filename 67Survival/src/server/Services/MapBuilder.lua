@@ -1,5 +1,6 @@
 --[[
-	MapBuilder - builds the world from code: the LOBBY (with the AFK CAMP) and the arena "67 PARK".
+	MapBuilder - builds the world from code: the LOBBY ("67 LAND", the event map: Map/EventMap)
+	and the arena "67 PARK".
 
 	If Workspace already has a "Map" model (made by hand in Studio), it is used as is.
 	Rules for a custom map:
@@ -11,8 +12,8 @@
 	The arena is flat and open in the middle (hordes need space), with readable ground tiles
 	(so movement is visible from the top-down camera), roads, small buildings, trees and a few
 	landmarks near the edges, plus a hidden room.
-	The lobby spawn is the HUB STAGE: the player's hero on a pedestal, framed by the hub
-	camera (client CameraController). Also sets the base lighting (haze, soft bloom).
+	The lobby spawn is the HUB STAGE of 67 LAND: the player's hero on a pedestal, framed by the
+	hub camera (client CameraController). Also sets the base lighting (haze, soft bloom).
 ]]
 
 local Workspace = game:GetService("Workspace")
@@ -20,6 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local GameConfig = require(Shared.GameConfig)
+local EventMap = require(script.Parent.Parent.Map.EventMap)
 
 local MapBuilder = {}
 
@@ -407,113 +409,10 @@ local function buildArena(map: Model)
 end
 
 ---------------------------------------------------------------------------
--- lobby
+-- lobby: "67 LAND", the event map (Map/EventMap)
 ---------------------------------------------------------------------------
-local function ellipsoid(name: string, size: Vector3, cf: CFrame, color: Color3, extra: { [string]: any }?): BasePart
-	local p = block(name, size, cf, color, extra)
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.Sphere
-	mesh.Parent = p
-	return p
-end
-
-local function light(parent: BasePart, range: number, brightness: number, color: Color3)
-	local l = Instance.new("PointLight")
-	l.Range = range
-	l.Brightness = brightness
-	l.Color = color
-	l.Shadows = false
-	l.Parent = parent
-	return l
-end
-
---[[
-	The hub stage (what the hub camera sees): a clean pedestal for the hero, a soft arc of
-	rounded pillars behind it, a big glowing 67 far away (blurred by the camera's depth of
-	field), a few slow floating orbs and two lights (warm key, cool rim). Few shapes, calm
-	colours: the UI stays the focus.
-]]
-local STAGE = Vector3.new(0, 0, 15) -- lobby offset of the hero spot (= the lobby spawn)
+local STAGE = Vector3.new(0, 0, -6) -- lobby offset of the hero spot (= the lobby spawn)
 MapBuilder.StageOffset = STAGE
-
-local function buildStage(lobby: Instance, L: (number, number, number) -> CFrame)
-	local stage = folder("HubStage", lobby)
-	current = stage
-	local sx, sz = STAGE.X, STAGE.Z
-	local CYL = Enum.PartType.Cylinder
-	local up = CFrame.Angles(0, 0, math.rad(90))
-	-- the floor around the stage
-	block("StageRug", Vector3.new(0.06, 30, 30), L(sx, 0.03, sz + 3) * up, rgb(58, 50, 104), { Shape = CYL, CanCollide = false })
-	-- pedestal: two soft steps and a thin light line around the top edge (a glowing disc
-	-- inside the pedestal: only its rim shows)
-	block("PedestalBase", Vector3.new(0.3, 10, 10), L(sx, 0.15, sz) * up, rgb(76, 66, 132), { Shape = CYL })
-	block("Pedestal", Vector3.new(0.5, 7.6, 7.6), L(sx, 0.4, sz) * up, rgb(112, 100, 178), { Shape = CYL })
-	local top = block("PedestalTop", Vector3.new(0.08, 7.84, 7.84), L(sx, 0.56, sz) * up, rgb(255, 150, 210), { Shape = CYL, Material = Enum.Material.Neon, Transparency = 0.1, CanCollide = false })
-	-- a few slow sparkles rising from the pedestal (subtle: 3 per second)
-	local sparkles = Instance.new("ParticleEmitter")
-	sparkles.Name = "StageSparkles"
-	sparkles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	sparkles.Rate = 3
-	sparkles.Lifetime = NumberRange.new(2.5, 3.5)
-	sparkles.Speed = NumberRange.new(0.6, 1.2)
-	sparkles.EmissionDirection = Enum.NormalId.Right -- the cylinder's axis points up
-	sparkles.SpreadAngle = Vector2.new(15, 15)
-	sparkles.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.22), NumberSequenceKeypoint.new(1, 0) })
-	sparkles.Transparency = NumberSequence.new(0.3, 1)
-	sparkles.LightEmission = 1
-	sparkles.Color = ColorSequence.new(rgb(255, 170, 220), rgb(255, 214, 120))
-	sparkles.Parent = top
-	-- the backdrop: an arc of rounded pillars (tallest in the middle), soft lavender
-	for i = -3, 3 do
-		local a = math.rad(i * 19)
-		local r = 17
-		local h = 15 - math.abs(i) * 1.6
-		local shade = 1 - math.abs(i) * 0.04
-		local col = Color3.fromRGB(math.floor(134 * shade), math.floor(120 * shade), math.floor(206 * shade))
-		ellipsoid("Pillar", Vector3.new(3.4, h, 2.6), L(sx + math.sin(a) * r, h / 2 - 0.6, sz + math.cos(a) * r), col, { CanCollide = false, CastShadow = true })
-	end
-	-- a low hedge line in front of the pillars (depth)
-	for i = -2, 2 do
-		ellipsoid("Hedge", Vector3.new(5.5, 2.4, 3), L(sx + i * 5.2, 0.9, sz + 12.5 - math.abs(i) * 0.8), rgb(78, 150, 110), { CanCollide = false })
-	end
-	-- a big glowing "67" far behind, in the logo's font (soft through the depth of field).
-	-- Text on an invisible sign reads cleanly; neon blocks looked like glitchy rectangles.
-	local sign = block("Stage67", Vector3.new(26, 13, 0.2), L(sx, 8.5, sz + 46), rgb(255, 255, 255), { Transparency = 1, CanCollide = false, CanQuery = false })
-	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Sign"
-	gui.Face = Enum.NormalId.Front -- the hub camera looks towards +Z: it sees the front face
-	gui.LightInfluence = 0
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 20
-	gui.Parent = sign
-	local text = Instance.new("TextLabel")
-	text.Name = "Text"
-	text.BackgroundTransparency = 1
-	text.Size = UDim2.fromScale(1, 1)
-	text.Text = "67"
-	text.Font = Enum.Font.LuckiestGuy
-	text.TextScaled = true
-	text.TextColor3 = rgb(255, 204, 84)
-	text.TextTransparency = 0.3
-	text.Parent = gui
-	current = stage
-	-- a few slow floating orbs (WorldController bobs parts with a Bob attribute)
-	for i, spot in { Vector3.new(-7, 7.5, 10), Vector3.new(8.5, 9.5, 12), Vector3.new(-11, 11, 6) } do
-		local orb = block("StageOrb", Vector3.new(0.9, 0.9, 0.9), L(sx + spot.X, spot.Y, sz + spot.Z), if i == 2 then rgb(255, 196, 80) else rgb(255, 130, 200), {
-			Shape = Enum.PartType.Ball,
-			Material = Enum.Material.Neon,
-			CanCollide = false,
-			Transparency = 0.15,
-		})
-		orb:SetAttribute("Bob", 0.6 + i * 0.15)
-	end
-	-- lights: a warm key light from the camera side, a cool rim light behind the hero
-	local key = block("KeyLight", Vector3.new(0.5, 0.5, 0.5), L(sx + 5, 9, sz - 8), rgb(255, 255, 255), { Transparency = 1, CanCollide = false })
-	light(key, 26, 1.1, rgb(255, 236, 214))
-	local rim = block("RimLight", Vector3.new(0.5, 0.5, 0.5), L(sx - 1, 6, sz + 5), rgb(255, 255, 255), { Transparency = 1, CanCollide = false })
-	light(rim, 14, 2.2, rgb(176, 128, 255))
-	current = lobby
-end
 
 -- the look of the whole place: soft daylight, a light haze, a little bloom for the neon
 local function applyLighting()
@@ -551,102 +450,7 @@ local function applyLighting()
 end
 
 local function buildLobby(map: Model)
-	local lobby = Instance.new("Model")
-	lobby.Name = "Lobby"
-	lobby.Parent = map
-	current = lobby
-	local function L(x: number, y: number, z: number): CFrame
-		return CFrame.new(LOBBY + Vector3.new(x, y, z))
-	end
-	local size = 150
-	block("Floor", Vector3.new(size, 2, size), L(0, -1, 0), rgb(70, 60, 120))
-	for i = -3, 3 do
-		block("Stripe", Vector3.new(size, 0.1, 1.2), L(0, 0.05, i * 20), rgb(90, 80, 150))
-		block("Stripe", Vector3.new(1.2, 0.1, size), L(i * 20, 0.06, 0), rgb(90, 80, 150))
-	end
-	for _, side in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
-		local sx, sz = side[1], side[2]
-		local wsize = if sx ~= 0 then Vector3.new(2, 40, size) else Vector3.new(size, 40, 2)
-		block("Wall", wsize, L(sx * size / 2, 20, sz * size / 2), rgb(255, 255, 255), { Transparency = 1 })
-		local rsize = if sx ~= 0 then Vector3.new(2, 3, size) else Vector3.new(size, 3, 2)
-		block("Rail", rsize, L(sx * size / 2, 1.5, sz * size / 2), rgb(120, 106, 190)) -- calm lavender (a neon band would cut through the hub picture)
-	end
-
-	-- title
-	local titlePart = block("Title", Vector3.new(60, 14, 1), L(0, 22, -size / 2 + 6), rgb(30, 25, 50))
-	titlePart.Transparency = 1
-	titlePart.CanCollide = false
-	sign(titlePart, Enum.NormalId.Back, "67 SURVIVAL", rgb(255, 230, 90))
-	sign(titlePart, Enum.NormalId.Front, "67 SURVIVAL", rgb(255, 230, 90))
-
-	-- PLAY portal: walk in to start a run
-	block("PortalLeft", Vector3.new(3, 18, 3), L(-12, 9, -45), rgb(255, 90, 190), { Material = Enum.Material.Neon })
-	block("PortalRight", Vector3.new(3, 18, 3), L(12, 9, -45), rgb(255, 90, 190), { Material = Enum.Material.Neon })
-	local top = block("PortalTop", Vector3.new(27, 4, 3), L(0, 19, -45), rgb(255, 90, 190), { Material = Enum.Material.Neon })
-	sign(top, Enum.NormalId.Back, "PLAY", rgb(255, 255, 255))
-	sign(top, Enum.NormalId.Front, "PLAY", rgb(255, 255, 255))
-	local field = block("PlayPortal", Vector3.new(21, 17, 2), L(0, 8.5, -45), rgb(120, 60, 255), { Material = Enum.Material.ForceField, Transparency = 0.2, CanCollide = false })
-	field.CanTouch = true
-	field:SetAttribute("PlayPortal", true)
-
-	-- leaderboard board
-	local board = block("LeaderboardBoard", Vector3.new(34, 24, 1.5), L(-50, 13, 0) * CFrame.Angles(0, math.rad(90), 0), rgb(30, 25, 50))
-	board:SetAttribute("Leaderboard", "BestTime")
-	block("BoardLegs", Vector3.new(2, 2, 30), L(-50, 1, 0), rgb(60, 50, 90))
-
-	-- HUB STAGE: your own hero stands on a pedestal at the spawn; the hub camera
-	-- (client CameraController) frames it from the front with the backdrop behind
-	buildStage(lobby, L)
-
-	-- AFK CAMP: a campfire where resting heroes collect rewards (step on the pad to open it)
-	local cx, cz = 45, -8
-	block("CampGround", Vector3.new(0.3, 26, 26), L(cx, 0.15, cz) * CFrame.Angles(0, 0, math.rad(90)), rgb(95, 80, 60), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Ground })
-	for k = 0, 2 do
-		local a = k * math.pi * 2 / 3
-		block("Log", Vector3.new(4.5, 1, 1), L(cx, 0.7, cz) * CFrame.Angles(0, a, 0.25), rgb(110, 70, 40))
-	end
-	local fire = block("Campfire", Vector3.new(2.4, 3, 2.4), L(cx, 2, cz), rgb(255, 150, 40), { Shape = Enum.PartType.Ball, Material = Enum.Material.Neon, CanCollide = false })
-	fire:SetAttribute("Bob", 0.25)
-	local fireLight = Instance.new("PointLight")
-	fireLight.Range = 22
-	fireLight.Brightness = 2
-	fireLight.Color = rgb(255, 170, 80)
-	fireLight.Parent = fire
-	for k = 0, 3 do
-		local a = k * math.pi / 2 + math.pi / 4
-		block("CampBench", Vector3.new(5, 1.2, 1.6), L(cx + math.cos(a) * 8, 0.6, cz + math.sin(a) * 8) * CFrame.Angles(0, -a + math.pi / 2, 0), rgb(130, 90, 55))
-	end
-	local campSign = block("CampSign", Vector3.new(12, 3, 0.4), L(cx, 7, cz - 12), rgb(30, 25, 50))
-	sign(campSign, Enum.NormalId.Back, "AFK CAMP", rgb(255, 205, 90))
-	sign(campSign, Enum.NormalId.Front, "AFK CAMP", rgb(255, 205, 90))
-	block("CampSignPost", Vector3.new(0.6, 6, 0.6), L(cx, 3, cz - 12), rgb(90, 70, 50))
-	local pad = block("AfkCampPad", Vector3.new(0.3, 22, 22), L(cx, 0.35, cz) * CFrame.Angles(0, 0, math.rad(90)), rgb(255, 170, 80), { Shape = Enum.PartType.Cylinder, Transparency = 1, CanCollide = false })
-	pad:SetAttribute("AfkCamp", true)
-
-	-- planters and lamps along the rails
-	for i = -2, 2 do
-		for _, side in { -1, 1 } do
-			local x, z = side * (size / 2 - 5), i * 28
-			block("Planter", Vector3.new(4, 2.5, 8), L(x, 1.25, z), rgb(90, 70, 140))
-			block("Bush", Vector3.new(4.5, 3.5, 8.5), L(x, 3.5, z), rgb(90, 200, 110), { Shape = Enum.PartType.Ball })
-		end
-		if i ~= 0 then
-			local lamp = block("LobbyLamp", Vector3.new(2, 2, 2), L(i * 28, 10, size / 2 - 6), rgb(255, 230, 170), { Shape = Enum.PartType.Ball, Material = Enum.Material.Neon })
-			block("LampPost", Vector3.new(0.8, 9, 0.8), L(i * 28, 4.5, size / 2 - 6), rgb(60, 50, 90))
-			local light = Instance.new("PointLight")
-			light.Range = 20
-			light.Color = rgb(255, 200, 230)
-			light.Parent = lamp
-		end
-	end
-
-	-- the grass nobody touches (secret)
-	local grass = block("Grass", Vector3.new(6, 1, 6), L(62, 0.4, 62), rgb(70, 190, 80), { Material = Enum.Material.Grass })
-	grass:SetAttribute("SecretRegion", "TouchGrass")
-	local warning = block("GrassSign", Vector3.new(6, 3, 0.4), L(62, 4, 58), rgb(255, 255, 255))
-	sign(warning, Enum.NormalId.Back, "DO NOT TOUCH", rgb(40, 40, 40), rgb(255, 255, 255))
-	sign(warning, Enum.NormalId.Front, "DO NOT TOUCH", rgb(40, 40, 40), rgb(255, 255, 255))
-	return lobby
+	return EventMap.Build(map, LOBBY, STAGE)
 end
 
 local function buildSpawns(map: Model)
