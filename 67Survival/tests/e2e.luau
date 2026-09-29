@@ -635,6 +635,25 @@ coins = session.Data.Coins
 cd:Fire("Buy", "Product", "ExtraReroll")
 Engine.Step(0.5)
 check("extra reroll outside a run is refunded", session.Data.Coins == coins + 100, session.Data.Coins - coins)
+coins = session.Data.Coins
+cd:Fire("Buy", "Product", "Support2")
+Engine.Step(0.5)
+check("SUPPORT: a donation is a thank you, counted, nothing else", session.Data.Stats.Supported == 1 and session.Data.Stats.SupportedRobux == 100 and session.Data.Coins == coins, session.Data.Stats.Supported)
+lobby:OpenPanel("Shop", false, "Support")
+Engine.Step(0.5)
+local shopState = lobby.Panels.Shop and lobby.Panels.Shop.State
+check("shop has a SUPPORT page with 3 items", shopState ~= nil and shopState.Pages.Support ~= nil and shopState.Products.Support1 ~= nil and shopState.Products.Support3 ~= nil)
+check("Studio: items without an id can be test-bought", cd:CanBuy("Support1") == true and cd:RobuxPrice("Support1") == 25)
+-- the published game without ids: the item is there, marked SOON, and can't be bought
+cd.Data.Studio = false
+lobby:ClosePanel()
+lobby:OpenPanel("Shop", false, "Passes")
+Engine.Step(0.1)
+local slot = shopState.Products.ExtraHeroSlot
+check("published game, no id yet: SOON instead of a price", cd:CanBuy("ExtraHeroSlot") == false and slot.ButtonLabel.Text == "SOON", slot.ButtonLabel.Text)
+cd.Data.Studio = true
+lobby:ClosePanel()
+Engine.Step(0.3)
 check("no errors while buying", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------

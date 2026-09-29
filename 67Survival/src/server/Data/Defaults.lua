@@ -31,6 +31,7 @@ Defaults.StatKeys = {
 	"Events67", "EventKinds", "LifetimeCoins", "PlayTime", "Crates", "Rares", "Gems", "Evolutions",
 	"Collected", "HeroCount", "PartyRuns", "LifetimeFragments", "BestEvolutions",
 	"HighestWin", -- the highest difficulty tier won
+	"Supported", "SupportedRobux", -- SUPPORT purchases (donations): how many, Robux in total
 }
 
 Defaults.SettingKeys = {

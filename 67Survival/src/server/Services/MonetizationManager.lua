@@ -5,7 +5,9 @@
 	  * ProcessReceipt is idempotent (receipt ids are stored in the profile) and saves before
 	    it reports PurchaseGranted
 	  * items with Id = 0 are "not configured": in Studio a purchase is simulated so every
-	    reward can be tested; in live servers the shop says it's unavailable
+	    reward can be tested; in live servers the shop shows them as SOON
+	  * prices come from Roblox (GetProductInfo) so the shop shows what the dashboard says
+	  * SUPPORT products are donations: a thank you and a count in the profile, no reward
 ]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -24,6 +26,28 @@ local MonetizationManager = {}
 function MonetizationManager:Init(services)
 	self.Services = services
 	self.Owned = {} -- [Player] = { [passKey] = true }
+	self.Prices = {} -- [key] = the live price in Robux (read from Roblox for configured items)
+end
+
+-- reads the real prices of the configured passes / products (in the background)
+function MonetizationManager:LoadPrices()
+	local function load(def, infoType)
+		if def.Id == 0 then
+			return
+		end
+		local ok, info = pcall(function()
+			return MarketplaceService:GetProductInfo(def.Id, infoType)
+		end)
+		if ok and type(info) == "table" and type(info.PriceInRobux) == "number" then
+			self.Prices[def.Key] = info.PriceInRobux
+		end
+	end
+	for _, def in MonetizationData.Passes do
+		load(def, Enum.InfoType.GamePass)
+	end
+	for _, def in MonetizationData.Products do
+		load(def, Enum.InfoType.Product)
+	end
 end
 
 function MonetizationManager:HasPass(player: Player, key: string): boolean
@@ -77,6 +101,15 @@ function MonetizationManager:GrantProduct(player: Player, key: string): boolean
 	end
 	local PM = self.Services.PlayerManager
 	local RM = self.Services.RewardManager
+	if def.Donation then
+		-- SUPPORT: a thank you, counted in the profile (no reward in the game)
+		local stats = session.Data.Stats
+		stats.Supported += 1
+		stats.SupportedRobux += self.Prices[key] or def.Price
+		PM:Notify(player, "Thank you so much for supporting 67 Survival!", "Reward")
+		PM:Sync(player)
+		return true
+	end
 	-- never take Robux for nothing: a product that can't apply any more is refunded in coins
 	local function refund(coins: number)
 		RM:GiveCoins(session, coins)
@@ -180,6 +213,14 @@ end
 function MonetizationManager:Start()
 	MarketplaceService.ProcessReceipt = function(info)
 		return self:ProcessReceipt(info)
+	end
+	task.spawn(function()
+		self:LoadPrices()
+	end)
+	-- tell the creator which items can't be sold yet (see shared/MonetizationData.lua)
+	local missing = MonetizationData.Unconfigured()
+	if #missing > 0 then
+		print(string.format("[67 SURVIVAL] %d Robux items have no id yet (shown as SOON in the published game): %s. Paste the ids in ReplicatedStorage.Modules.MonetizationData.", #missing, table.concat(missing, ", ")))
 	end
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
 		if not purchased then

@@ -305,7 +305,9 @@ function LevelUpController:Show(offer)
 		self:BuildCard(card, i, #offer.Cards)
 	end
 	local rerolls = offer.Rerolls or 0
-	self.RerollLabel.Text = if rerolls > 0 then "REROLL (" .. tostring(rerolls) .. ")" else "+1 REROLL"
+	self.RerollLabel.Text = if rerolls > 0 then "REROLL (" .. tostring(rerolls) .. ")"
+		elseif self.C.ClientData:CanBuy("ExtraReroll") then "+1 REROLL  ·  R$ " .. self.C.ClientData:RobuxPrice("ExtraReroll")
+		else "NO REROLLS"
 	self.RerollLabel.TextColor3 = C.Text
 	local wasOpen = self.Gui.Enabled
 	self.Gui.Enabled = true
@@ -348,7 +350,9 @@ function LevelUpController:Reroll()
 	end
 	if (offer.Rerolls or 0) <= 0 then
 		-- out of rerolls: offer one more (Extra Reroll product). Nothing happens unless bought.
-		self.C.ClientData:Fire("Buy", "Product", "ExtraReroll")
+		if self.C.ClientData:CanBuy("ExtraReroll") then
+			self.C.ClientData:Fire("Buy", "Product", "ExtraReroll")
+		end
 		return
 	end
 	self:Lock()

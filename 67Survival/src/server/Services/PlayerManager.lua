@@ -215,6 +215,7 @@ function PlayerManager:Snapshot(session)
 		LiveEvents = LiveEvents.Active(now),
 		Settings = d.Settings,
 		Passes = passes,
+		Prices = self.Services.MonetizationManager.Prices,
 		SaveStatus = self.Services.DataManager.Status,
 		Admin = self:IsAdmin(session.Player),
 		Studio = RunService:IsStudio(),

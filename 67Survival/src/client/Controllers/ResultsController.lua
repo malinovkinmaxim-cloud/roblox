@@ -13,7 +13,6 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local Format = require(Shared.Util.Format)
 local WeaponData = require(Shared.WeaponData)
 local AchievementData = require(Shared.AchievementData)
-local MonetizationData = require(Shared.MonetizationData)
 local CosmeticData = require(Shared.CosmeticData)
 local DifficultyData = require(Shared.DifficultyData)
 local RunService = game:GetService("RunService")
@@ -264,9 +263,8 @@ end
 
 function ResultsController:ShowDeath(p)
 	self.Death.Visible = true
-	self.ReviveButton.Visible = p.CanBuyRevive == true
-	local product = MonetizationData.ProductByKey.Revive
-	self.ReviveLabel.Text = string.format("REVIVE  ·  R$ %d", product.Price)
+	self.ReviveButton.Visible = p.CanBuyRevive == true and self.C.ClientData:CanBuy("Revive")
+	self.ReviveLabel.Text = string.format("REVIVE  ·  R$ %d", self.C.ClientData:RobuxPrice("Revive"))
 	self.C.SoundController:Play("Death")
 	self.C.CameraController:ZoomPunch(0.6, 1)
 	local window = p.Window or 10
@@ -348,8 +346,8 @@ function ResultsController:ShowResults(p)
 	self:AnimateHero(vf, if victory then CosmeticData.Style(equipped, "VictoryAnim") else nil)
 
 	-- extra chest: once, and only if coins were earned
-	self.ChestButton.Visible = (r.Coins or 0) > 0
-	self.ChestLabel.Text = string.format("EXTRA CHEST  ·  R$ %d", MonetizationData.ProductByKey.ExtraChest.Price)
+	self.ChestButton.Visible = (r.Coins or 0) > 0 and self.C.ClientData:CanBuy("ExtraChest")
+	self.ChestLabel.Text = string.format("EXTRA CHEST  ·  R$ %d", self.C.ClientData:RobuxPrice("ExtraChest"))
 
 	-- the most important news first, at most 4 items (the rest as "+N more")
 	local lines = {}

@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local Net = require(Shared.Net)
+local MonetizationData = require(Shared.MonetizationData)
 local Signal = require(Shared.Util.Signal)
 
 local ClientData = {}
@@ -42,6 +43,22 @@ function ClientData:Setting(key: string): any
 		return false
 	end
 	return true
+end
+
+-- the price in Robux shown for a pass / product: the live one from Roblox when known
+function ClientData:RobuxPrice(key: string): number
+	local live = self.Data and self.Data.Prices and self.Data.Prices[key]
+	if type(live) == "number" then
+		return live
+	end
+	local def = MonetizationData.PassByKey[key] or MonetizationData.ProductByKey[key]
+	return if def then def.Price else 0
+end
+
+-- can this pass / product be bought here? (a configured id, or a Studio test purchase)
+function ClientData:CanBuy(key: string): boolean
+	local def = MonetizationData.PassByKey[key] or MonetizationData.ProductByKey[key]
+	return def ~= nil and MonetizationData.Available(def, self.Data ~= nil and self.Data.Studio == true)
 end
 
 function ClientData:SetSetting(key: string, value: any)

@@ -80,9 +80,9 @@ Icons.Product = {
 	ExtraChest = "Coin",
 	CosmeticBoost = "Special",
 	AfkBoost = "Growth",
-	Support1 = "Health",
-	Support2 = "Health",
-	Support3 = "Health",
+	Support1 = "Special",
+	Support2 = "Special",
+	Support3 = "Special",
 }
 
 -- cosmetic category -> symbol (the tile takes the cosmetic's own colour)

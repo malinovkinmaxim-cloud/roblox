@@ -8,9 +8,12 @@
 	  BOOSTS      67 Aura (30 min), AFK Boost (x2 camp rewards, 4 h)
 	  GAMEPASSES  VIP Cosmetics, Cosmetic Collection, Extra Loadout Slots, Extra AFK Hero
 	              Slot, AFK Capacity
+	  SUPPORT     donations (Say Thanks / Big Thanks / Legendary Supporter): no reward
+	Robux prices come from Roblox when the ids are set; items without an id show SOON in the
+	published game (shared/MonetizationData.lua).
 	Nothing here wins a run: the paid revive / extra reroll / extra chest only appear at the
 	moment they apply (death screen, level up, results).
-	OnOpen(arg) selects a page ("Upgrades", "Cosmetics", "Boosts", "Passes").
+	OnOpen(arg) selects a page ("Upgrades", "Cosmetics", "Boosts", "Passes", "Support").
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,8 +38,9 @@ local Panel = {}
 Panel.Kind = "Screen"
 Panel.Title = "SHOP"
 
-local PAGES = { "Upgrades", "Cosmetics", "Boosts", "Passes" }
-local LABELS = { Upgrades = "UPGRADES", Cosmetics = "COSMETICS", Boosts = "BOOSTS", Passes = "GAMEPASSES" }
+local PAGES = { "Upgrades", "Cosmetics", "Boosts", "Passes", "Support" }
+local LABELS = { Upgrades = "UPGRADES", Cosmetics = "COSMETICS", Boosts = "BOOSTS", Passes = "GAMEPASSES", Support = "SUPPORT" }
+local SUPPORT = { { "Product", "Support1" }, { "Product", "Support2" }, { "Product", "Support3" } }
 local BOOSTS = { { "Product", "CosmeticBoost" }, { "Product", "AfkBoost" } }
 local PASSES = {
 	{ "Pass", "VIPCosmetics" },
@@ -71,6 +75,9 @@ local function productCard(state, scroll: Instance, order: number, kind: string,
 			local data = state.C.ClientData.Data
 			if kind == "Pass" and data and data.Passes and data.Passes[key] then
 				return
+			end
+			if not state.C.ClientData:CanBuy(key) then
+				return -- not on sale yet (no id)
 			end
 			state.C.ClientData:Fire("Buy", kind, key)
 		end,
@@ -260,7 +267,7 @@ function Panel.Build(body: Frame, controllers)
 
 	-- BOOSTS / GAMEPASSES
 	local cell = Vector2.new(300, 264)
-	for _, entry in { { "Boosts", BOOSTS }, { "Passes", PASSES } } do
+	for _, entry in { { "Boosts", BOOSTS }, { "Passes", PASSES }, { "Support", SUPPORT } } do
 		local scroll = page(holder, entry[1], cell)
 		state.Pages[entry[1]] = scroll
 		for i, item in entry[2] do
@@ -385,8 +392,12 @@ function Panel.Refresh(state, data)
 		elseif key == "AfkBoost" and data.Afk and (data.Afk.BoostLeft or 0) > 0 then
 			Cards.Set(ui, "EQUIPPED", string.format("ACTIVE %dm", math.ceil(data.Afk.BoostLeft / 60)), C.SuccessDark)
 			ui.State.Text = "ACTIVE"
+		elseif not state.C.ClientData:CanBuy(key) then
+			-- no id yet (published game): visible, but it can't be bought
+			Cards.Set(ui, "", "SOON", C.Neutral)
+			ui.Need.Text = "Not on sale yet"
 		else
-			Cards.Set(ui, "", robux(ui.Def.Price), C.AccentSoft)
+			Cards.Set(ui, "", robux(state.C.ClientData:RobuxPrice(key)), C.AccentSoft)
 		end
 	end
 end

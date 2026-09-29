@@ -189,6 +189,21 @@ T("hero models: smooth shapes, few parts, restrained neon, limbs, own colours", 
 	end
 end)
 
+T("monetization: prices and ids untouched, SUPPORT is a donation, missing ids are listed", function()
+	local M = R("ReplicatedStorage.Modules.MonetizationData")
+	local prices = { VIPCosmetics = 249, CosmeticPass = 299, ExtraLoadout = 149, ExtraHeroSlot = 149, AfkCapacity = 99, Revive = 25, ExtraReroll = 10, ExtraChest = 29, CosmeticBoost = 19, AfkBoost = 39 }
+	for key, price in prices do
+		local def = M.PassByKey[key] or M.ProductByKey[key]
+		Expect(def ~= nil and def.Price == price, key .. " price")
+	end
+	for _, key in { "Support1", "Support2", "Support3" } do
+		local def = M.ProductByKey[key]
+		Expect(def and def.Donation == true, key .. " is a donation")
+		Expect(not M.Available(def, false) and M.Available(def, true), key .. ": live needs an id, Studio can test")
+	end
+	Expect(#M.Unconfigured() == #M.Passes + #M.Products, "every item without an id is reported")
+end)
+
 T("difficulty: 7 tiers, each harder and paying more, rules added step by step", function()
 	Eq(DifficultyData.Count, 7, "tiers")
 	for i, tier in DifficultyData.List do

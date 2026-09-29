@@ -65,35 +65,35 @@ export type AchievementDef = {
 local AchievementData = {}
 
 AchievementData.List = {
-	{ Key = "FirstBlood", Name = "First Blood", Desc = "Defeat your first enemy", Coins = 25, Stat = "Kills", Goal = 1 },
-	{ Key = "Survivor5", Name = "Still Standing", Desc = "Survive 5 minutes", Coins = 100, Stat = "BestTime", Goal = 300 },
+	{ Key = "FirstBlood", Name = "First Blood", Desc = "Defeat your first enemy", Coins = 25, Fragments = 1, Stat = "Kills", Goal = 1 },
+	{ Key = "Survivor5", Name = "Still Standing", Desc = "Survive 5 minutes", Coins = 100, Fragments = 2, Stat = "BestTime", Goal = 300 },
 	{ Key = "Survivor10", Name = "Built Different", Desc = "Survive 10 minutes", Coins = 250, Fragments = 2, Stat = "BestTime", Goal = 600 },
 	{ Key = "Victory", Name = "67 Survivor", Desc = "Defeat THE FINAL ONE", Coins = 1000, Fragments = 5, Stat = "Wins", Goal = 1, Unlocks = "Survivor Crown" },
-	{ Key = "Level20", Name = "Getting Stronger", Desc = "Reach level 20 in a run", Coins = 100, Stat = "BestLevel", Goal = 20 },
-	{ Key = "Level35", Name = "Powerhouse", Desc = "Reach level 35 in a run", Coins = 250, Stat = "BestLevel", Goal = 35 },
+	{ Key = "Level20", Name = "Getting Stronger", Desc = "Reach level 20 in a run", Coins = 100, Fragments = 1, Stat = "BestLevel", Goal = 20 },
+	{ Key = "Level35", Name = "Powerhouse", Desc = "Reach level 35 in a run", Coins = 250, Fragments = 2, Stat = "BestLevel", Goal = 35 },
 	{ Key = "Level50", Name = "Unstoppable", Desc = "Reach level 50 in a run", Coins = 500, Fragments = 2, Stat = "BestLevel", Goal = 50 },
-	{ Key = "Kills1k", Name = "Horde Handler", Desc = "Defeat 1,000 enemies", Coins = 150, Stat = "Kills", Goal = 1000 },
+	{ Key = "Kills1k", Name = "Horde Handler", Desc = "Defeat 1,000 enemies", Coins = 150, Fragments = 2, Stat = "Kills", Goal = 1000 },
 	{ Key = "Kills10k", Name = "Horde Breaker", Desc = "Defeat 10,000 enemies", Coins = 500, Fragments = 3, Stat = "Kills", Goal = 10000 },
 	{ Key = "Kills100k", Name = "The Horde Fears You", Desc = "Defeat 100,000 enemies", Coins = 2500, Fragments = 10, Stat = "Kills", Goal = 100000 },
-	{ Key = "Run1000", Name = "One-Man Army", Desc = "Defeat 1,000 enemies in one run", Coins = 200, Run = "Kills", Goal = 1000 },
+	{ Key = "Run1000", Name = "One-Man Army", Desc = "Defeat 1,000 enemies in one run", Coins = 200, Fragments = 2, Run = "Kills", Goal = 1000 },
 	{ Key = "Run10000", Name = "Screen Full Of Enemies", Desc = "Defeat 10,000 enemies in one run", Coins = 1000, Fragments = 3, Run = "Kills", Goal = 10000 },
-	{ Key = "BossSlayer", Name = "Boss Slayer", Desc = "Defeat a boss", Coins = 150, Stat = "Bosses", Goal = 1 },
+	{ Key = "BossSlayer", Name = "Boss Slayer", Desc = "Defeat a boss", Coins = 150, Fragments = 3, Stat = "Bosses", Goal = 1 },
 	{ Key = "BossCollector", Name = "Boss Collector", Desc = "Defeat all 8 bosses", Coins = 1500, Fragments = 5, Stat = "BossKinds", Goal = 8 },
-	{ Key = "SixSeven", Name = "67", Desc = "Witness a 67 EVENT", Coins = 67, Stat = "Events67", Goal = 1, Unlocks = "67 Headband" },
+	{ Key = "SixSeven", Name = "67", Desc = "Witness a 67 EVENT", Coins = 67, Fragments = 1, Stat = "Events67", Goal = 1, Unlocks = "67 Headband" },
 	{ Key = "Witness67", Name = "Seen It All", Desc = "Witness all 8 different 67 events", Coins = 670, Fragments = 6, Stat = "EventKinds", Goal = 8, Unlocks = "Hero THE 67, ability 67 Blast" },
-	{ Key = "Evolved", Name = "Evolution", Desc = "Evolve an ability", Coins = 200, Run = "Evolved", Goal = 1 },
+	{ Key = "Evolved", Name = "Evolution", Desc = "Evolve an ability", Coins = 200, Fragments = 2, Run = "Evolved", Goal = 1 },
 	{ Key = "FiveEvolutions", Name = "Fully Evolved", Desc = "Evolve 5 abilities in one run", Coins = 1000, Fragments = 5, Run = "Evolved", Goal = 5 },
-	{ Key = "Arsenal", Name = "Arsenal", Desc = "Hold 6 abilities in one run", Coins = 150, Run = "Weapons", Goal = 6 },
-	{ Key = "FullArsenal", Name = "Walking Armory", Desc = "Hold 10 abilities in one run", Coins = 1000, Run = "Weapons", Goal = 10 },
-	{ Key = "RareTaste", Name = "Rare Taste", Desc = "Pick 5 rare (or better) cards in one run", Coins = 200, Run = "Rares", Goal = 5 },
-	{ Key = "Rich", Name = "Coin Collector", Desc = "Earn 10,000 coins in total", Coins = 500, Stat = "LifetimeCoins", Goal = 10000 },
-	{ Key = "Collector25", Name = "Collector", Desc = "Collect 25 entries in the Collection Book", Coins = 250, Stat = "Collected", Goal = 25 },
+	{ Key = "Arsenal", Name = "Arsenal", Desc = "Hold 6 abilities in one run", Coins = 150, Fragments = 1, Run = "Weapons", Goal = 6 },
+	{ Key = "FullArsenal", Name = "Walking Armory", Desc = "Hold 10 abilities in one run", Coins = 1000, Fragments = 3, Run = "Weapons", Goal = 10 },
+	{ Key = "RareTaste", Name = "Rare Taste", Desc = "Pick 5 rare (or better) cards in one run", Coins = 200, Fragments = 1, Run = "Rares", Goal = 5 },
+	{ Key = "Rich", Name = "Coin Collector", Desc = "Earn 10,000 coins in total", Coins = 500, Fragments = 2, Stat = "LifetimeCoins", Goal = 10000 },
+	{ Key = "Collector25", Name = "Collector", Desc = "Collect 25 entries in the Collection Book", Coins = 250, Fragments = 2, Stat = "Collected", Goal = 25 },
 	{ Key = "Collector60", Name = "Archivist", Desc = "Collect 60 entries in the Collection Book", Coins = 600, Fragments = 3, Stat = "Collected", Goal = 60 },
 	{ Key = "Collector100", Name = "Completionist", Desc = "Collect 100 entries in the Collection Book", Coins = 1500, Fragments = 8, Stat = "Collected", Goal = 100 },
-	{ Key = "Heroes5", Name = "Squad", Desc = "Unlock 5 heroes", Coins = 300, Stat = "HeroCount", Goal = 5 },
-	{ Key = "Together", Name = "Better Together", Desc = "Finish a run in a party", Coins = 150, Stat = "PartyRuns", Goal = 1 },
-	{ Key = "Untouchable", Name = "Untouchable", Desc = "Survive the first 3 minutes without taking damage", Coins = 300, Flag = true, Unlocks = "Untouchable Halo" },
-	{ Key = "Dedicated", Name = "One More Run", Desc = "Play 25 runs", Coins = 300, Stat = "Runs", Goal = 25 },
+	{ Key = "Heroes5", Name = "Squad", Desc = "Unlock 5 heroes", Coins = 300, Fragments = 3, Stat = "HeroCount", Goal = 5 },
+	{ Key = "Together", Name = "Better Together", Desc = "Finish a run in a party", Coins = 150, Fragments = 2, Stat = "PartyRuns", Goal = 1 },
+	{ Key = "Untouchable", Name = "Untouchable", Desc = "Survive the first 3 minutes without taking damage", Coins = 300, Fragments = 2, Flag = true, Unlocks = "Untouchable Halo" },
+	{ Key = "Dedicated", Name = "One More Run", Desc = "Play 25 runs", Coins = 300, Fragments = 3, Stat = "Runs", Goal = 25 },
 	-- difficulty: a win on each tier (HighestWin = the highest tier won)
 	{ Key = "WinHunt", Name = "The Real Horde", Desc = "Win on HUNT (II)", Coins = 400, Fragments = 2, Stat = "HighestWin", Goal = 2 },
 	{ Key = "WinHorde", Name = "Horde Master", Desc = "Win on HORDE (III)", Coins = 800, Fragments = 4, Stat = "HighestWin", Goal = 3, Unlocks = "Horde Ribbon trail" },
@@ -126,20 +126,20 @@ AchievementData.Secrets = { "Secret67", "SigmaStare", "GoldenGoober", "TouchGras
 export type QuestDef = { Key: string, Text: string, Kind: string, Goal: number, Coins: number, Fragments: number?, Single: boolean? }
 
 AchievementData.Quests = {
-	{ Key = "Kill300", Text = "Defeat 300 enemies", Kind = "Kills", Goal = 300, Coins = 100 },
-	{ Key = "Kill1000", Text = "Defeat 1,000 enemies", Kind = "Kills", Goal = 1000, Coins = 200 },
-	{ Key = "Kill2500", Text = "Defeat 2,500 enemies", Kind = "Kills", Goal = 2500, Coins = 350 },
-	{ Key = "Survive5", Text = "Survive 5 minutes in one run", Kind = "Time", Goal = 300, Coins = 150, Single = true },
-	{ Key = "Survive8", Text = "Survive 8 minutes in one run", Kind = "Time", Goal = 480, Coins = 250, Single = true },
-	{ Key = "Boss1", Text = "Defeat a boss", Kind = "Bosses", Goal = 1, Coins = 200 },
-	{ Key = "Level15", Text = "Reach level 15 in one run", Kind = "Level", Goal = 15, Coins = 150, Single = true },
-	{ Key = "Level25", Text = "Reach level 25 in one run", Kind = "Level", Goal = 25, Coins = 250, Single = true },
-	{ Key = "Rare2", Text = "Pick 2 rare (or better) cards", Kind = "Rares", Goal = 2, Coins = 150 },
-	{ Key = "Gems500", Text = "Collect 500 XP gems", Kind = "Gems", Goal = 500, Coins = 120 },
-	{ Key = "Runs3", Text = "Play 3 runs", Kind = "Runs", Goal = 3, Coins = 120 },
-	{ Key = "Crates5", Text = "Break 5 loot boxes", Kind = "Crates", Goal = 5, Coins = 120 },
-	{ Key = "Event1", Text = "Witness a 67 event", Kind = "Events67", Goal = 1, Coins = 150 },
-	{ Key = "Evolve1", Text = "Evolve an ability", Kind = "Evolved", Goal = 1, Coins = 200 },
+	{ Key = "Kill300", Text = "Defeat 300 enemies", Kind = "Kills", Goal = 300, Coins = 100, Fragments = 1 },
+	{ Key = "Kill1000", Text = "Defeat 1,000 enemies", Kind = "Kills", Goal = 1000, Coins = 200, Fragments = 1 },
+	{ Key = "Kill2500", Text = "Defeat 2,500 enemies", Kind = "Kills", Goal = 2500, Coins = 350, Fragments = 2 },
+	{ Key = "Survive5", Text = "Survive 5 minutes in one run", Kind = "Time", Goal = 300, Coins = 150, Fragments = 1, Single = true },
+	{ Key = "Survive8", Text = "Survive 8 minutes in one run", Kind = "Time", Goal = 480, Coins = 250, Fragments = 2, Single = true },
+	{ Key = "Boss1", Text = "Defeat a boss", Kind = "Bosses", Goal = 1, Coins = 200, Fragments = 2 },
+	{ Key = "Level15", Text = "Reach level 15 in one run", Kind = "Level", Goal = 15, Coins = 150, Fragments = 1, Single = true },
+	{ Key = "Level25", Text = "Reach level 25 in one run", Kind = "Level", Goal = 25, Coins = 250, Fragments = 2, Single = true },
+	{ Key = "Rare2", Text = "Pick 2 rare (or better) cards", Kind = "Rares", Goal = 2, Coins = 150, Fragments = 1 },
+	{ Key = "Gems500", Text = "Collect 500 XP crystals", Kind = "Gems", Goal = 500, Coins = 120, Fragments = 1 },
+	{ Key = "Runs3", Text = "Play 3 runs", Kind = "Runs", Goal = 3, Coins = 120, Fragments = 2 },
+	{ Key = "Crates5", Text = "Break 5 loot boxes", Kind = "Crates", Goal = 5, Coins = 120, Fragments = 1 },
+	{ Key = "Event1", Text = "Witness a 67 event", Kind = "Events67", Goal = 1, Coins = 150, Fragments = 1 },
+	{ Key = "Evolve1", Text = "Evolve an ability", Kind = "Evolved", Goal = 1, Coins = 200, Fragments = 2 },
 } :: { QuestDef }
 
 AchievementData.QuestByKey = {} :: { [string]: QuestDef }
@@ -1289,6 +1289,8 @@ local GameConfig = {}
 
 GameConfig.GameName = "67 SURVIVAL"
 GameConfig.Tagline = "Survive. Level up. Become unstoppable."
+-- what the purple FRAGMENT currency is for and where it comes from (tooltips, the heroes menu)
+GameConfig.FragmentsHelp = "FRAGMENTS unlock heroes and abilities. You get them for every run over a minute (more for long runs and bosses), from elites, daily quests, weekly challenges, achievements and the AFK Camp."
 GameConfig.Description = "Pick a hero, survive a huge horde, build your abilities, evolve them, beat the bosses. Short runs, rare 67 events, lots to collect."
 GameConfig.Version = 2
 
@@ -1345,6 +1347,27 @@ GameConfig.Player = {
 	MaxPassives = 8,
 }
 
+-- seeing your hero in a crowd (Settings: "Hero outline", "Fewer effects")
+GameConfig.Visuals = {
+	OutlineColor = Color3.fromRGB(255, 255, 255), -- the outline around your own hero in a run
+	OutlineTransparency = 0.05,
+	FillColor = Color3.fromRGB(120, 220, 255), -- a faint glow over the hero
+	FillTransparency = 0.85,
+	FewerEffectsParticles = 1 / 3, -- particle count with "Fewer effects" on
+	FewerEffectsFade = 0.25, -- ability areas and auras get this much more see-through
+}
+
+-- ponds in the arena: water slows everyone who wades through (bosses and flyers do not)
+GameConfig.Water = {
+	PlayerSpeed = 0.75, -- walk speed multiplier in water
+	EnemySpeed = 0.75,
+}
+
+-- new players: the "how to survive" card in the first run (never shown after that)
+GameConfig.Tutorial = {
+	HintSeconds = 10, -- seconds of run time (pauses and level-up choices do not count)
+}
+
 GameConfig.Run = {
 	Length = 13 * 60, -- soft end; the final boss spawns at FinalBossAt
 	FinalBossAt = 12 * 60,
@@ -1399,10 +1422,12 @@ GameConfig.Rewards = {
 	CoinBagValue = 8,
 	XPPerMinute = 20, -- account XP
 	XPPerKill = 1 / 10,
-	-- fragments: unlock heroes and new abilities
-	FragmentsBase = 1,
-	FragmentsPerBoss = 1,
-	FragmentsPer3Minutes = 1,
+	-- fragments: unlock heroes and new abilities. A 5-minute first run with a boss pays ~6
+	-- (2 + 1 + 2 from the boss + an elite drop): the first paid hero (15) in 2-3 runs
+	FragmentsBase = 2, -- every run that lasts at least a minute
+	FragmentsPerStep = 1, -- + this many ...
+	FragmentsTimeStep = 180, -- ... for every this many seconds survived
+	FragmentsPerBoss = 2, -- dropped by every boss (picked up in the run)
 	FragmentsVictory = 5,
 	FragmentsThe67 = 5,
 	PartyBonusPerMember = 0.1, -- coins + XP per other party member (max 3)
@@ -1439,8 +1464,10 @@ GameConfig.Leaderboard = {
 	Size = 10,
 }
 
--- Studio / admins get the DEBUG panel and chat commands
+-- the DEBUG panel and commands: the game's creator, plus these user ids (e.g. co-developers).
+-- For a group game: group members with at least this rank (255 = the group owner).
 GameConfig.AdminUserIds = {}
+GameConfig.AdminGroupRank = 254
 
 return GameConfig
 ]]></string>
@@ -1542,7 +1569,7 @@ local LIST: { HeroDef } = ({
 		Desc = "Carries everything. Drops nothing.",
 		Passive = "+60% pickup range, +25% coins",
 		Mechanic = "Hoarder",
-		MechanicText = "Hoarder: XP gems are worth 15% more, coins drop 50% more often.",
+		MechanicText = "Hoarder: XP crystals are worth 15% more, coins drop 50% more often.",
 		StartWeapon = "SigmaAura",
 		Stats = { Magnet = 0.6, Greed = 0.25 },
 		Color = rgb(40, 170, 170),
@@ -2712,13 +2739,15 @@ export type MetaDef = {
 
 local MetaData = {}
 
+-- permanent upgrades: Costs[n] = coins for level n (the first level is cheap so a new player
+-- buys one after the first runs; Revival and +1 Starting Ability stay big goals)
 MetaData.Upgrades = {
-	{ Key = "Might", Name = "Starting Damage", Desc = "+5% damage", Stat = "Might", PerLevel = 0.05, MaxLevel = 5, Costs = { 100, 220, 400, 650, 1000 } },
-	{ Key = "MaxHP", Name = "Starting HP", Desc = "+5% max HP", Stat = "MaxHPMult", PerLevel = 0.05, MaxLevel = 5, Costs = { 100, 220, 400, 650, 1000 } },
-	{ Key = "MoveSpeed", Name = "Movement Speed", Desc = "+5% movement speed", Stat = "MoveSpeed", PerLevel = 0.05, MaxLevel = 3, Costs = { 150, 350, 700 } },
-	{ Key = "Growth", Name = "XP Gain", Desc = "+5% XP", Stat = "Growth", PerLevel = 0.05, MaxLevel = 5, Costs = { 120, 260, 450, 700, 1100 } },
-	{ Key = "Greed", Name = "Coin Gain", Desc = "+10% coins", Stat = "Greed", PerLevel = 0.1, MaxLevel = 5, Costs = { 150, 300, 550, 900, 1400 } },
-	{ Key = "Magnet", Name = "Pickup Range", Desc = "+10% pickup range", Stat = "Magnet", PerLevel = 0.1, MaxLevel = 3, Costs = { 100, 250, 500 } },
+	{ Key = "Might", Name = "Starting Damage", Desc = "+5% damage", Stat = "Might", PerLevel = 0.05, MaxLevel = 5, Costs = { 60, 220, 400, 650, 1000 } },
+	{ Key = "MaxHP", Name = "Starting HP", Desc = "+5% max HP", Stat = "MaxHPMult", PerLevel = 0.05, MaxLevel = 5, Costs = { 60, 220, 400, 650, 1000 } },
+	{ Key = "MoveSpeed", Name = "Movement Speed", Desc = "+5% movement speed", Stat = "MoveSpeed", PerLevel = 0.05, MaxLevel = 3, Costs = { 80, 350, 700 } },
+	{ Key = "Growth", Name = "XP Gain", Desc = "+5% XP", Stat = "Growth", PerLevel = 0.05, MaxLevel = 5, Costs = { 70, 260, 450, 700, 1100 } },
+	{ Key = "Greed", Name = "Coin Gain", Desc = "+10% coins", Stat = "Greed", PerLevel = 0.1, MaxLevel = 5, Costs = { 80, 300, 550, 900, 1400 } },
+	{ Key = "Magnet", Name = "Pickup Range", Desc = "+10% pickup range", Stat = "Magnet", PerLevel = 0.1, MaxLevel = 3, Costs = { 50, 250, 500 } },
 	{ Key = "Armor", Name = "Armor", Desc = "-1 damage from every hit", Stat = "Armor", PerLevel = 1, MaxLevel = 2, Costs = { 400, 1200 } },
 	{ Key = "Regen", Name = "Regeneration", Desc = "+0.2 HP per second", Stat = "Regen", PerLevel = 0.2, MaxLevel = 3, Costs = { 200, 450, 900 } },
 	{ Key = "Luck", Name = "Luck", Desc = "+5% luck", Stat = "Luck", PerLevel = 0.05, MaxLevel = 3, Costs = { 250, 550, 1000 } },
@@ -2796,14 +2825,24 @@ return MetaData
 	nothing here makes a run easier to win. The paid revive is limited to once per run
 	(after the free ones), an extra reroll only shows when you are out of rerolls.
 
-	HOW TO CONFIGURE: create the Game Passes and Developer Products on the Creator Dashboard
-	and paste their ids below. An id of 0 means "not configured": the shop shows the item
-	as unavailable in live servers, and in Studio buying it runs a fake purchase so every
-	reward can be tested.
+	HOW TO SELL FOR ROBUX IN THE PUBLISHED GAME (the code already handles buying, owning,
+	receipts and refunds; only the ids are missing):
+	  1. Publish the place (File > Publish to Roblox), open it on create.roblox.com
+	     (Creations > your experience).
+	  2. Monetization > Passes: create one pass per entry of Passes below (name, picture,
+	     price), put it on sale, copy its id (the number in its URL) into `Id`.
+	  3. Monetization > Developer Products: create one product per entry of Products below,
+	     copy each id into `Id`.
+	  4. Game Settings > Security: nothing to switch on for purchases (no API access needed).
+	The price shown in the game is read from Roblox (MarketplaceService:GetProductInfo), so
+	it always matches what you set on the dashboard; `Price` below is only the fallback.
+	An id of 0 means "not configured": live servers show the item as SOON (it can't be
+	bought), and in Studio buying it runs a fake purchase so every reward can be tested.
+	The server prints the items still missing an id when it starts.
 ]]
 
 export type PassDef = { Key: string, Name: string, Desc: string, Id: number, Price: number }
-export type ProductDef = { Key: string, Name: string, Desc: string, Id: number, Price: number, Minutes: number? }
+export type ProductDef = { Key: string, Name: string, Desc: string, Id: number, Price: number, Minutes: number?, Donation: boolean? }
 
 local MonetizationData = {}
 
@@ -2821,6 +2860,11 @@ MonetizationData.Products = {
 	{ Key = "ExtraChest", Name = "Extra Chest", Desc = "Open one more reward chest after this run", Id = 0, Price = 29 },
 	{ Key = "CosmeticBoost", Name = "67 Aura", Desc = "Wear the 67 Aura for 30 minutes", Id = 0, Price = 19, Minutes = 30 },
 	{ Key = "AfkBoost", Name = "AFK Boost", Desc = "x2 AFK Camp rewards for 4 hours", Id = 0, Price = 39, Minutes = 240 },
+	-- SUPPORT (donations): no reward in the game, a thank you and a supporter mark in your
+	-- profile. Can be bought again and again.
+	{ Key = "Support1", Name = "Say Thanks", Desc = "Support 67 Survival. No bonus in the game, just a big thank you!", Id = 0, Price = 25, Donation = true },
+	{ Key = "Support2", Name = "Big Thanks", Desc = "Help the game grow: new heroes, bosses and 67 events.", Id = 0, Price = 100, Donation = true },
+	{ Key = "Support3", Name = "Legendary Supporter", Desc = "The biggest thank you. You keep 67 Survival going!", Id = 0, Price = 500, Donation = true },
 } :: { ProductDef }
 
 MonetizationData.PassByKey = {} :: { [string]: PassDef }
@@ -2830,6 +2874,27 @@ end
 MonetizationData.ProductByKey = {} :: { [string]: ProductDef }
 for _, def in MonetizationData.Products do
 	MonetizationData.ProductByKey[def.Key] = def
+end
+
+-- can this item be bought here? A configured id, or a Studio test (fake purchase)
+function MonetizationData.Available(def: { Id: number }, isStudio: boolean): boolean
+	return def.Id ~= 0 or isStudio
+end
+
+-- the items still missing an id ("Pass VIPCosmetics", "Product Revive"...)
+function MonetizationData.Unconfigured(): { string }
+	local out = {}
+	for _, def in MonetizationData.Passes do
+		if def.Id == 0 then
+			table.insert(out, "Pass " .. def.Key)
+		end
+	end
+	for _, def in MonetizationData.Products do
+		if def.Id == 0 then
+			table.insert(out, "Product " .. def.Key)
+		end
+	end
+	return out
 end
 
 return MonetizationData
@@ -4792,6 +4857,7 @@ Defaults.StatKeys = {
 	"Events67", "EventKinds", "LifetimeCoins", "PlayTime", "Crates", "Rares", "Gems", "Evolutions",
 	"Collected", "HeroCount", "PartyRuns", "LifetimeFragments", "BestEvolutions",
 	"HighestWin", -- the highest difficulty tier won
+	"Supported", "SupportedRobux", -- SUPPORT purchases (donations): how many, Robux in total
 }
 
 Defaults.SettingKeys = {
@@ -4800,6 +4866,8 @@ Defaults.SettingKeys = {
 	Shake = true,
 	DamageNumbers = true,
 	LowQuality = false,
+	HeroOutline = true, -- an outline around your hero in a run (easy to find in a crowd)
+	FewerEffects = false, -- fewer particles, fainter ability areas
 }
 
 Defaults.MaxLoadouts = 3
@@ -6678,8 +6746,9 @@ function GameManager:StepEntry(entry)
 		self.Services.CharacterManager:Teleport(entry.Player, CFrame.new(CENTER + Vector3.new(tp.X, 0.5, tp.Z)))
 	end
 
-	-- walk speed follows stats; frozen while choosing / dead / paused
-	local speed = if run:IsPaused() then 0 else run.Stats.WalkSpeed
+	-- walk speed follows stats (slower in water); frozen while choosing / dead / paused
+	local wade = if run:InWater(run.PX, run.PZ) then GameConfig.Water.PlayerSpeed else 1
+	local speed = if run:IsPaused() then 0 else run.Stats.WalkSpeed * wade
 	if speed ~= entry.WalkSpeed then
 		entry.WalkSpeed = speed
 		self.Services.CharacterManager:SetWalkSpeed(entry.Player, speed)
@@ -7372,7 +7441,8 @@ local function secretRoom(parent: Instance)
 	trigger:SetAttribute("SecretRegion", "Backrooms")
 end
 
--- flat colour (flower beds, ponds): purely visual, enemies and players walk over them.
+-- flower beds are flat colour; ponds are WATER (attribute Water): everyone wades through
+-- slower (GameConfig.Water), except bosses and flyers.
 -- spot(radius, margin) returns a free position (or nil) and marks it as taken.
 local function decorations(arena: Instance, spot: (number, number) -> (number?, number?))
 	local deco = folder("Decorations", arena)
@@ -7383,7 +7453,8 @@ local function decorations(arena: Instance, spot: (number, number) -> (number?, 
 		if x and z then
 			current = deco
 			block("PondRim", Vector3.new(0.3, r * 2 + 4, r * 2 + 4), at(x, 0.15, z) * flat, rgb(200, 190, 160), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Pebble })
-			block("Pond", Vector3.new(0.35, r * 2, r * 2), at(x, 0.2, z) * flat, rgb(80, 170, 255), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Glass, Transparency = 0.15 })
+			local pond = block("Pond", Vector3.new(0.35, r * 2, r * 2), at(x, 0.2, z) * flat, rgb(80, 170, 255), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Glass, Transparency = 0.15 })
+			pond:SetAttribute("Water", true)
 			block("LilyPad", Vector3.new(0.4, 4, 4), at(x + r * 0.3, 0.25, z - r * 0.2) * flat, rgb(90, 200, 90), { Shape = Enum.PartType.Cylinder })
 			block("LilyPad", Vector3.new(0.4, 3, 3), at(x - r * 0.4, 0.25, z + r * 0.3) * flat, rgb(90, 200, 90), { Shape = Enum.PartType.Cylinder })
 		end
@@ -7580,18 +7651,26 @@ local function buildStage(lobby: Instance, L: (number, number, number) -> CFrame
 	for i = -2, 2 do
 		ellipsoid("Hedge", Vector3.new(5.5, 2.4, 3), L(sx + i * 5.2, 0.9, sz + 12.5 - math.abs(i) * 0.8), rgb(78, 150, 110), { CanCollide = false })
 	end
-	-- a big glowing 67 far behind (soft through the depth of field)
-	local sixty = folder("Stage67", stage)
-	-- (read from the hub camera, which looks towards +Z: mirrored, 6 on the +X side)
-	digit("6", LOBBY + Vector3.new(sx - 4, 5, sz + 48), sixty, true)
-	digit("7", LOBBY + Vector3.new(sx - 16, 5, sz + 48), sixty, true)
-	for _, d in sixty:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.Transparency = 0.35
-			d.CanCollide = false
-			d.Color = rgb(255, 196, 80)
-		end
-	end
+	-- a big glowing "67" far behind, in the logo's font (soft through the depth of field).
+	-- Text on an invisible sign reads cleanly; neon blocks looked like glitchy rectangles.
+	local sign = block("Stage67", Vector3.new(26, 13, 0.2), L(sx, 8.5, sz + 46), rgb(255, 255, 255), { Transparency = 1, CanCollide = false, CanQuery = false })
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Sign"
+	gui.Face = Enum.NormalId.Front -- the hub camera looks towards +Z: it sees the front face
+	gui.LightInfluence = 0
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 20
+	gui.Parent = sign
+	local text = Instance.new("TextLabel")
+	text.Name = "Text"
+	text.BackgroundTransparency = 1
+	text.Size = UDim2.fromScale(1, 1)
+	text.Text = "67"
+	text.Font = Enum.Font.LuckiestGuy
+	text.TextScaled = true
+	text.TextColor3 = rgb(255, 204, 84)
+	text.TextTransparency = 0.3
+	text.Parent = gui
 	current = stage
 	-- a few slow floating orbs (WorldController bobs parts with a Bob attribute)
 	for i, spot in { Vector3.new(-7, 7.5, 10), Vector3.new(8.5, 9.5, 12), Vector3.new(-11, 11, 6) } do
@@ -7766,7 +7845,13 @@ local COLLIDER_CELL = 32
 function MapBuilder.ExtractColliders(arena: Instance)
 	local cells = {}
 	local count = 0
+	local water = {}
 	for _, d in arena:GetDescendants() do
+		if d:IsA("BasePart") and d:GetAttribute("Water") then
+			-- a flat cylinder: its radius is half the size across (arena coordinates)
+			local p = d.CFrame.Position - CENTER
+			table.insert(water, { X = p.X, Z = p.Z, R = math.max(d.Size.Y, d.Size.Z) / 2 })
+		end
 		if d:IsA("BasePart") and d:GetAttribute("EnemyBlocker") then
 			-- XZ bounding box of the (possibly rotated) part, in arena coordinates
 			local cf, size = d.CFrame, d.Size
@@ -7786,7 +7871,7 @@ function MapBuilder.ExtractColliders(arena: Instance)
 			end
 		end
 	end
-	return { Cell = COLLIDER_CELL, Cells = cells, Count = count }
+	return { Cell = COLLIDER_CELL, Cells = cells, Count = count, Water = water }
 end
 
 function MapBuilder.ExtractRegions(map: Instance)
@@ -7859,7 +7944,9 @@ return MapBuilder
 	  * ProcessReceipt is idempotent (receipt ids are stored in the profile) and saves before
 	    it reports PurchaseGranted
 	  * items with Id = 0 are "not configured": in Studio a purchase is simulated so every
-	    reward can be tested; in live servers the shop says it's unavailable
+	    reward can be tested; in live servers the shop shows them as SOON
+	  * prices come from Roblox (GetProductInfo) so the shop shows what the dashboard says
+	  * SUPPORT products are donations: a thank you and a count in the profile, no reward
 ]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -7878,6 +7965,28 @@ local MonetizationManager = {}
 function MonetizationManager:Init(services)
 	self.Services = services
 	self.Owned = {} -- [Player] = { [passKey] = true }
+	self.Prices = {} -- [key] = the live price in Robux (read from Roblox for configured items)
+end
+
+-- reads the real prices of the configured passes / products (in the background)
+function MonetizationManager:LoadPrices()
+	local function load(def, infoType)
+		if def.Id == 0 then
+			return
+		end
+		local ok, info = pcall(function()
+			return MarketplaceService:GetProductInfo(def.Id, infoType)
+		end)
+		if ok and type(info) == "table" and type(info.PriceInRobux) == "number" then
+			self.Prices[def.Key] = info.PriceInRobux
+		end
+	end
+	for _, def in MonetizationData.Passes do
+		load(def, Enum.InfoType.GamePass)
+	end
+	for _, def in MonetizationData.Products do
+		load(def, Enum.InfoType.Product)
+	end
 end
 
 function MonetizationManager:HasPass(player: Player, key: string): boolean
@@ -7931,6 +8040,15 @@ function MonetizationManager:GrantProduct(player: Player, key: string): boolean
 	end
 	local PM = self.Services.PlayerManager
 	local RM = self.Services.RewardManager
+	if def.Donation then
+		-- SUPPORT: a thank you, counted in the profile (no reward in the game)
+		local stats = session.Data.Stats
+		stats.Supported += 1
+		stats.SupportedRobux += self.Prices[key] or def.Price
+		PM:Notify(player, "Thank you so much for supporting 67 Survival!", "Reward")
+		PM:Sync(player)
+		return true
+	end
 	-- never take Robux for nothing: a product that can't apply any more is refunded in coins
 	local function refund(coins: number)
 		RM:GiveCoins(session, coins)
@@ -8034,6 +8152,14 @@ end
 function MonetizationManager:Start()
 	MarketplaceService.ProcessReceipt = function(info)
 		return self:ProcessReceipt(info)
+	end
+	task.spawn(function()
+		self:LoadPrices()
+	end)
+	-- tell the creator which items can't be sold yet (see shared/MonetizationData.lua)
+	local missing = MonetizationData.Unconfigured()
+	if #missing > 0 then
+		print(string.format("[67 SURVIVAL] %d Robux items have no id yet (shown as SOON in the published game): %s. Paste the ids in ReplicatedStorage.Modules.MonetizationData.", #missing, table.concat(missing, ", ")))
 	end
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
 		if not purchased then
@@ -8471,14 +8597,27 @@ function PlayerManager.WeekLeft(): number
 	return (PlayerManager.Week() + 1) * WEEK + MONDAY - now
 end
 
+-- who gets the DEBUG panel: the game's creator (the owner, or a group owner/admin for a group
+-- game) and GameConfig.AdminUserIds. Everyone else never gets it, in Studio too: "Local
+-- Server" test players (negative ids) are regular players. Only an unpublished place (no
+-- creator yet) lets the person testing in Studio in.
 function PlayerManager:IsAdmin(player: Player): boolean
-	if RunService:IsStudio() then
-		return true
-	end
 	if table.find(GameConfig.AdminUserIds, player.UserId) then
 		return true
 	end
-	return game.CreatorType == Enum.CreatorType.User and player.UserId == game.CreatorId
+	if game.CreatorType == Enum.CreatorType.User then
+		if game.CreatorId ~= 0 and player.UserId == game.CreatorId then
+			return true
+		end
+	elseif game.CreatorType == Enum.CreatorType.Group and game.CreatorId ~= 0 then
+		local ok, rank = pcall(function()
+			return player:GetRankInGroup(game.CreatorId)
+		end)
+		if ok and type(rank) == "number" and rank >= GameConfig.AdminGroupRank then
+			return true
+		end
+	end
+	return RunService:IsStudio() and game.CreatorId == 0 and player.UserId > 0
 end
 
 ---------------------------------------------------------------------------
@@ -8612,6 +8751,7 @@ function PlayerManager:Snapshot(session)
 		LiveEvents = LiveEvents.Active(now),
 		Settings = d.Settings,
 		Passes = passes,
+		Prices = self.Services.MonetizationManager.Prices,
 		SaveStatus = self.Services.DataManager.Status,
 		Admin = self:IsAdmin(session.Player),
 		Studio = RunService:IsStudio(),
@@ -8676,7 +8816,11 @@ function PlayerManager:ClaimQuest(player: Player, index: number)
 	end
 	q.Claimed = true
 	self.Services.RewardManager:GiveCoins(session, def.Coins)
-	self:Notify(player, string.format("Quest complete: +%d coins!", def.Coins), "Reward")
+	local fragments = def.Fragments or 0
+	if fragments > 0 then
+		self.Services.RewardManager:GiveFragments(session, fragments)
+	end
+	self:Notify(player, string.format("Quest complete: +%d coins%s!", def.Coins, if fragments > 0 then string.format(", +%d fragment%s", fragments, if fragments == 1 then "" else "s") else ""), "Reward")
 	self:Sync(player)
 end
 
@@ -9122,7 +9266,7 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 	-- fragments: a little for every real run, more for bosses / long runs / wins
 	local fragments = run.Fragments
 	if run.Time >= 60 then
-		fragments += R.FragmentsBase + math.floor(run.Time / 180) * R.FragmentsPer3Minutes
+		fragments += R.FragmentsBase + math.floor(run.Time / R.FragmentsTimeStep) * R.FragmentsPerStep
 	end
 	if run.Victory then
 		fragments += R.FragmentsVictory
@@ -12017,7 +12161,9 @@ function EnemyManager.Step(run, dt: number)
 		if e.SlowUntil <= now then
 			e.SlowFactor = 1
 		end
-		local speed = e.Speed * mult * slow * turbo
+		-- ponds: the horde wades slower (not bosses, not flyers)
+		local wade = if not e.IsBoss and not e.Air and run:InWater(e.X, e.Z) then GameConfig.Water.EnemySpeed else 1
+		local speed = e.Speed * mult * slow * turbo * wade
 
 		-- crowd separation (a few neighbours are enough to spread a horde)
 		local sepX, sepZ = 0, 0
@@ -13138,6 +13284,21 @@ function Run:SetPlayer(x: number, z: number, fx: number?, fz: number?)
 		self.FX, self.FZ = fx / len, fz / len
 	end
 	self.PX, self.PZ = x, z
+end
+
+-- true when (x, z) is inside a pond (the map's water circles)
+function Run:InWater(x: number, z: number): boolean
+	local water = self.Colliders and self.Colliders.Water
+	if not water then
+		return false
+	end
+	for _, w in water do
+		local dx, dz = x - w.X, z - w.Z
+		if dx * dx + dz * dz < w.R * w.R then
+			return true
+		end
+	end
+	return false
 end
 
 function Run:AddXP(amount: number)
@@ -14465,9 +14626,12 @@ end
 -- in a run (and on its results) toasts sit at the top centre (under the timer); in the hub
 -- the logo is there, so they stack on the right under the coins bar
 function BannerController:PlaceToasts()
-	local inRun = (self.C.RunClient and self.C.RunClient.Active) or self.C.ResultsController:IsOpen()
+	local results = self.C.ResultsController:IsOpen()
+	local inRun = (self.C.RunClient and self.C.RunClient.Active) or results
+	self.ToastWidth = if inRun then 400 else 330 -- narrower in the hub: clear of the logo
 	if inRun then
-		self.Toasts.Position = UDim2.new(0.5, 0, 0, 90)
+		-- (over the results panel: at the very top, above its title)
+		self.Toasts.Position = UDim2.new(0.5, 0, 0, if results then 6 else 90)
 		self.Toasts.AnchorPoint = Vector2.new(0.5, 0)
 		self.ToastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	else
@@ -14651,7 +14815,7 @@ function BannerController:Toast(text: string, kind: string?)
 	self:PlaceToasts()
 	self.ToastOrder += 1
 	local frame = Kit.Panel({
-		Size = UDim2.fromOffset(400, 40),
+		Size = UDim2.fromOffset(self.ToastWidth or 400, 40),
 		BackgroundTransparency = Theme.GlassStrong,
 		LayoutOrder = self.ToastOrder,
 		Radius = 12,
@@ -15086,6 +15250,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local Net = require(Shared.Net)
+local MonetizationData = require(Shared.MonetizationData)
 local Signal = require(Shared.Util.Signal)
 
 local ClientData = {}
@@ -15117,10 +15282,26 @@ function ClientData:Setting(key: string): any
 	if data and data.Settings and data.Settings[key] ~= nil then
 		return data.Settings[key]
 	end
-	if key == "LowQuality" then
+	if key == "LowQuality" or key == "FewerEffects" then
 		return false
 	end
 	return true
+end
+
+-- the price in Robux shown for a pass / product: the live one from Roblox when known
+function ClientData:RobuxPrice(key: string): number
+	local live = self.Data and self.Data.Prices and self.Data.Prices[key]
+	if type(live) == "number" then
+		return live
+	end
+	local def = MonetizationData.PassByKey[key] or MonetizationData.ProductByKey[key]
+	return if def then def.Price else 0
+end
+
+-- can this pass / product be bought here? (a configured id, or a Studio test purchase)
+function ClientData:CanBuy(key: string): boolean
+	local def = MonetizationData.PassByKey[key] or MonetizationData.ProductByKey[key]
+	return def ~= nil and MonetizationData.Available(def, self.Data ~= nil and self.Data.Studio == true)
 end
 
 function ClientData:SetSetting(key: string, value: any)
@@ -15279,6 +15460,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local CosmeticData = require(ReplicatedStorage:WaitForChild("Modules").CosmeticData)
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules").GameConfig)
 
 local EffectsController = {}
 
@@ -15440,8 +15622,20 @@ end
 ---------------------------------------------------------------------------
 -- primitives
 ---------------------------------------------------------------------------
+-- full effects unless "Low quality" or "Fewer effects" is on
 function EffectsController:Quality(): boolean
-	return not self.C.ClientData:Setting("LowQuality")
+	return not self.C.ClientData:Setting("LowQuality") and self.C.ClientData:Setting("FewerEffects") ~= true
+end
+
+-- how many particles to emit (x count): a third with Low quality, the configured share with
+-- Fewer effects
+function EffectsController:ParticleScale(): number
+	if self.C.ClientData:Setting("LowQuality") then
+		return 1 / 3
+	elseif self.C.ClientData:Setting("FewerEffects") == true then
+		return GameConfig.Visuals.FewerEffectsParticles
+	end
+	return 1
 end
 
 function EffectsController:Emit(kind: string, pos: Vector3, color: Color3, count: number)
@@ -15452,7 +15646,7 @@ function EffectsController:Emit(kind: string, pos: Vector3, color: Color3, count
 	local att = e.Parent :: Attachment
 	att.Position = pos
 	e.Color = ColorSequence.new(color)
-	e:Emit(if self:Quality() then count else math.ceil(count / 3))
+	e:Emit(math.ceil(count * self:ParticleScale()))
 end
 
 function EffectsController:Poof(x: number, z: number, color: Color3, count: number?)
@@ -15947,7 +16141,7 @@ function EnemyRenderer:Remove(e, cause: number)
 		item.Root.Color = item.Info.BodyColor
 	end
 	fade(item, 0)
-	if cause == 0 and #self.Dying < MAX_DYING and not self.C.ClientData:Setting("LowQuality") then
+	if cause == 0 and #self.Dying < MAX_DYING and self.C.EffectsController:Quality() then
 		-- launched off screen, spinning: goofy death
 		local away = Vector3.new(e.RX - (self.PX or e.RX), 0, e.RZ - (self.PZ or e.RZ))
 		if away.Magnitude < 0.01 then
@@ -17130,17 +17324,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local GameConfig = require(Shared.GameConfig)
+local WeaponData = require(Shared.WeaponData)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Widgets = require(script.Parent.Parent.UI.Widgets)
 local Icons = require(script.Parent.Parent.UI.Icons)
+local Cards = require(script.Parent.Parent.UI.Cards)
 
 local LevelUpController = {}
 
 local C = Theme.Colors
 local F = Theme.Fonts
-local CARD_W, CARD_H = 220, 300
+local CARD_W, CARD_H = 220, 272
 
 function LevelUpController:Init(controllers)
 	self.C = controllers
@@ -17305,11 +17501,8 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 	end
 	local tagText, tagColor = tagFor(card)
 	if tagText ~= "" then
-		local tag = Widgets.Tag(button, tagText, tagColor, UDim2.new(1, -12, 0, 12), UDim2.fromOffset(0, 22))
+		local tag = Widgets.Tag(button, tagText, tagColor, UDim2.new(1, -12, 0, 12), UDim2.fromOffset(0, 22), 12)
 		tag.AnchorPoint = Vector2.new(1, 0)
-		tag.AutomaticSize = Enum.AutomaticSize.X
-		tag.TextScaled = false
-		tag.TextSize = 12
 	end
 	iconFor(button, card, 96)
 	-- rarity word under the icon (colour + word: readable for colour blind players too)
@@ -17319,7 +17512,8 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 		Size = UDim2.new(1, -24, 0, 14),
 		Position = UDim2.fromOffset(12, 142),
 		Font = F.Bold,
-		MaxTextSize = 11,
+		TextScaled = false,
+		TextSize = 12,
 		TextColor3 = rarity,
 		Parent = button,
 	})
@@ -17341,18 +17535,43 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 			Size = UDim2.new(1, -24, 0, 16),
 			Position = UDim2.new(0, 12, 1, -26),
 			Font = F.Bold,
-			MaxTextSize = 12,
+			TextScaled = false,
+			TextSize = 13,
 			TextColor3 = C.Mythic,
 			Parent = button,
 		})
 	end
+	-- one line of numbers under the text: the ability's stats, its level, the passive's stack
+	local info = ""
+	if card.Type == "Weapon" then
+		local def = WeaponData.ByKey[card.Key]
+		info = if def then Cards.WeaponStats(def) else ""
+	elseif (card.Type == "WeaponLevel" or card.Type == "Passive") and card.Level and card.MaxLevel then
+		info = string.format("%s %d / %d", if card.Type == "Passive" then "Stack" else "Level", card.Level, card.MaxLevel)
+	end
+	if info ~= "" and not hint then
+		Kit.Label({
+			Name = "Info",
+			Text = info,
+			Size = UDim2.new(1, -24, 0, 16),
+			Position = UDim2.new(0, 12, 1, -26),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 13,
+			TextColor3 = rarity:Lerp(Color3.new(1, 1, 1), 0.45),
+			Parent = button,
+		})
+	end
+	-- (the EVOLUTION tag already says it: the text starts with what it does)
+	local desc = if card.Type == "Evolution" then (string.gsub(card.Desc or "", "^Evolution%.%s*", "")) else card.Desc
 	Kit.Label({
 		Name = "Desc",
-		Text = card.Desc,
-		Size = UDim2.new(1, -32, 0, if hint then 70 else 88),
+		Text = desc,
+		Size = UDim2.new(1, -32, 0, if hint or info ~= "" then 46 else 64),
 		Position = UDim2.fromOffset(16, 194),
 		Font = F.Medium,
-		MaxTextSize = 15,
+		TextScaled = false, -- a fixed 15 px, never shrunk
+		TextSize = 15,
 		TextColor3 = C.TextDim,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
@@ -17399,7 +17618,9 @@ function LevelUpController:Show(offer)
 		self:BuildCard(card, i, #offer.Cards)
 	end
 	local rerolls = offer.Rerolls or 0
-	self.RerollLabel.Text = if rerolls > 0 then "REROLL (" .. tostring(rerolls) .. ")" else "+1 REROLL"
+	self.RerollLabel.Text = if rerolls > 0 then "REROLL (" .. tostring(rerolls) .. ")"
+		elseif self.C.ClientData:CanBuy("ExtraReroll") then "+1 REROLL  ·  R$ " .. self.C.ClientData:RobuxPrice("ExtraReroll")
+		else "NO REROLLS"
 	self.RerollLabel.TextColor3 = C.Text
 	local wasOpen = self.Gui.Enabled
 	self.Gui.Enabled = true
@@ -17442,7 +17663,9 @@ function LevelUpController:Reroll()
 	end
 	if (offer.Rerolls or 0) <= 0 then
 		-- out of rerolls: offer one more (Extra Reroll product). Nothing happens unless bought.
-		self.C.ClientData:Fire("Buy", "Product", "ExtraReroll")
+		if self.C.ClientData:CanBuy("ExtraReroll") then
+			self.C.ClientData:Fire("Buy", "Product", "ExtraReroll")
+		end
 		return
 	end
 	self:Lock()
@@ -17582,7 +17805,7 @@ function LobbyController:BuildTop(safe: Frame)
 	local logo = Kit.New("Frame", {
 		Name = "Logo",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(420, 84),
+		Size = UDim2.fromOffset(480, 84),
 		Position = UDim2.new(0.5, 0, 0, 30),
 		AnchorPoint = Vector2.new(0.5, 0),
 		Parent = safe,
@@ -17595,12 +17818,15 @@ function LobbyController:BuildTop(safe: Frame)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = logo,
 	})
+	-- both words size to their text (no TextScaled): the pair is centred as one group
 	Kit.Label({
 		Name = "Mark",
 		Text = "67",
-		Size = UDim2.fromOffset(100, 84),
+		Size = UDim2.fromOffset(0, 84),
+		AutomaticSize = Enum.AutomaticSize.X,
 		Font = F.Meme,
-		MaxTextSize = 78,
+		TextScaled = false,
+		TextSize = 76,
 		TextColor3 = C.Gold,
 		StrokeThickness = 2.5,
 		StrokeTransparency = 0.25,
@@ -17610,9 +17836,11 @@ function LobbyController:BuildTop(safe: Frame)
 	Kit.Label({
 		Name = "Word",
 		Text = "SURVIVAL",
-		Size = UDim2.fromOffset(250, 50),
+		Size = UDim2.fromOffset(0, 56),
+		AutomaticSize = Enum.AutomaticSize.X,
 		Font = F.Title,
-		MaxTextSize = 44,
+		TextScaled = false,
+		TextSize = 48,
 		StrokeThickness = 1.5,
 		StrokeTransparency = 0.6,
 		LayoutOrder = 2,
@@ -17621,14 +17849,15 @@ function LobbyController:BuildTop(safe: Frame)
 	self.Tagline = Kit.Label({
 		Name = "Tagline",
 		Text = LobbyController.Tagline,
-		Size = UDim2.fromOffset(440, 22),
+		Size = UDim2.fromOffset(560, 26),
 		Position = UDim2.new(0.5, 0, 0, 118),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Font = F.Medium,
-		MaxTextSize = 17,
+		Font = F.Bold,
+		TextScaled = false,
+		TextSize = 20,
 		TextColor3 = C.TextDim,
-		StrokeThickness = 1,
-		StrokeTransparency = 0.7,
+		StrokeThickness = 1.5,
+		StrokeTransparency = 0.45,
 		Parent = safe,
 	})
 
@@ -17636,7 +17865,7 @@ function LobbyController:BuildTop(safe: Frame)
 	local bar = Kit.New("Frame", {
 		Name = "TopRight",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(360, 44),
+		Size = UDim2.fromOffset(420, 44),
 		Position = UDim2.fromScale(1, 0),
 		AnchorPoint = Vector2.new(1, 0),
 		Parent = safe,
@@ -17649,20 +17878,36 @@ function LobbyController:BuildTop(safe: Frame)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = bar,
 	})
+	-- a currency pill: icon, the amount, and the name of the currency under it
+	local function amount(parent: Instance, x: number, right: number, caption: string, color: Color3): TextLabel
+		Kit.Label({
+			Name = "Caption",
+			Text = caption,
+			Size = UDim2.new(1, -(x + right), 0, 12),
+			Position = UDim2.fromOffset(x, 23),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 11,
+			TextColor3 = color,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = parent,
+		})
+		return Kit.Label({
+			Name = "Amount",
+			Text = "0",
+			Size = UDim2.new(1, -(x + right), 0, 18),
+			Position = UDim2.fromOffset(x, 4),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 17,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = parent,
+		})
+	end
 
-	local coins = pill("Coins", 132, 1, bar)
+	local coins = pill("Coins", 138, 1, bar)
 	Widgets.Coin(coins, 20, { Position = UDim2.new(0, 11, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
-	self.CoinsLabel = Kit.Label({
-		Name = "Amount",
-		Text = "0",
-		Size = UDim2.new(1, -72, 0, 20),
-		Position = UDim2.new(0, 38, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
-		Font = F.Bold,
-		MaxTextSize = 17,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = coins,
-	})
+	self.CoinsLabel = amount(coins, 38, 36, "COINS", C.Gold)
 	local plus = Kit.Label({
 		Text = "+",
 		Size = UDim2.fromOffset(24, 24),
@@ -17679,24 +17924,16 @@ function LobbyController:BuildTop(safe: Frame)
 		self:OpenPanel("Shop", false, "Upgrades")
 	end)
 
-	-- fragments: unlock heroes and abilities
-	local fragments = pill("Fragments", 92, 2, bar)
+	-- fragments: unlock heroes and abilities (the tooltip says where they come from)
+	local fragments = pill("Fragments", 124, 2, bar)
 	Widgets.Fragment(fragments, 18, { Position = UDim2.new(0, 11, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
-	self.FragmentsLabel = Kit.Label({
-		Name = "Amount",
-		Text = "0",
-		Size = UDim2.new(1, -44, 0, 20),
-		Position = UDim2.new(0, 36, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
-		Font = F.Bold,
-		MaxTextSize = 17,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = fragments,
-	})
+	self.FragmentsLabel = amount(fragments, 36, 10, "FRAGMENTS", C.Fragment)
+	self.FragmentsTip = Widgets.Tooltip(fragments, GameConfig.FragmentsHelp, 280)
 	fragments.Activated:Connect(function()
 		self:OpenPanel("Heroes")
 	end)
 
+	-- profile: your avatar + your account level ("LV 3")
 	local profile = Kit.New("TextButton", {
 		Name = "Profile",
 		Text = "",
@@ -17707,30 +17944,61 @@ function LobbyController:BuildTop(safe: Frame)
 		Parent = bar,
 	})
 	Kit.Corner(profile, 20)
-	Kit.Stroke(profile, 2, C.Accent, 0.25)
+	Kit.Stroke(profile, 2, C.Gold, 0.35)
 	Kit.Interactive(profile)
+	local initial = Kit.Label({
+		Name = "Initial",
+		Text = string.upper(string.sub(Players.LocalPlayer.DisplayName ~= "" and Players.LocalPlayer.DisplayName or Players.LocalPlayer.Name, 1, 1)),
+		Size = UDim2.fromScale(0.6, 0.6),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Font = F.Title,
+		TextColor3 = C.TextDim,
+		Parent = profile,
+	})
 	local avatar = Kit.New("ImageLabel", {
 		Name = "Avatar",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", Players.LocalPlayer.UserId),
+		Image = "",
 		Parent = profile,
 	})
 	Kit.Corner(avatar, 20)
+	-- the head shot loads in the background; until then (or if it can't load, e.g. test
+	-- players in Studio) the first letter of your name shows
+	task.spawn(function()
+		local userId = Players.LocalPlayer.UserId
+		if userId <= 0 then
+			return
+		end
+		local ok, content = pcall(function()
+			return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+		end)
+		if ok and type(content) == "string" and content ~= "" then
+			avatar.Image = content
+			initial.Visible = false
+		end
+	end)
 	self.LevelChip = Kit.Label({
 		Name = "Level",
-		Text = "1",
-		Size = UDim2.fromOffset(24, 18),
-		Position = UDim2.new(1, 4, 1, 4),
-		AnchorPoint = Vector2.new(1, 1),
+		Text = "LV 1",
+		Size = UDim2.fromOffset(34, 16),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Position = UDim2.new(0.5, 0, 1, 7),
+		AnchorPoint = Vector2.new(0.5, 1),
 		BackgroundTransparency = 0,
-		BackgroundColor3 = C.Accent,
+		BackgroundColor3 = C.SurfaceDark,
 		Font = F.Title,
-		MaxTextSize = 12,
+		TextScaled = false,
+		TextSize = 11,
+		TextColor3 = C.Gold,
 		ZIndex = 3,
 		Parent = profile,
 	})
-	Kit.Corner(self.LevelChip, 9)
+	Kit.Corner(self.LevelChip, 8)
+	Kit.Stroke(self.LevelChip, 1, C.Gold, 0.4)
+	Kit.New("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = self.LevelChip })
+	Widgets.Tooltip(profile, "Your profile. LV = your account level (it grows with every run).", 230)
 	profile.Activated:Connect(function()
 		self:OpenPanel("Profile")
 	end)
@@ -17758,30 +18026,33 @@ function LobbyController:BuildCentre(safe: Frame)
 	-- DIFFICULTY (above PLAY): ‹  III  HORDE  ›
 	local diff = Kit.New("Frame", {
 		Name = "Difficulty",
-		Size = UDim2.fromOffset(300, 40),
+		Size = UDim2.fromOffset(340, 48),
 		Position = UDim2.new(0.5, 0, PLAY_Y, -80),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = C.Surface,
 		BackgroundTransparency = Theme.Glass,
 		Parent = safe,
 	})
-	Kit.Corner(diff, 20)
+	Kit.Corner(diff, 24)
 	self.DiffStroke = Kit.Stroke(diff, 1.5, C.TextDim, 0.3)
 	local function arrow(name: string, text: string, x: number, anchor: number, step: number)
+		-- big round arrows (easy to hit with a mouse or a thumb)
 		local b = Kit.New("TextButton", {
 			Name = name,
 			Text = text,
 			AutoButtonColor = false,
 			Font = F.Title,
-			TextSize = 24,
-			TextColor3 = C.TextDim,
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(44, 40),
-			Position = UDim2.new(x, 0, 0.5, 0),
+			TextSize = 32,
+			TextColor3 = C.Text,
+			BackgroundColor3 = C.SurfaceLight,
+			BackgroundTransparency = 0.35,
+			Size = UDim2.fromOffset(40, 40),
+			Position = UDim2.new(x, if anchor == 0 then 4 else -4, 0.5, 0),
 			AnchorPoint = Vector2.new(anchor, 0.5),
 			Parent = diff,
 		})
-		Kit.Interactive(b, 1.15)
+		Kit.Corner(b, 20)
+		Kit.Interactive(b, 1.1)
 		b.Activated:Connect(function()
 			if Kit.ClickSound then
 				Kit.ClickSound()
@@ -17797,7 +18068,7 @@ function LobbyController:BuildCentre(safe: Frame)
 		Text = "",
 		AutoButtonColor = false,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -88, 1, 0),
+		Size = UDim2.new(1, -96, 1, 0),
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Parent = diff,
@@ -17832,9 +18103,9 @@ function LobbyController:BuildCentre(safe: Frame)
 			Parent = row,
 		})
 	end
-	self.DiffNumeral = part("Numeral", 1, F.Title, 18, C.TextDim)
-	self.DiffName = part("Name", 2, F.Title, 17, C.Text)
-	self.DiffReward = part("Reward", 3, F.Bold, 12, C.Gold)
+	self.DiffNumeral = part("Numeral", 1, F.Title, 20, C.TextDim)
+	self.DiffName = part("Name", 2, F.Title, 19, C.Text)
+	self.DiffReward = part("Reward", 3, F.Bold, 13, C.Gold)
 	self.DiffPill = diff
 
 	-- PLAY: big, clean, a soft halo and a lift under the mouse
@@ -18167,7 +18438,7 @@ end
 --[[
 	key: panel module name without "Panel" (Heroes, Abilities, Shop, More, Achievements,
 	Collection, Challenges, AfkCamp, Party, Leaderboard, Statistics, Codes, Settings,
-	Profile, Daily, Credits, Difficulty)
+	Profile, Daily, Credits, Difficulty, HowToPlay)
 	overlay: show above the run HUD (settings from the pause menu); arg: passed to OnOpen
 ]]
 function LobbyController:OpenPanel(key: string, overlay: boolean?, arg: any?)
@@ -18234,7 +18505,8 @@ function LobbyController:RefreshQuest(data)
 		self.QuestBar:Set(best.Progress / math.max(1, best.Goal))
 		self.QuestCount.Text = if ready then "DONE" else string.format("%s/%s", Widgets.Commas(best.Progress), Widgets.Commas(best.Goal))
 		self.QuestCount.TextColor3 = if ready then C.Success else C.TextDim
-		self.QuestReward.Text = (if ready then "Claim +" else "+") .. Widgets.Commas(best.Coins) .. " COINS"
+		local fragments = if (best.Fragments or 0) > 0 then string.format(" · +%d FRAGMENT%s", best.Fragments, if best.Fragments == 1 then "" else "S") else ""
+		self.QuestReward.Text = (if ready then "Claim +" else "+") .. Widgets.Commas(best.Coins) .. " COINS" .. fragments
 		self.QuestCard.BackgroundColor3 = if ready then C.SuccessDark else C.Surface
 	else
 		self.QuestText.Text = if done > 0 then "All done for today" else "New quests tomorrow"
@@ -18383,7 +18655,7 @@ end
 function LobbyController:Refresh(data)
 	self.CoinsLabel.Text = Widgets.Commas(data.Coins)
 	self.FragmentsLabel.Text = Widgets.Commas(data.Fragments or 0)
-	self.LevelChip.Text = tostring(data.Level)
+	self.LevelChip.Text = "LV " .. tostring(data.Level)
 	self:ApplyTheme(data)
 	self:RefreshQuest(data)
 	self:RefreshHero(data)
@@ -18823,6 +19095,7 @@ local Workspace = game:GetService("Workspace")
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Widgets = require(script.Parent.Parent.UI.Widgets)
+local GameConfig = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules").GameConfig)
 
 local PointerController = {}
 
@@ -18864,22 +19137,50 @@ function PointerController:Init(controllers)
 		self.Arrows[i] = { Frame = holder, Arrow = arrow, Icon = icon, IconText = icon:FindFirstChild("Text") :: TextLabel, IconStroke = icon:FindFirstChildOfClass("UIStroke") :: UIStroke }
 	end
 
-	self.Hint = Kit.Label({
+	-- first run: a short "how to play" card (GameConfig.Tutorial)
+	local hint = Kit.Panel({
 		Name = "Hint",
-		Text = "",
-		Size = UDim2.fromOffset(520, 44),
-		Position = UDim2.new(0.5, 0, 0.72, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Font = Theme.Fonts.Bold,
-		MaxTextSize = 18,
-		BackgroundColor3 = C.Surface,
-		BackgroundTransparency = Theme.Glass,
+		Size = UDim2.fromOffset(460, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Position = UDim2.new(0.5, 0, 0.2, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundTransparency = Theme.GlassStrong,
 		Visible = false,
+		Radius = 18,
 		Parent = root,
 	})
-	Kit.Corner(self.Hint, 22)
-	Kit.Stroke(self.Hint)
-	Kit.Padding(self.Hint, 18, 10)
+	Kit.Padding(hint, 20, 14)
+	Kit.New("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = hint })
+	Kit.Label({
+		Name = "Title",
+		Text = "HOW TO SURVIVE",
+		Size = UDim2.new(1, 0, 0, 20),
+		Font = Theme.Fonts.Title,
+		TextScaled = false,
+		TextSize = 17,
+		TextColor3 = C.Gold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LayoutOrder = 0,
+		Parent = hint,
+	})
+	self.HintLines = {}
+	for i = 1, 4 do
+		self.HintLines[i] = Kit.Label({
+			Name = "Line" .. i,
+			Text = "",
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Font = Theme.Fonts.Bold,
+			TextScaled = false,
+			TextSize = 16,
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			LayoutOrder = i,
+			Parent = hint,
+		})
+	end
+	self.Hint = hint
+	self.HintUntil = -1
 end
 
 -- targets: { Pos: Vector3, Icon: string, Color: Color3 }
@@ -18954,23 +19255,51 @@ function PointerController:Update()
 	end
 end
 
+-- the lines of the first-run card: keyboard or touch
+function PointerController.HintText(touch: boolean): { string }
+	if touch then
+		return {
+			"Move with the joystick (left thumb)",
+			"Your weapons attack on their own",
+			"Grab the XP crystals to level up",
+			"Level up: tap a card to pick an upgrade",
+		}
+	end
+	return {
+		"WASD - move",
+		"Your weapons attack on their own",
+		"Grab the XP crystals to level up",
+		"Level up: pick an upgrade with keys 1-3",
+	}
+end
+
+-- shown in the first seconds of your very first run only (never to players who have played)
 function PointerController:ShowFirstRunHint()
 	local data = self.C.ClientData.Data
 	if not data or not data.Stats or data.Stats.Runs > 0 then
 		return
 	end
-	local hint = self.Hint
-	hint.Text = if Kit.IsTouch() then "Move with the joystick. Attacks are automatic." else "Move with WASD. Attacks are automatic."
-	hint.Visible = true
-	hint.TextTransparency = 0
-	hint.BackgroundTransparency = Theme.Glass
-	Kit.Appear(hint)
-	task.delay(6, function()
-		Kit.Tween(hint, 0.6, { TextTransparency = 1, BackgroundTransparency = 1 })
-		task.delay(0.6, function()
-			hint.Visible = false
-		end)
-	end)
+	for i, text in PointerController.HintText(Kit.IsTouch()) do
+		self.HintLines[i].Text = text
+	end
+	-- run time, so pauses and level-up choices do not eat it
+	self.HintUntil = GameConfig.Tutorial.HintSeconds
+	self.Hint.Visible = true
+	Kit.Appear(self.Hint)
+end
+
+-- the card hides while a level-up choice is open and goes away after HintSeconds of run time
+function PointerController:UpdateHint()
+	if self.HintUntil < 0 then
+		return
+	end
+	local run = self.C.RunClient
+	if not run.Active or run.Time >= self.HintUntil then
+		self.HintUntil = -1
+		self.Hint.Visible = false
+		return
+	end
+	self.Hint.Visible = not self.C.LevelUpController:IsOpen()
 end
 
 function PointerController:Start()
@@ -18979,6 +19308,7 @@ function PointerController:Start()
 	end)
 	RunService.RenderStepped:Connect(function()
 		self:Update()
+		self:UpdateHint()
 	end)
 end
 
@@ -19004,7 +19334,6 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local Format = require(Shared.Util.Format)
 local WeaponData = require(Shared.WeaponData)
 local AchievementData = require(Shared.AchievementData)
-local MonetizationData = require(Shared.MonetizationData)
 local CosmeticData = require(Shared.CosmeticData)
 local DifficultyData = require(Shared.DifficultyData)
 local RunService = game:GetService("RunService")
@@ -19197,14 +19526,17 @@ function ResultsController:Init(controllers)
 		end,
 		Parent = panel,
 	})
+	-- news of the run (achievements, unlocks...): one per line, a fixed 15 px
 	self.Extra = Kit.Label({
 		Name = "Extra",
 		Text = "",
-		Size = UDim2.new(1, -60, 0, 54),
+		Size = UDim2.new(1, -60, 0, 100),
 		Position = UDim2.fromOffset(30, 372),
 		TextWrapped = true,
 		Font = F.Bold,
-		MaxTextSize = 16,
+		TextScaled = false,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = C.Gold,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Parent = panel,
@@ -19252,9 +19584,8 @@ end
 
 function ResultsController:ShowDeath(p)
 	self.Death.Visible = true
-	self.ReviveButton.Visible = p.CanBuyRevive == true
-	local product = MonetizationData.ProductByKey.Revive
-	self.ReviveLabel.Text = string.format("REVIVE  ·  R$ %d", product.Price)
+	self.ReviveButton.Visible = p.CanBuyRevive == true and self.C.ClientData:CanBuy("Revive")
+	self.ReviveLabel.Text = string.format("REVIVE  ·  R$ %d", self.C.ClientData:RobuxPrice("Revive"))
 	self.C.SoundController:Play("Death")
 	self.C.CameraController:ZoomPunch(0.6, 1)
 	local window = p.Window or 10
@@ -19336,8 +19667,8 @@ function ResultsController:ShowResults(p)
 	self:AnimateHero(vf, if victory then CosmeticData.Style(equipped, "VictoryAnim") else nil)
 
 	-- extra chest: once, and only if coins were earned
-	self.ChestButton.Visible = (r.Coins or 0) > 0
-	self.ChestLabel.Text = string.format("EXTRA CHEST  ·  R$ %d", MonetizationData.ProductByKey.ExtraChest.Price)
+	self.ChestButton.Visible = (r.Coins or 0) > 0 and self.C.ClientData:CanBuy("ExtraChest")
+	self.ChestLabel.Text = string.format("EXTRA CHEST  ·  R$ %d", self.C.ClientData:RobuxPrice("ExtraChest"))
 
 	-- the most important news first, at most 4 items (the rest as "+N more")
 	local lines = {}
@@ -19376,10 +19707,13 @@ function ResultsController:ShowResults(p)
 	if #lines > 4 then
 		table.insert(shown, string.format("+%d more", #lines - 4))
 	end
-	self.Extra.Text = table.concat(shown, "   ·   ")
-
-	Widgets.Fit(self.Fit, 540)
+	self.Extra.Text = table.concat(shown, "\n")
+	-- the panel is as tall as its content: no empty band when there is no news
+	local height = (if #shown > 0 then 372 + #shown * 20 + 14 else 364) + 60 + 28
+	self.Fit.Size = UDim2.fromOffset(660, height)
+	Widgets.Fit(self.Fit, height)
 	self.Panel.Visible = true
+	self.C.BannerController:PlaceToasts() -- toasts move above the results title
 	Kit.Appear(self.Panel)
 	Kit.Blur("results", 12)
 	self.C.HudController:SetCovered(true)
@@ -19423,6 +19757,7 @@ function ResultsController:Hide()
 	end
 	self.Panel.Visible = false
 	self:HideDeath()
+	self.C.BannerController:PlaceToasts()
 end
 
 function ResultsController:IsOpen(): boolean
@@ -19449,6 +19784,7 @@ return ResultsController
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
@@ -19877,7 +20213,41 @@ function RunClient:Begin(p)
 	C.SoundController:Play("Banner")
 	C.EffectsController:SpawnEffect(p.SpawnEffect or "Beam")
 	setReset(false)
+	self:ApplyOutline()
 	self.Started:Fire(p)
+end
+
+--[[
+	Your hero stands out from the horde: an outline (drawn on top of everything, so it shows
+	through enemies) and a faint glow, only in a run and only if the "Hero outline" setting
+	is on. Colours in GameConfig.Visuals.
+]]
+function RunClient:ApplyOutline()
+	local character = Players.LocalPlayer.Character
+	if not character then
+		return
+	end
+	local old = character:FindFirstChild("HeroOutline")
+	local want = self.Active and self.C.ClientData:Setting("HeroOutline") ~= false
+	if not want then
+		if old then
+			old:Destroy()
+		end
+		return
+	end
+	if old then
+		return
+	end
+	local v = GameConfig.Visuals
+	local outline = Instance.new("Highlight")
+	outline.Name = "HeroOutline"
+	outline.Adornee = character
+	outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	outline.OutlineColor = v.OutlineColor
+	outline.OutlineTransparency = v.OutlineTransparency
+	outline.FillColor = v.FillColor
+	outline.FillTransparency = v.FillTransparency
+	outline.Parent = character
 end
 
 function RunClient:Finish(p)
@@ -19898,6 +20268,8 @@ function RunClient:Leave()
 	C.HudController:Hide()
 	C.CameraController:SetMode("Lobby")
 	C.LobbyController:Show()
+	C.BannerController:PlaceToasts()
+	self:ApplyOutline()
 	setReset(true)
 end
 
@@ -20108,6 +20480,7 @@ local WeaponData = require(Shared.WeaponData)
 local Protocol = require(Shared.Protocol)
 local CosmeticData = require(Shared.CosmeticData)
 local HeroModels = require(Shared.HeroModels)
+local GameConfig = require(Shared.GameConfig)
 
 local WeaponFx = {}
 
@@ -20233,6 +20606,15 @@ function WeaponFx:Init(controllers)
 	self.CloneModel = nil
 end
 
+-- "Fewer effects": ability areas and auras are more see-through (your hero stays visible);
+-- enemy telegraphs are never faded (they warn you)
+function WeaponFx:Fade(transparency: number): number
+	if transparency < 1 and self.C.ClientData:Setting("FewerEffects") == true then
+		return math.min(0.97, transparency + GameConfig.Visuals.FewerEffectsFade)
+	end
+	return transparency
+end
+
 function WeaponFx:Take(style: string): BasePart
 	local free = self.Free[style]
 	local p = free and table.remove(free)
@@ -20334,7 +20716,7 @@ function WeaponFx:SetLoadout(loadout)
 					local r = w.Radius
 					p.Size = Vector3.new(r * 2, r * 2, r * 2)
 				elseif def.Kind == "Aura" or def.Kind == "FireRing" or def.Kind == "Field" then
-					p.Transparency = if i == 1 then (if def.Kind == "Field" then 0.75 else 0.82) else 0.45
+					p.Transparency = self:Fade(if i == 1 then (if def.Kind == "Field" then 0.75 else 0.82) else 0.45)
 				end
 			end
 		end
@@ -20947,7 +21329,7 @@ function WeaponFx:Update(dt: number)
 				disc.CFrame = base * FLAT
 				edge.Size = Vector3.new(0.12, r * 2, r * 2)
 				edge.CFrame = (base + Vector3.new(0, 0.02, 0)) * FLAT
-				edge.Transparency = 0.55 + math.sin(clock * (if a.Kind == "FireRing" then 14 else 5)) * 0.15
+				edge.Transparency = self:Fade(0.55 + math.sin(clock * (if a.Kind == "FireRing" then 14 else 5)) * 0.15)
 				if color then
 					disc.Color = color
 					edge.Color = color
@@ -20966,11 +21348,11 @@ function WeaponFx:Update(dt: number)
 			local r = zone.R * (1 + math.sin(clock * 3) * 0.04)
 			zone.Disc.Size = Vector3.new(0.15, r * 2, r * 2)
 			zone.Disc.CFrame = CFrame.new(zone.Pos) * CFrame.Angles(0, zone.Spin, 0) * FLAT
-			zone.Disc.Transparency = if left < 0 then 1 else (if zone.Vortex then 0.35 else 0.55)
+			zone.Disc.Transparency = if left < 0 then 1 else self:Fade(if zone.Vortex then 0.35 else 0.55)
 			local cr = if zone.Vortex then r * 0.35 else r * 0.9
 			zone.Core.Size = Vector3.new(cr * 2, if zone.Vortex then cr * 2 else cr * 0.8, cr * 2)
 			zone.Core.CFrame = CFrame.new(zone.Pos + Vector3.new(0, if zone.Vortex then 2 else 1, 0))
-			zone.Core.Transparency = if left < 0 then 1 else (if zone.Vortex then 0.1 else 0.7)
+			zone.Core.Transparency = if left < 0 then 1 else self:Fade(if zone.Vortex then 0.1 else 0.7)
 		end
 	end
 
@@ -21869,6 +22251,7 @@ export type ItemOptions = {
 	PictureHeight: number?,
 	Side: boolean?, -- picture on the left of the name (compact cards)
 	ButtonWidth: number?, -- small button bottom-right (the unlock hint sits on its left)
+	Width: number?, -- the grid cell width: a long unlock hint under a wide button gets 2 lines
 	OnClick: (() -> ())?,
 }
 
@@ -21885,11 +22268,8 @@ export type ItemCard = {
 }
 
 local function chip(parent: Instance, name: string, text: string, color: Color3, position: UDim2): TextLabel
-	local tag = Widgets.Tag(parent, text, color, position, UDim2.fromOffset(0, 20))
+	local tag = Widgets.Tag(parent, text, color, position, UDim2.fromOffset(0, 20), 12)
 	tag.Name = name
-	tag.AutomaticSize = Enum.AutomaticSize.X
-	tag.TextScaled = false
-	tag.TextSize = 12
 	return tag
 end
 
@@ -21969,7 +22349,8 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Size = UDim2.new(1, -pad * 2, 1, -(descY + bottom)),
 		Position = UDim2.fromOffset(pad, descY),
 		Font = F.Medium,
-		MaxTextSize = 14,
+		TextScaled = false, -- a fixed 14 px: descriptions never shrink below readable
+		TextSize = 14,
 		TextWrapped = true,
 		TextColor3 = C.TextDim,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -21977,17 +22358,19 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Parent = card,
 	})
 
-	-- one short line about unlocking ("or achievement: Boss Slayer"): above a wide button,
-	-- or beside a small one
+	-- one short line about unlocking ("or achievement: Boss Slayer"): its own line under a
+	-- wide button (the button moves up when there is one), or beside a small button
 	local need = Kit.Label({
 		Name = "Need",
 		Text = "",
-		Size = if small then UDim2.new(1, -(pad * 2 + small + 8), 0, 30) else UDim2.new(1, -pad * 2, 0, 16),
-		Position = if small then UDim2.new(0, pad, 1, -(pad + 1)) else UDim2.new(0, pad, 1, -(pad + buttonH + 4)),
+		Size = if small then UDim2.new(1, -(pad * 2 + small + 8), 0, 32) else UDim2.new(1, -pad * 2, 0, 32),
+		Position = if small then UDim2.new(0, pad, 1, -pad) else UDim2.new(0, pad, 1, -5),
 		AnchorPoint = Vector2.new(0, 1),
 		Font = F.Medium,
-		MaxTextSize = 12,
-		TextWrapped = small ~= nil,
+		TextScaled = false,
+		TextSize = 13,
+		TextWrapped = true,
+		TextYAlignment = if small then Enum.TextYAlignment.Center else Enum.TextYAlignment.Bottom,
 		TextColor3 = C.TextMuted,
 		TextXAlignment = if small then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center,
 		Parent = card,
@@ -22005,6 +22388,25 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Parent = card,
 	})
 
+	if not small then
+		-- the button makes room for the hint: one line, or two when it is long
+		local function place()
+			local lift = 0
+			if need.Text ~= "" then
+				local long = options.Width ~= nil and Widgets.TextWidth(need.Text, need.TextSize, need.Font) > options.Width - pad * 2 - 4
+				lift = if long then 30 else 16
+			end
+			button.Position = UDim2.new(0, pad, 1, -(pad + lift))
+			need.Size = UDim2.new(1, -pad * 2, 0, math.max(16, lift))
+			if lift > 16 then
+				-- the description gives up the extra line a 2-line hint takes
+				desc.Size = UDim2.new(1, -pad * 2, 1, -(descY + bottom + lift - 16))
+			end
+		end
+		need:GetPropertyChangedSignal("Text"):Connect(place)
+		place()
+	end
+
 	return {
 		Card = card,
 		Picture = picture,
@@ -22016,6 +22418,27 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Button = button,
 		ButtonLabel = label,
 	}
+end
+
+-- "12 damage x2 · every 0.85 s": what an ability does in numbers (its level 1 stats)
+local function seconds(t: number): string
+	local text = string.format("%.2f", t)
+	text = string.gsub(text, "0+$", "")
+	return (string.gsub(text, "%.$", ""))
+end
+
+function Cards.WeaponStats(def): string
+	local base = def.Base or {}
+	local parts = {}
+	if base.Damage and base.Damage > 0 then
+		local amount = if (base.Amount or 1) > 1 then string.format(" x%d", base.Amount) else ""
+		table.insert(parts, string.format("%d damage%s", base.Damage, amount))
+	end
+	local every = base.Cooldown or base.HitCooldown
+	if every and every > 0 then
+		table.insert(parts, "every " .. seconds(every) .. " s")
+	end
+	return table.concat(parts, " · ")
 end
 
 function Cards.Set(card: ItemCard, state: string, buttonText: string?, buttonColor: Color3?, price: number?, currency: string?)
@@ -22039,73 +22462,186 @@ return Cards
           </Item>
           <Item class="ModuleScript" referent="84">
             <Properties>
+              <string name="Name">IconImages</string>
+              <string name="Source"><![CDATA[--[[
+	IconImages - pictures for passives, permanent upgrades, shop items and cosmetics.
+
+	Paste an image asset id next to a key ("rbxassetid://1234567890") to show a real icon.
+	An empty string keeps the drawn placeholder: a rounded tile in the category colour with a
+	simple symbol (UI/Icons.lua), so every icon has the same style until real art exists.
+	All entries start empty on purpose: no ids are invented here.
+]]
+
+local IconImages = {}
+
+-- passives (level-up cards, ABILITIES > PASSIVE, the HUD build list)
+IconImages.Stat = {
+	Power = "",
+	RapidFire = "",
+	Expansion = "",
+	Swiftness = "",
+	Wisdom = "",
+	Magnet = "",
+	Vitality = "",
+	Regeneration = "",
+	Greed = "",
+	Duration = "",
+	CritMaster = "",
+	Armor = "",
+	Luck = "",
+	Vampire = "",
+	Berserk = "",
+	OrbitalMastery = "",
+	BurnMastery = "",
+	DoubleShot = "",
+	Execution = "",
+	XPStorm = "",
+	Percent67 = "",
+	TouchGrass = "",
+	-- permanent upgrades (SHOP > UPGRADES)
+	Might = "",
+	MaxHP = "",
+	MoveSpeed = "",
+	Growth = "",
+	Regen = "",
+	Reroll = "",
+	Revive = "",
+	ExtraWeapon = "",
+	WeaponSlot = "",
+}
+
+-- level-up filler cards when everything is maxed
+IconImages.Filler = {
+	Snack = "",
+	Coins = "",
+}
+
+-- game passes and developer products (SHOP > BOOSTS / GAMEPASSES)
+IconImages.Product = {
+	VIPCosmetics = "",
+	CosmeticPass = "",
+	ExtraLoadout = "",
+	ExtraHeroSlot = "",
+	AfkCapacity = "",
+	Revive = "",
+	ExtraReroll = "",
+	ExtraChest = "",
+	CosmeticBoost = "",
+	AfkBoost = "",
+	Support1 = "",
+	Support2 = "",
+	Support3 = "",
+}
+
+-- cosmetics without a 3D preview (trails, effects, emotes...), by cosmetic id ("Trail.Fire")
+IconImages.Cosmetic = {}
+
+return IconImages
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="85">
+            <Properties>
               <string name="Name">Icons</string>
               <string name="Source"><![CDATA[--[[
 	Icons - one place that decides how a thing is pictured in the UI (no emoji art):
 	  weapons, characters, hats  -> 3D previews (UI/Previews)
-	  stats, rare cards, products, menu entries -> monogram badges (Widgets.Mono)
+	  passives, upgrades, products, cosmetics -> an image from UI/IconImages when one is set,
+	      else a drawn placeholder: a rounded tile in the category colour with a symbol
+	  menu entries -> drawn glyphs (Widgets.Glyph)
 	Icons.Make(parent, kind, key, size, props?) returns the icon instance.
+	Icons.Tile(parent, symbol, color, size, props?, image?) draws one tile (used by the shop for
+	cosmetics too).
 ]]
 
 local Theme = require(script.Parent.Theme)
 local Widgets = require(script.Parent.Widgets)
 local Previews = require(script.Parent.Previews)
 local Kit = require(script.Parent.Kit)
+local IconImages = require(script.Parent.IconImages)
 
 local Icons = {}
 
 local C = Theme.Colors
+local rgb = Color3.fromRGB
 
--- passives and permanent upgrades: short, readable monograms
-Icons.Stat = {
-	-- passives
-	Power = "DMG",
-	RapidFire = "ATK",
-	Expansion = "AREA",
-	Swiftness = "SPD",
-	Wisdom = "XP",
-	Magnet = "MAG",
-	Vitality = "HP",
-	Regeneration = "REG",
-	Greed = "GOLD",
-	Duration = "DUR",
-	CritMaster = "CRIT",
-	Armor = "ARM",
-	Luck = "LUCK",
-	Vampire = "VAMP",
-	Berserk = "RAGE",
-	OrbitalMastery = "ORB",
-	BurnMastery = "BURN",
-	DoubleShot = "+1",
-	Execution = "EXE",
-	XPStorm = "XP×2",
-	Percent67 = "67%",
-	TouchGrass = "???",
-	-- permanent upgrades
-	Might = "DMG",
-	MaxHP = "HP",
-	MoveSpeed = "SPD",
-	Growth = "XP",
-	Regen = "REG",
-	Reroll = "RR",
-	Revive = "REV",
-	ExtraWeapon = "+1",
-	WeaponSlot = "SLOT",
+-- symbol + colour of each category (one style for every placeholder)
+Icons.Categories = {
+	Attack = rgb(255, 118, 112),
+	Speed = rgb(96, 212, 255),
+	Area = rgb(186, 132, 255),
+	Health = rgb(104, 222, 140),
+	Defense = rgb(122, 162, 255),
+	Growth = rgb(255, 208, 86),
+	Coin = rgb(255, 184, 72),
+	Special = rgb(255, 122, 200),
 }
 
-Icons.Filler = { Snack = "+HP", Coins = "$" }
+-- passives and permanent upgrades -> category
+Icons.Stat = {
+	Power = "Attack",
+	RapidFire = "Speed",
+	Expansion = "Area",
+	Swiftness = "Speed",
+	Wisdom = "Growth",
+	Magnet = "Area",
+	Vitality = "Health",
+	Regeneration = "Health",
+	Greed = "Coin",
+	Duration = "Area",
+	CritMaster = "Attack",
+	Armor = "Defense",
+	Luck = "Coin",
+	Vampire = "Health",
+	Berserk = "Attack",
+	OrbitalMastery = "Area",
+	BurnMastery = "Area",
+	DoubleShot = "Attack",
+	Execution = "Attack",
+	XPStorm = "Growth",
+	Percent67 = "Special",
+	TouchGrass = "Special",
+	Might = "Attack",
+	MaxHP = "Health",
+	MoveSpeed = "Speed",
+	Growth = "Growth",
+	Regen = "Health",
+	Reroll = "Special",
+	Revive = "Defense",
+	ExtraWeapon = "Special",
+	WeaponSlot = "Special",
+}
+
+Icons.Filler = { Snack = "Health", Coins = "Coin" }
 
 Icons.Product = {
-	VIPCosmetics = "VIP",
-	CosmeticPass = "FX",
-	ExtraLoadout = "+L",
-	ExtraHeroSlot = "+H",
-	AfkCapacity = "4H",
-	Revive = "REV",
-	ExtraReroll = "RR",
-	ExtraChest = "BOX",
-	CosmeticBoost = "67",
-	AfkBoost = "×2",
+	VIPCosmetics = "Special",
+	CosmeticPass = "Special",
+	ExtraLoadout = "Special",
+	ExtraHeroSlot = "Growth",
+	AfkCapacity = "Growth",
+	Revive = "Defense",
+	ExtraReroll = "Special",
+	ExtraChest = "Coin",
+	CosmeticBoost = "Special",
+	AfkBoost = "Growth",
+	Support1 = "Special",
+	Support2 = "Special",
+	Support3 = "Special",
+}
+
+-- cosmetic category -> symbol (the tile takes the cosmetic's own colour)
+Icons.CosmeticSymbol = {
+	AbilitySkin = "Attack",
+	KillEffect = "Special",
+	SpawnEffect = "Area",
+	Trail = "Speed",
+	Emote = "Special",
+	NameEffect = "Growth",
+	LobbyDecor = "Defense",
+	Victory = "Growth",
+	UITheme = "Area",
+	Aura = "Area",
 }
 
 Icons.Menu = {
@@ -22117,12 +22653,105 @@ Icons.Menu = {
 	Leaderboard = "Podium",
 	Statistics = "Chart",
 	Codes = "Ticket",
-	Credits = "Info",
+	Credits = "Star",
+	HowToPlay = "Info",
 	Settings = "Gear",
 }
 
-local function mono(parent, text: string, color: Color3, size: number, props)
-	return Widgets.Mono(parent, text, color, size, props)
+local function piece(parent: Instance, w: number, h: number, x: number, y: number, color: Color3, round: number?): Frame
+	local f = Kit.New("Frame", {
+		Size = UDim2.fromScale(w, h),
+		Position = UDim2.fromScale(x, y),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Parent = parent,
+	})
+	Kit.Corner(f, round or 3)
+	return f
+end
+
+-- the symbol of a category, drawn from a few rounded frames (no text, no image assets)
+local function symbol(tile: Frame, kind: string, size: number, color: Color3)
+	local ink = color:Lerp(Color3.new(1, 1, 1), 0.55)
+	local r = math.max(2, math.floor(size * 0.05))
+	if kind == "Attack" then -- a sword
+		piece(tile, 0.13, 0.46, 0.5, 0.38, ink, r)
+		piece(tile, 0.46, 0.1, 0.5, 0.63, ink, r)
+		piece(tile, 0.1, 0.16, 0.5, 0.74, ink, r)
+		piece(tile, 0.16, 0.16, 0.5, 0.84, ink, size)
+	elseif kind == "Speed" then -- speed lines
+		for i, w in { 0.56, 0.42, 0.28 } do
+			piece(tile, w, 0.1, 0.22 + w / 2, 0.3 + (i - 1) * 0.2, ink, r)
+		end
+	elseif kind == "Area" then -- a ring around a dot
+		local ring = piece(tile, 0.62, 0.62, 0.5, 0.5, ink, size)
+		ring.BackgroundTransparency = 1
+		Kit.Stroke(ring, math.max(2, size * 0.07), ink, 0)
+		piece(tile, 0.2, 0.2, 0.5, 0.5, ink, size)
+	elseif kind == "Health" then -- a cross
+		piece(tile, 0.18, 0.56, 0.5, 0.5, ink, r)
+		piece(tile, 0.56, 0.18, 0.5, 0.5, ink, r)
+	elseif kind == "Defense" then -- a shield
+		piece(tile, 0.5, 0.58, 0.5, 0.5, ink, math.floor(size * 0.16))
+		piece(tile, 0.08, 0.4, 0.5, 0.5, color:Lerp(Color3.new(0, 0, 0), 0.25), r)
+	elseif kind == "Growth" then -- rising bars
+		for i, h in { 0.26, 0.42, 0.58 } do
+			local bar = piece(tile, 0.14, h, 0.3 + (i - 1) * 0.2, 0.78 - h / 2, ink, r)
+			bar.AnchorPoint = Vector2.new(0.5, 0.5)
+		end
+	elseif kind == "Coin" then -- a coin
+		piece(tile, 0.56, 0.56, 0.5, 0.5, ink, size)
+		piece(tile, 0.3, 0.3, 0.5, 0.5, color, size)
+	else -- Special: a four-point sparkle
+		piece(tile, 0.14, 0.62, 0.5, 0.5, ink, size)
+		piece(tile, 0.62, 0.14, 0.5, 0.5, ink, size)
+		piece(tile, 0.26, 0.26, 0.5, 0.5, ink, math.floor(size * 0.06))
+	end
+end
+
+-- one icon tile: category colour, soft border, an image (when set) or the category symbol
+function Icons.Tile(parent: Instance, kind: string, color: Color3, size: number, props: { [string]: any }?, image: string?): Frame
+	local tile = Kit.New("Frame", {
+		Name = "Icon",
+		Size = UDim2.fromOffset(size, size),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.72,
+		BorderSizePixel = 0,
+		Parent = parent,
+	})
+	if props then
+		for k, v in props do
+			(tile :: any)[k] = v
+		end
+	end
+	Kit.Corner(tile, math.floor(size * 0.28))
+	Kit.Stroke(tile, 1.5, color, 0.2)
+	Kit.New("UIGradient", {
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.45) }),
+		Rotation = 90,
+		Parent = tile,
+	})
+	if image and image ~= "" then
+		Kit.New("ImageLabel", {
+			Name = "Image",
+			BackgroundTransparency = 1,
+			Image = image,
+			Size = UDim2.fromScale(0.78, 0.78),
+			Position = UDim2.fromScale(0.5, 0.5),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			ScaleType = Enum.ScaleType.Fit,
+			Parent = tile,
+		})
+	else
+		symbol(tile, kind, size, color)
+	end
+	return tile
+end
+
+local function categoryTile(parent: Instance, map, images, key: string, size: number, props)
+	local kind = map[key] or "Special"
+	return Icons.Tile(parent, kind, Icons.Categories[kind] or C.Accent, size, props, images and images[key])
 end
 
 function Icons.Make(parent: Instance, kind: string, key: string, size: number, props: { [string]: any }?): GuiObject
@@ -22151,25 +22780,31 @@ function Icons.Make(parent: Instance, kind: string, key: string, size: number, p
 		end
 		return holder
 	elseif kind == "Filler" then
-		return mono(parent, Icons.Filler[key] or "?", C.Success, size, props)
+		return categoryTile(parent, Icons.Filler, IconImages.Filler, key, size, props)
 	elseif kind == "Product" then
-		return mono(parent, Icons.Product[key] or "?", C.Gold, size, props)
+		return categoryTile(parent, Icons.Product, IconImages.Product, key, size, props)
 	elseif kind == "Menu" then
-		local badge = mono(parent, "", C.Accent, size, props)
+		local badge = Widgets.Mono(parent, "", C.Accent, size, props)
 		Widgets.Glyph(badge, Icons.Menu[key] or "Star", math.floor(size * 0.6), C.Accent:Lerp(Color3.new(1, 1, 1), 0.3), {
 			Position = UDim2.fromScale(0.5, 0.5),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 		})
 		return badge
 	end
-	return mono(parent, Icons.Stat[key] or string.upper(string.sub(key, 1, 3)), C.TextDim, size, props)
+	return categoryTile(parent, Icons.Stat, IconImages.Stat, key, size, props)
+end
+
+-- a cosmetic without a 3D preview: its colour, the symbol of its category
+function Icons.Cosmetic(parent: Instance, def, size: number, props: { [string]: any }?): Frame
+	local color = def.Color or Theme.Rarity[def.Rarity] or C.Accent
+	return Icons.Tile(parent, Icons.CosmeticSymbol[def.Category] or "Special", color, size, props, IconImages.Cosmetic[def.Id])
 end
 
 return Icons
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="85">
+          <Item class="ModuleScript" referent="86">
             <Properties>
               <string name="Name">Kit</string>
               <string name="Source"><![CDATA[--[[
@@ -22318,9 +22953,9 @@ end
 
 --[[
 	Hover / press feedback on any GuiButton: grows a little under the mouse, dips when
-	pressed. Uses one UIScale named "PressScale".
+	pressed. Uses one UIScale named "PressScale". calm = no bounce when released.
 ]]
-function Kit.Interactive(button: GuiButton, hoverScale: number?)
+function Kit.Interactive(button: GuiButton, hoverScale: number?, calm: boolean?)
 	local scale = button:FindFirstChild("PressScale") :: UIScale?
 	if not scale then
 		scale = Kit.New("UIScale", { Name = "PressScale", Parent = button })
@@ -22343,7 +22978,8 @@ function Kit.Interactive(button: GuiButton, hoverScale: number?)
 		Kit.Tween(scale, 0.07, { Scale = 0.96 })
 	end)
 	button.MouseButton1Up:Connect(function()
-		Kit.Tween(scale, 0.15, { Scale = if hovered then up else 1 }, Enum.EasingStyle.Back)
+		-- calm: no bounce past the hover size (big cards in a grid must not touch their neighbours)
+		Kit.Tween(scale, 0.15, { Scale = if hovered then up else 1 }, if calm then Enum.EasingStyle.Quad else Enum.EasingStyle.Back)
 	end)
 	return scale
 end
@@ -22530,11 +23166,11 @@ return Kit
 ]]></string>
             </Properties>
           </Item>
-          <Item class="Folder" referent="86">
+          <Item class="Folder" referent="87">
             <Properties>
               <string name="Name">Panels</string>
             </Properties>
-            <Item class="ModuleScript" referent="87">
+            <Item class="ModuleScript" referent="88">
               <Properties>
                 <string name="Name">AbilitiesPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -22560,6 +23196,8 @@ local Previews = require(script.Parent.Parent.Previews)
 local Icons = require(script.Parent.Parent.Icons)
 
 local C = Theme.Colors
+local F = Theme.Fonts
+
 
 local Panel = {}
 Panel.Kind = "Screen"
@@ -22616,6 +23254,20 @@ function Panel.Build(body: Frame, controllers)
 				end,
 			})
 			ui.Preview = Previews.Weapon(ui.Picture, def.Key)
+			-- two lines of description, then the numbers (damage, cooldown, levels)
+			ui.Desc.Size = UDim2.new(1, -24, 0, 36)
+			ui.Stats = Kit.Label({
+				Name = "Stats",
+				Text = Cards.WeaponStats(def),
+				Size = UDim2.new(1, -24, 0, 16),
+				Position = UDim2.fromOffset(12, 132),
+				Font = F.Bold,
+				TextScaled = false,
+				TextSize = 13,
+				TextColor3 = (def.Color or C.Text):Lerp(Color3.new(1, 1, 1), 0.45),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Parent = ui.Card,
+			})
 			if def.Evolution then
 				local from = WeaponData.ByKey[def.Evolution.From]
 				local with = UpgradeData.PassiveByKey[def.Evolution.With]
@@ -22687,6 +23339,7 @@ function Panel.Refresh(state, data)
 				else
 					Cards.Set(ui, "OWNED", "SET START", C.Neutral)
 				end
+				ui.Need.Text = def.MaxLevel .. " levels"
 				ui.Name.Text = def.Name
 				ui.Preview.ImageColor3 = Color3.new(1, 1, 1)
 			elseif def.Unlock.Secret then
@@ -22723,7 +23376,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="88">
+            <Item class="ModuleScript" referent="89">
               <Properties>
                 <string name="Name">AchievementsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -22892,7 +23545,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="89">
+            <Item class="ModuleScript" referent="90">
               <Properties>
                 <string name="Name">AfkCampPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -23177,7 +23830,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="90">
+            <Item class="ModuleScript" referent="91">
               <Properties>
                 <string name="Name">ChallengesPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -23330,7 +23983,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="91">
+            <Item class="ModuleScript" referent="92">
               <Properties>
                 <string name="Name">CodesPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -23420,7 +24073,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="92">
+            <Item class="ModuleScript" referent="93">
               <Properties>
                 <string name="Name">CollectionPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -23620,7 +24273,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="93">
+            <Item class="ModuleScript" referent="94">
               <Properties>
                 <string name="Name">CreditsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -23669,7 +24322,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="94">
+            <Item class="ModuleScript" referent="95">
               <Properties>
                 <string name="Name">DailyPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -23784,7 +24437,29 @@ function Panel.Build(body: Frame, controllers)
 			end,
 			Parent = row,
 		})
-		state.Quests[i] = { Row = row, Text = text, Bar = bar, Count = count, Button = button, Label = label }
+		-- the fragment part of the reward, next to the button: [crystal] +2
+		local bonus = Kit.New("Frame", {
+			Name = "FragmentReward",
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(52, 20),
+			Position = UDim2.new(1, -160, 0, 10),
+			AnchorPoint = Vector2.new(1, 0),
+			Parent = row,
+		})
+		Widgets.Fragment(bonus, 16, { Position = UDim2.new(0, 0, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
+		local bonusText = Kit.Label({
+			Name = "Amount",
+			Text = "",
+			Size = UDim2.new(1, -22, 1, 0),
+			Position = UDim2.fromOffset(22, 0),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 15,
+			TextColor3 = C.Fragment,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = bonus,
+		})
+		state.Quests[i] = { Row = row, Text = text, Bar = bar, Count = count, Button = button, Label = label, Bonus = bonus, BonusText = bonusText }
 	end
 	return state
 end
@@ -23819,7 +24494,11 @@ function Panel.Refresh(state, data)
 			ui.Text.Text = q.Text
 			ui.Bar:Set(q.Progress / math.max(1, q.Goal))
 			ui.Count.Text = string.format("%s/%s", Widgets.Commas(math.min(q.Progress, q.Goal)), Widgets.Commas(q.Goal))
-			ui.Label.Text = if q.Claimed then "DONE" elseif done then "CLAIM +" .. q.Coins else "+" .. q.Coins
+			-- coins on the button (coin icon + amount), fragments beside it (crystal + amount)
+			ui.Label.Text = if q.Claimed then "DONE" elseif done then "CLAIM" else ""
+			Widgets.Price(ui.Button, if q.Claimed or done then nil else q.Coins, "Coin")
+			ui.Bonus.Visible = (q.Fragments or 0) > 0 and not q.Claimed
+			ui.BonusText.Text = "+" .. tostring(q.Fragments or 0)
 			Kit.SetButtonColor(ui.Button, if q.Claimed then C.SuccessDark elseif done then C.Success else C.Neutral)
 		end
 	end
@@ -23829,7 +24508,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="95">
+            <Item class="ModuleScript" referent="96">
               <Properties>
                 <string name="Name">DifficultyPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -24173,7 +24852,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="96">
+            <Item class="ModuleScript" referent="97">
               <Properties>
                 <string name="Name">HeroesPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -24192,6 +24871,7 @@ local HeroData = require(Shared.HeroData)
 local WeaponData = require(Shared.WeaponData)
 local AchievementData = require(Shared.AchievementData)
 local CosmeticData = require(Shared.CosmeticData)
+local GameConfig = require(Shared.GameConfig)
 
 local Kit = require(script.Parent.Parent.Kit)
 local Theme = require(script.Parent.Parent.Theme)
@@ -24206,7 +24886,7 @@ local Panel = {}
 Panel.Kind = "Screen"
 Panel.Title = "HEROES"
 
-local CARD = Vector2.new(206, 446)
+local CARD = Vector2.new(220, 446)
 
 function Panel.Build(body: Frame, controllers)
 	local state = { Cards = {}, C = controllers, Skin = "" }
@@ -24253,27 +24933,45 @@ function Panel.Build(body: Frame, controllers)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = top,
 	})
-	local fragments = Kit.Panel({
+	local fragments = Kit.New("TextButton", {
 		Name = "Fragments",
-		Size = UDim2.fromOffset(150, 34),
+		Text = "",
+		AutoButtonColor = false,
+		Size = UDim2.fromOffset(150, 38),
 		Position = UDim2.new(1, 0, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
-		Radius = 17,
+		BackgroundColor3 = C.Surface,
+		BackgroundTransparency = Theme.Glass,
 		Parent = top,
 	})
+	Kit.Corner(fragments, 19)
+	Kit.Stroke(fragments)
 	Widgets.Fragment(fragments, 20, { Position = UDim2.new(0, 10, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
 	state.Fragments = Kit.Label({
 		Name = "Amount",
 		Text = "0",
-		Size = UDim2.new(1, -44, 0, 20),
-		Position = UDim2.new(0, 36, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
+		Size = UDim2.new(1, -44, 0, 18),
+		Position = UDim2.fromOffset(36, 3),
 		Font = F.Bold,
-		MaxTextSize = 16,
+		TextScaled = false,
+		TextSize = 16,
+		TextColor3 = C.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = fragments,
+	})
+	Kit.Label({
+		Name = "Caption",
+		Text = "FRAGMENTS",
+		Size = UDim2.new(1, -44, 0, 12),
+		Position = UDim2.fromOffset(36, 22),
+		Font = F.Bold,
+		TextScaled = false,
+		TextSize = 11,
 		TextColor3 = C.Fragment,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = fragments,
 	})
+	Widgets.Tooltip(fragments, GameConfig.FragmentsHelp, 280)
 
 	local holder = Kit.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -52), Position = UDim2.fromOffset(0, 52), Parent = body })
 	local scroll = Widgets.Scroll(holder, CARD, 14)
@@ -24283,7 +24981,7 @@ function Panel.Build(body: Frame, controllers)
 			Desc = def.Desc,
 			Rarity = def.Rarity,
 			Order = i,
-			PictureHeight = 150,
+			PictureHeight = 112,
 			OnClick = function()
 				Panel.Click(state, def)
 			end,
@@ -24291,15 +24989,16 @@ function Panel.Build(body: Frame, controllers)
 		ui.Def = def
 		ui.PreviewHolder = Kit.New("Frame", { Name = "Model", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = ui.Picture })
 		ui.Preview = Previews.Hero(ui.PreviewHolder, def.Key)
-		ui.Desc.Size = UDim2.new(1, -24, 0, 34)
-		-- passive (stats) + the unique mechanic
+		ui.Desc.Size = UDim2.new(1, -24, 0, 36)
+		-- passive (stats) + the unique mechanic: fixed 14 px, never shrunk
 		ui.Passive = Kit.Label({
 			Name = "Passive",
 			Text = def.Passive,
-			Size = UDim2.new(1, -24, 0, 34),
-			Position = UDim2.fromOffset(12, 266),
+			Size = UDim2.new(1, -24, 0, 54),
+			Position = UDim2.fromOffset(12, 228),
 			Font = F.Bold,
-			MaxTextSize = 13,
+			TextScaled = false,
+			TextSize = 14,
 			TextWrapped = true,
 			TextColor3 = C.Text,
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -24309,12 +25008,13 @@ function Panel.Build(body: Frame, controllers)
 		ui.Mechanic = Kit.Label({
 			Name = "Mechanic",
 			Text = def.MechanicText,
-			Size = UDim2.new(1, -24, 0, 48),
-			Position = UDim2.fromOffset(12, 302),
+			Size = UDim2.new(1, -24, 0, 54),
+			Position = UDim2.fromOffset(12, 284),
 			Font = F.Body,
-			MaxTextSize = 13,
+			TextScaled = false,
+			TextSize = 14,
 			TextWrapped = true,
-			TextColor3 = C.TextMuted,
+			TextColor3 = C.TextDim,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Parent = ui.Card,
@@ -24324,7 +25024,7 @@ function Panel.Build(body: Frame, controllers)
 			Name = "StartWeapon",
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, -24, 0, 28),
-			Position = UDim2.fromOffset(12, 352),
+			Position = UDim2.fromOffset(12, 342),
 			Parent = ui.Card,
 		})
 		local icon = Kit.New("Frame", { Name = "WeaponIcon", Size = UDim2.fromOffset(28, 28), BackgroundColor3 = C.SurfaceLight, BackgroundTransparency = 0.3, Parent = start })
@@ -24335,7 +25035,8 @@ function Panel.Build(body: Frame, controllers)
 			Size = UDim2.new(1, -36, 1, 0),
 			Position = UDim2.fromOffset(36, 0),
 			Font = F.Medium,
-			MaxTextSize = 13,
+			TextScaled = false,
+			TextSize = 14,
 			TextColor3 = C.TextDim,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = start,
@@ -24417,7 +25118,130 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="97">
+            <Item class="ModuleScript" referent="98">
+              <Properties>
+                <string name="Name">HowToPlayPanel</string>
+                <string name="Source"><![CDATA[--[[
+	HowToPlayPanel - MORE > HOW TO PLAY: the whole game on one page, short sections:
+	controls (computer and phone), the goal of a run, level ups and evolutions, bosses and
+	67 events, coins and fragments, difficulty. Text only, fixed sizes (never shrunk).
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules").GameConfig)
+
+local Kit = require(script.Parent.Parent.Kit)
+local Theme = require(script.Parent.Parent.Theme)
+local Widgets = require(script.Parent.Parent.Widgets)
+
+local C = Theme.Colors
+local F = Theme.Fonts
+
+local Panel = {}
+Panel.Kind = "Window"
+Panel.Title = "HOW TO PLAY"
+Panel.Size = Vector2.new(640, 560)
+
+Panel.Sections = {
+	{
+		"CONTROLS",
+		"Computer: WASD or the arrow keys to move. Your abilities attack on their own. Level up: keys 1-3 pick a card, R rerolls. Esc or P pauses, I / O zoom. In the lobby: Enter plays, G does your emote.",
+	},
+	{
+		"ON A PHONE",
+		"Move with the joystick (left thumb). Your abilities attack on their own. Tap a card to pick it. The pause button is at the top right.",
+	},
+	{
+		"THE GOAL",
+		"Survive the horde as long as you can. Grab the XP crystals enemies drop to level up. Bosses come at 3:00, 6:00 and 9:00; defeat THE FINAL ONE at 12:00 to win.",
+	},
+	{
+		"LEVEL UPS AND EVOLUTIONS",
+		"Every level up offers 3 cards: a new ability, a stronger one or a passive. An ability at its max level + its passive (shown on the card) = an EVOLUTION: the next level up offers it.",
+	},
+	{
+		"67 EVENTS",
+		"Now and then a rare 67 EVENT changes the run: +67% XP and damage, a golden chest, a huge (but weaker) invasion, a runaway golden goblin... Enjoy the chaos.",
+	},
+	{
+		"COINS AND FRAGMENTS",
+		"COINS buy permanent upgrades (SHOP) and cosmetics. " .. GameConfig.FragmentsHelp,
+	},
+	{
+		"DIFFICULTY",
+		"Pick it above PLAY. Harder tiers pay more and add new rules; you never need them to unlock heroes or abilities. Win a tier to open the next one.",
+	},
+}
+
+function Panel.Build(body: Frame, controllers)
+	local list = Widgets.Scroll(body, nil, 14)
+	list.Size = UDim2.new(1, 0, 1, -56)
+	local layout = list:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	end
+	for i, section in Panel.Sections do
+		local block = Kit.New("Frame", {
+			Name = "Section" .. i,
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -12, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			LayoutOrder = i,
+			Parent = list,
+		})
+		Kit.New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = block })
+		Kit.Label({
+			Name = "Heading",
+			Text = section[1],
+			Size = UDim2.new(1, 0, 0, 18),
+			Font = F.Bold,
+			TextScaled = false,
+			TextSize = 13,
+			TextColor3 = C.Gold,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			LayoutOrder = 1,
+			Parent = block,
+		})
+		Kit.Label({
+			Name = "Body",
+			Text = section[2],
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Font = F.Medium,
+			TextScaled = false,
+			TextSize = 15,
+			TextWrapped = true,
+			TextColor3 = C.TextDim,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			LayoutOrder = 2,
+			Parent = block,
+		})
+	end
+	Kit.Button({
+		Name = "GotIt",
+		Text = "GOT IT",
+		Size = UDim2.fromOffset(180, 42),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Color = C.Accent,
+		TextSize = 16,
+		OnClick = function()
+			controllers.LobbyController:ClosePanel()
+		end,
+		Parent = body,
+	})
+	return {}
+end
+
+function Panel.Refresh(_state, _data) end
+
+return Panel
+]]></string>
+              </Properties>
+            </Item>
+            <Item class="ModuleScript" referent="99">
               <Properties>
                 <string name="Name">LeaderboardPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -24599,11 +25423,11 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="98">
+            <Item class="ModuleScript" referent="100">
               <Properties>
                 <string name="Name">MorePanel</string>
                 <string name="Source"><![CDATA[--[[
-	MorePanel - everything secondary, in one compact 3x3 grid:
+	MorePanel - HOW TO PLAY (a wide button on top), then everything secondary in a 3x3 grid:
 	  ACHIEVEMENTS  COLLECTION   CHALLENGES
 	  AFK CAMP      PARTY        LEADERBOARD
 	  STATISTICS    CODES        CREDITS
@@ -24622,7 +25446,7 @@ local F = Theme.Fonts
 local Panel = {}
 Panel.Kind = "Window"
 Panel.Title = "MORE"
-Panel.Size = Vector2.new(520, 530)
+Panel.Size = Vector2.new(520, 600)
 
 local TILES = {
 	{ Key = "Achievements", Text = "ACHIEVEMENTS" },
@@ -24637,7 +25461,32 @@ local TILES = {
 }
 
 function Panel.Build(body: Frame, controllers)
-	local grid = Kit.New("Frame", { Name = "Grid", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 372), Parent = body })
+	-- HOW TO PLAY: first, wide, easy to find for new players
+	local howTo = Widgets.Card(body, UDim2.new(1, -8, 0, 56), 0, "HowToPlay")
+	howTo.Position = UDim2.fromOffset(4, 0)
+	howTo.BackgroundColor3 = C.Accent
+	howTo.BackgroundTransparency = 0.72
+	Icons.Make(howTo, "Menu", "HowToPlay", 36, { Position = UDim2.new(0, 14, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5) })
+	Kit.Label({
+		Name = "Label",
+		Text = "HOW TO PLAY",
+		Size = UDim2.new(1, -80, 0, 22),
+		Position = UDim2.new(0, 62, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Font = F.Title,
+		TextScaled = false,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = howTo,
+	})
+	howTo.Activated:Connect(function()
+		if Kit.ClickSound then
+			Kit.ClickSound()
+		end
+		controllers.LobbyController:OpenPanel("HowToPlay")
+	end)
+
+	local grid = Kit.New("Frame", { Name = "Grid", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 372), Position = UDim2.fromOffset(0, 70), Parent = body })
 	Kit.New("UIGridLayout", {
 		CellSize = UDim2.fromOffset(148, 116),
 		CellPadding = UDim2.fromOffset(12, 12),
@@ -24714,7 +25563,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="99">
+            <Item class="ModuleScript" referent="101">
               <Properties>
                 <string name="Name">PartyPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -24892,7 +25741,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="100">
+            <Item class="ModuleScript" referent="102">
               <Properties>
                 <string name="Name">ProfilePanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -24952,10 +25801,7 @@ function Panel.Build(body: Frame, _controllers)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = body,
 	})
-	state.Title = Widgets.Tag(body, "", C.Accent, UDim2.fromOffset(118, 64), UDim2.fromOffset(0, 24))
-	state.Title.AutomaticSize = Enum.AutomaticSize.X
-	state.Title.TextScaled = false
-	state.Title.TextSize = 13
+	state.Title = Widgets.Tag(body, "", C.Accent, UDim2.fromOffset(118, 64), UDim2.fromOffset(0, 24), 13)
 
 	Widgets.Caption(body, "ACCOUNT LEVEL", UDim2.fromOffset(0, 118))
 	state.Level = Kit.Label({
@@ -25024,12 +25870,13 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="101">
+            <Item class="ModuleScript" referent="103">
               <Properties>
                 <string name="Name">SettingsPanel</string>
                 <string name="Source"><![CDATA[--[[
-	SettingsPanel - sound, music, screen shake, damage numbers, low quality mode (fewer
-	particles, no death flips: for older phones). Saved in the profile.
+	SettingsPanel - sound, music, screen shake, damage numbers, hero outline (find your hero
+	in a crowd), fewer effects (fewer particles, fainter ability areas), low quality mode
+	(fewer particles, no death flips: for older phones). Saved in the profile.
 ]]
 
 local Kit = require(script.Parent.Parent.Kit)
@@ -25042,13 +25889,15 @@ local F = Theme.Fonts
 local Panel = {}
 Panel.Kind = "Window"
 Panel.Title = "SETTINGS"
-Panel.Size = Vector2.new(520, 400)
+Panel.Size = Vector2.new(520, 510)
 
 local OPTIONS = {
 	{ Key = "Sfx", Text = "Sound effects" },
 	{ Key = "Music", Text = "Boss music" },
 	{ Key = "Shake", Text = "Screen shake" },
 	{ Key = "DamageNumbers", Text = "Damage numbers" },
+	{ Key = "HeroOutline", Text = "Hero outline (find yourself in a crowd)" },
+	{ Key = "FewerEffects", Text = "Fewer effects" },
 	{ Key = "LowQuality", Text = "Low quality (faster on phones)" },
 }
 
@@ -25070,6 +25919,9 @@ function Panel.Build(body: Frame, controllers)
 		state.Rows[opt.Key] = Widgets.Toggle(body, UDim2.new(1, -4, 0, y + ROW / 2), function(value)
 			controllers.ClientData:SetSetting(opt.Key, value)
 			state.Rows[opt.Key].Set(value)
+			if opt.Key == "HeroOutline" then
+				controllers.RunClient:ApplyOutline()
+			end
 		end)
 		if i < #OPTIONS then
 			Kit.New("Frame", {
@@ -25108,7 +25960,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="102">
+            <Item class="ModuleScript" referent="104">
               <Properties>
                 <string name="Name">ShopPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -25121,9 +25973,12 @@ return Panel
 	  BOOSTS      67 Aura (30 min), AFK Boost (x2 camp rewards, 4 h)
 	  GAMEPASSES  VIP Cosmetics, Cosmetic Collection, Extra Loadout Slots, Extra AFK Hero
 	              Slot, AFK Capacity
+	  SUPPORT     donations (Say Thanks / Big Thanks / Legendary Supporter): no reward
+	Robux prices come from Roblox when the ids are set; items without an id show SOON in the
+	published game (shared/MonetizationData.lua).
 	Nothing here wins a run: the paid revive / extra reroll / extra chest only appear at the
 	moment they apply (death screen, level up, results).
-	OnOpen(arg) selects a page ("Upgrades", "Cosmetics", "Boosts", "Passes").
+	OnOpen(arg) selects a page ("Upgrades", "Cosmetics", "Boosts", "Passes", "Support").
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25148,8 +26003,9 @@ local Panel = {}
 Panel.Kind = "Screen"
 Panel.Title = "SHOP"
 
-local PAGES = { "Upgrades", "Cosmetics", "Boosts", "Passes" }
-local LABELS = { Upgrades = "UPGRADES", Cosmetics = "COSMETICS", Boosts = "BOOSTS", Passes = "GAMEPASSES" }
+local PAGES = { "Upgrades", "Cosmetics", "Boosts", "Passes", "Support" }
+local LABELS = { Upgrades = "UPGRADES", Cosmetics = "COSMETICS", Boosts = "BOOSTS", Passes = "GAMEPASSES", Support = "SUPPORT" }
+local SUPPORT = { { "Product", "Support1" }, { "Product", "Support2" }, { "Product", "Support3" } }
 local BOOSTS = { { "Product", "CosmeticBoost" }, { "Product", "AfkBoost" } }
 local PASSES = {
 	{ "Pass", "VIPCosmetics" },
@@ -25179,10 +26035,14 @@ local function productCard(state, scroll: Instance, order: number, kind: string,
 		Desc = def.Desc,
 		Order = order,
 		PictureHeight = 96,
+		Width = 300,
 		OnClick = function()
 			local data = state.C.ClientData.Data
 			if kind == "Pass" and data and data.Passes and data.Passes[key] then
 				return
+			end
+			if not state.C.ClientData:CanBuy(key) then
+				return -- not on sale yet (no id)
 			end
 			state.C.ClientData:Fire("Buy", kind, key)
 		end,
@@ -25193,7 +26053,7 @@ local function productCard(state, scroll: Instance, order: number, kind: string,
 	state.Products[key] = ui
 end
 
--- the picture of a cosmetic: a real preview when there is one, else a coloured badge
+-- the picture of a cosmetic: a real preview when there is one, else an icon tile
 local function cosmeticPicture(ui, def, heroKey: string)
 	local picture = ui.Picture
 	if def.Category == "Hat" then
@@ -25201,13 +26061,11 @@ local function cosmeticPicture(ui, def, heroKey: string)
 	elseif def.Category == "HeroSkin" then
 		ui.SkinHolder = Kit.New("Frame", { Name = "Model", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = picture })
 		Previews.Hero(ui.SkinHolder, heroKey, { Skin = def.Style })
+	elseif def.Style == "Default" or def.Style == "None" then
+		Widgets.Mono(picture, "—", C.TextMuted, 64, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 	else
-		local color = def.Color or Theme.Rarity[def.Rarity] or C.Accent
-		local text = if def.Style == "Default" or def.Style == "None" then "—" else string.upper(string.sub(def.Name, 1, 4))
-		if string.find(def.Style, "67", 1, true) then
-			text = "67"
-		end
-		Widgets.Mono(picture, text, color, 64, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
+		-- no 3D preview: a tile in the cosmetic's colour (a real icon from UI/IconImages when set)
+		Icons.Cosmetic(picture, def, 64, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 	end
 end
 
@@ -25235,11 +26093,23 @@ function Panel.Build(body: Frame, controllers)
 	state.Wallet = Kit.Label({
 		Name = "Amount",
 		Text = "0",
-		Size = UDim2.new(1, -52, 0, 20),
-		Position = UDim2.new(0, 40, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
+		Size = UDim2.new(1, -52, 0, 18),
+		Position = UDim2.fromOffset(40, 4),
 		Font = F.Bold,
-		MaxTextSize = 17,
+		TextScaled = false,
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = wallet,
+	})
+	Kit.Label({
+		Name = "Caption",
+		Text = "COINS",
+		Size = UDim2.new(1, -52, 0, 12),
+		Position = UDim2.fromOffset(40, 23),
+		Font = F.Bold,
+		TextScaled = false,
+		TextSize = 11,
+		TextColor3 = C.Gold,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = wallet,
 	})
@@ -25247,7 +26117,7 @@ function Panel.Build(body: Frame, controllers)
 	local holder = Kit.New("Frame", { Name = "Pages", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -58), Position = UDim2.fromOffset(0, 58), Parent = body })
 
 	-- UPGRADES
-	local upgrades = page(holder, "Upgrades", Vector2.new(240, 140))
+	local upgrades = page(holder, "Upgrades", Vector2.new(240, 122))
 	state.Pages.Upgrades = upgrades
 	for i, def in MetaData.Upgrades do
 		local ui = Cards.Item(upgrades, {
@@ -25263,7 +26133,7 @@ function Panel.Build(body: Frame, controllers)
 		})
 		Icons.Make(ui.Picture, "Stat", def.Key, 40, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 		ui.Desc.Position = UDim2.fromOffset(70, 40)
-		ui.Desc.Size = UDim2.new(1, -82, 0, 32)
+		ui.Desc.Size = UDim2.new(1, -82, 0, 36)
 		-- level: pips + "2/5", bottom-left next to the buy button
 		local pips = Kit.New("Frame", {
 			Name = "Pips",
@@ -25341,7 +26211,7 @@ function Panel.Build(body: Frame, controllers)
 			Panel.ShowCategory(state, cat.Key)
 		end)
 		state.CatButtons[cat.Key] = button
-		local grid = page(grids, cat.Key, Vector2.new(188, 290))
+		local grid = page(grids, cat.Key, Vector2.new(188, 300))
 		state.CatPages[cat.Key] = grid
 		for j, def in CosmeticData.ByCategory[cat.Key] do
 			local ui = Cards.Item(grid, {
@@ -25350,6 +26220,7 @@ function Panel.Build(body: Frame, controllers)
 				Rarity = def.Rarity,
 				Order = j,
 				PictureHeight = 100,
+				Width = 188,
 				OnClick = function()
 					Panel.ClickCosmetic(state, def)
 				end,
@@ -25361,7 +26232,7 @@ function Panel.Build(body: Frame, controllers)
 
 	-- BOOSTS / GAMEPASSES
 	local cell = Vector2.new(300, 264)
-	for _, entry in { { "Boosts", BOOSTS }, { "Passes", PASSES } } do
+	for _, entry in { { "Boosts", BOOSTS }, { "Passes", PASSES }, { "Support", SUPPORT } } do
 		local scroll = page(holder, entry[1], cell)
 		state.Pages[entry[1]] = scroll
 		for i, item in entry[2] do
@@ -25486,8 +26357,12 @@ function Panel.Refresh(state, data)
 		elseif key == "AfkBoost" and data.Afk and (data.Afk.BoostLeft or 0) > 0 then
 			Cards.Set(ui, "EQUIPPED", string.format("ACTIVE %dm", math.ceil(data.Afk.BoostLeft / 60)), C.SuccessDark)
 			ui.State.Text = "ACTIVE"
+		elseif not state.C.ClientData:CanBuy(key) then
+			-- no id yet (published game): visible, but it can't be bought
+			Cards.Set(ui, "", "SOON", C.Neutral)
+			ui.Need.Text = "Not on sale yet"
 		else
-			Cards.Set(ui, "", robux(ui.Def.Price), C.AccentSoft)
+			Cards.Set(ui, "", robux(state.C.ClientData:RobuxPrice(key)), C.AccentSoft)
 		end
 	end
 end
@@ -25500,7 +26375,7 @@ return Panel
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="103">
+            <Item class="ModuleScript" referent="105">
               <Properties>
                 <string name="Name">StatisticsPanel</string>
                 <string name="Source"><![CDATA[--[[
@@ -25582,7 +26457,7 @@ return Panel
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="104">
+          <Item class="ModuleScript" referent="106">
             <Properties>
               <string name="Name">Previews</string>
               <string name="Source"><![CDATA[--[[
@@ -25931,7 +26806,7 @@ return Previews
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="105">
+          <Item class="ModuleScript" referent="107">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[--[[
@@ -25971,8 +26846,8 @@ local Neutral = rgb(52, 49, 76) -- secondary buttons
 Theme.Colors = {
 	-- semantic
 	Text = rgb(255, 255, 255),
-	TextDim = rgb(172, 168, 198),
-	TextMuted = rgb(118, 114, 146),
+	TextDim = rgb(206, 202, 228), -- secondary text (descriptions): ~11:1 on the dark glass
+	TextMuted = rgb(164, 160, 192), -- captions and hints: ~6.5:1 (readable, still quieter)
 	Surface = Surface,
 	SurfaceLight = SurfaceLight,
 	SurfaceDark = SurfaceDark,
@@ -26063,7 +26938,8 @@ Theme.Text = {
 	Heading = 22,
 	Button = 20,
 	Body = 16,
-	Small = 13,
+	Small = 14, -- the smallest text for descriptions
+	Caption = 12, -- only for short uppercase captions (COINS, LEVEL 2/5)
 }
 
 -- screen margin kept free on every side (design units)
@@ -26138,7 +27014,7 @@ return Theme
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="106">
+          <Item class="ModuleScript" referent="108">
             <Properties>
               <string name="Name">Widgets</string>
               <string name="Source"><![CDATA[--[[
@@ -26147,6 +27023,8 @@ return Theme
 	  (icons drawn from frames: no image assets), Card, Tabs,
 	  Screen (full-screen menu: one screen = one purpose), Window (compact modal).
 ]]
+
+local TextService = game:GetService("TextService")
 
 local Kit = require(script.Parent.Kit)
 local Theme = require(script.Parent.Theme)
@@ -26233,7 +27111,7 @@ function Widgets.Scroll(parent: Instance, grid: Vector2?, padding: number?): Scr
 			CellSize = UDim2.fromOffset(grid.X, grid.Y),
 			CellPadding = UDim2.fromOffset(pad, pad),
 			SortOrder = Enum.SortOrder.LayoutOrder,
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			HorizontalAlignment = Enum.HorizontalAlignment.Left, -- lines up with the tabs above
 			Parent = scroll,
 		})
 	else
@@ -26273,24 +27151,62 @@ function Widgets.Row(parent: Instance, height: number, order: number?, color: Co
 	})
 end
 
--- Small rounded chip ("NEW", "LV 3", "RARE", "OWNED")
-function Widgets.Tag(parent: Instance, text: string, color: Color3, position: UDim2, size: UDim2?): TextLabel
-	local tag = Kit.Label({
+-- width of one line of text in pixels (TextService; a close estimate where it is missing)
+function Widgets.TextWidth(text: string, size: number, font: Enum.Font): number
+	local ok, bounds = pcall(function()
+		return TextService:GetTextSize(text, size, font, Vector2.new(4096, 1024))
+	end)
+	if ok and typeof(bounds) == "Vector2" then
+		return bounds.X
+	end
+	return (utf8.len(text) or #text) * size * 0.62
+end
+
+local TAG_PAD = 9
+
+-- a chip is as wide as its text + padding (never narrower than its minimum width)
+local function fitTag(tag: TextLabel)
+	local width = Widgets.TextWidth(tag.Text, tag.TextSize, tag.Font) + TAG_PAD * 2 + 4
+	local minWidth = tonumber(tag:GetAttribute("MinWidth")) or 0
+	tag.Size = UDim2.fromOffset(math.max(minWidth, math.ceil(width)), tag.Size.Y.Offset)
+end
+
+--[[
+	Small rounded chip ("NEW", "LV 3", "RARE", "OWNED"): one line that is never cut or wrapped.
+	Fixed text size (no TextScaled), no wrapping, the width follows the text (re-fitted when
+	the text changes); AutomaticSize X stays on as a safety net.
+	size: minimum width + height (default 0 x 22); textSize: default 12 (13 when taller).
+]]
+function Widgets.Tag(parent: Instance, text: string, color: Color3, position: UDim2, size: UDim2?, textSize: number?): TextLabel
+	local height = if size then size.Y.Offset else 22
+	local tag = Kit.New("TextLabel", {
 		Name = "Tag",
 		Text = text,
-		Size = size or UDim2.fromOffset(64, 22),
+		Size = UDim2.fromOffset(0, height),
 		Position = position,
+		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 0.8,
 		BackgroundColor3 = color,
 		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.35),
 		Font = F.Bold,
-		MaxTextSize = 13,
+		TextSize = textSize or (if height >= 22 then 13 else 12),
+		TextScaled = false,
+		TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.None,
 		ZIndex = 5,
 		Parent = parent,
 	})
-	Kit.Corner(tag, 11)
+	tag:SetAttribute("MinWidth", if size then size.X.Offset else 0)
+	Kit.Corner(tag, math.floor(height / 2))
 	Kit.Stroke(tag, 1, color, 0.4)
-	Kit.Padding(tag, 8, 2)
+	Kit.New("UIPadding", { PaddingLeft = UDim.new(0, TAG_PAD), PaddingRight = UDim.new(0, TAG_PAD), Parent = tag })
+	fitTag(tag)
+	tag:GetPropertyChangedSignal("Text"):Connect(function()
+		fitTag(tag)
+	end)
+	tag:GetPropertyChangedSignal("TextSize"):Connect(function()
+		fitTag(tag)
+	end)
 	return tag
 end
 
@@ -26673,7 +27589,14 @@ function Widgets.Card(parent: Instance, size: UDim2, order: number?, name: strin
 	})
 	Kit.Corner(card, 16)
 	Kit.Stroke(card)
-	Kit.Interactive(card, 1.03)
+	-- a small lift (3%), no bounce, and the hovered card is drawn above its neighbours
+	Kit.Interactive(card, 1.03, true)
+	card.MouseEnter:Connect(function()
+		card.ZIndex = 3
+	end)
+	card.MouseLeave:Connect(function()
+		card.ZIndex = 1
+	end)
 	return card
 end
 
@@ -26872,6 +27795,45 @@ function Widgets.Fit(fit: Frame, height: number)
 	end
 end
 
+-- A small hint box under `target` while the mouse is over it (right-aligned to the target, so
+-- it stays on screen near the right edge). Returns the box.
+function Widgets.Tooltip(target: GuiObject, text: string, width: number?): Frame
+	local box = Kit.Panel({
+		Name = "Tooltip",
+		Size = UDim2.fromOffset(width or 260, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Position = UDim2.new(1, 0, 1, 8),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundTransparency = Theme.GlassStrong,
+		Visible = false,
+		ZIndex = 20,
+		Radius = 12,
+		Parent = target,
+	})
+	Kit.Padding(box, 12, 10)
+	Kit.Label({
+		Name = "Text",
+		Text = text,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		TextScaled = false,
+		TextSize = 14,
+		TextWrapped = true,
+		Font = F.Medium,
+		TextColor3 = C.TextDim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 21,
+		Parent = box,
+	})
+	target.MouseEnter:Connect(function()
+		box.Visible = true
+	end)
+	target.MouseLeave:Connect(function()
+		box.Visible = false
+	end)
+	return box
+end
+
 -- Small grey caps caption ("DAILY QUEST", "PERK")
 function Widgets.Caption(parent: Instance, text: string, position: UDim2, width: number?): TextLabel
 	return Kit.Label({
@@ -27041,13 +28003,13 @@ return Widgets
       </Item>
     </Item>
   </Item>
-  <Item class="TextChatService" referent="107">
+  <Item class="TextChatService" referent="109">
     <Properties>
       <string name="Name">TextChatService</string>
       <token name="ChatVersion">1</token>
     </Properties>
   </Item>
-  <Item class="Workspace" referent="108">
+  <Item class="Workspace" referent="110">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-500</float>

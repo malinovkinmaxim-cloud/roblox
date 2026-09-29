@@ -413,6 +413,7 @@ for _, scene in {
 	{ "Shop" },
 	{ "Shop", "Cosmetics" },
 	{ "Shop", "Passes" },
+	{ "Shop", "Support" },
 	{ "Achievements" },
 	{ "Collection" },
 	{ "Challenges" },
