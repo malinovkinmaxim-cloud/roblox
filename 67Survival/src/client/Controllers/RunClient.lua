@@ -8,10 +8,12 @@
 	between 10 Hz frames.
 
 	67 TOWN state for the map / HUD / minimap / pointers:
-	  Encounters  mini-bosses out right now (by MiniBossData key): where, stage, bodies, timer
-	  Minis       per mini-boss body (enemy id): HP fraction, flags, reels, revive countdown
-	  Map         the rift, the 67 RUSH zone, vaults, the threat of each zone, visited zones
-	  Relics      the relics you carry (Loadout), Dash (charges / recharge)
+	  Encounters  the bosses out right now (by BossData key): slot, where, stage, bodies, timer
+	  Minis       per boss / elite body (enemy id): HP fraction, flags, reels, revive countdown
+	  Elites      the elites alive (enemy id): name, affixes, where they appeared
+	  Arena       THE FINAL ONE's sealed ring ({ X, Z, R }) while it is sealed
+	  Map         the rift, the 67 RUSH zone, vaults, what the Compass scouted, visited zones
+	  Items       the items you carry ({ Key, Level }), Synergies, Souls, Dash, Plating, Shadow
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -57,9 +59,15 @@ end
 function RunClient:ResetTown()
 	self.Encounters = {} :: { [string]: any }
 	self.Minis = {} :: { [number]: any }
-	self.Map = { Rift = false, Hot = nil, HotUntil = 0, Vaults = {}, Threat = {}, Visited = {}, Zone = nil }
-	self.Relics = {}
+	self.Elites = {} :: { [number]: any }
+	self.Arena = nil :: any
+	self.Map = { Rift = false, Hot = nil, HotUntil = 0, HotSoon = nil, VaultSoon = nil, Vaults = {}, Visited = {}, Zone = nil }
+	self.Items = {}
+	self.Synergies = {}
+	self.Souls = nil :: any
 	self.Dash = nil :: any
+	self.Plating = nil :: any
+	self.Shadow = nil :: any
 end
 
 -- the zone the local character stands in (arena coordinates of the character)
@@ -343,8 +351,13 @@ function RunClient:BuildHandlers()
 	function h.LootGone(id)
 		C.LootRenderer:Take(id, false)
 	end
-	function h.Threat(zoneIndex, pct)
-		self.Map.Threat[zoneIndex] = pct
+	function h.Plating(current, max)
+		self.Plating = if max > 0 then { HP = current, Max = max } else nil
+		C.HudController:SetPlating(self.Plating)
+	end
+	function h.Shadow(x, z, shown)
+		self.Shadow = if shown > 0 then { X = x, Z = z } else nil
+		C.WeaponFx:Shadow(self.Shadow)
 	end
 	function h.Vault(index, state, pct)
 		local v = self.Map.Vaults[index] or {}
@@ -381,7 +394,8 @@ function RunClient:BuildEventHandlers()
 	end
 	function e.Loadout(p)
 		self.Loadout = p
-		self.Relics = p.Relics or {}
+		self.Items = p.Items or {}
+		self.Synergies = p.Synergies or {}
 		C.HudController:SetLoadout(p)
 		C.WeaponFx:SetLoadout(p)
 	end
@@ -459,9 +473,50 @@ function RunClient:BuildEventHandlers()
 		self.Minis[p.Id] = m
 		m.Reels = { Result = p.Result, Until = os.clock() + (p.Time or 1) }
 	end
-	function e.Relic(p)
-		C.HudController:RelicGained(p)
+	function e.Item(p)
+		C.HudController:ItemGained(p)
 		C.SoundController:Play(if p.Maxed then "Coin" else "Relic")
+	end
+	function e.LockedRelic(p)
+		C.BannerController:Toast(
+			string.format("%s would have dropped %s", tostring(p.Boss), string.upper(p.Name)),
+			"Info",
+			string.format("Unlock it for %d CHIPS in ITEMS", p.Price or 0)
+		)
+	end
+	function e.Synergy(p)
+		table.insert(self.Synergies, p.Key)
+		C.BannerController:Synergy(p)
+		C.HudController:SynergyOn(p)
+		C.SoundController:Play("Rare")
+	end
+	function e.Perk(p)
+		C.HudController:PerkPop(p)
+	end
+	function e.Souls(p)
+		self.Souls = { Count = p.Count, Max = p.Max }
+		C.HudController:SetSouls(self.Souls, p.Lost)
+	end
+	function e.Elite(p)
+		if p.Phase == "Spawn" then
+			self.Elites[p.Id] = { Id = p.Id, Key = p.Key, Name = p.Name, Affixes = p.Affixes or {}, X = p.X, Z = p.Z, Zone = p.Zone, Since = os.clock() }
+			self.Minis[p.Id] = self.Minis[p.Id] or { Id = p.Id, HP = 1, Flags = 0 }
+			self.Minis[p.Id].Elite = true
+			C.BannerController:Elite(p)
+			C.EnemyRenderer:MarkElite(p.Id, p.Name, p.Affixes or {})
+		elseif p.Phase == "Defeated" then
+			self.Elites[p.Id] = nil
+			self.Minis[p.Id] = nil
+			C.SoundController:Play("Rare")
+		end
+	end
+	function e.Arena(p)
+		self.Arena = if p.Sealed then { X = p.X, Z = p.Z, R = p.R } else nil
+		C.ArenaController:SetSeal(self.Arena)
+		if p.Sealed then
+			C.CameraController:Shake(1.2)
+			C.SoundController:Play("BossSpawn", 0.8, 0.8)
+		end
 	end
 	function e.Map(p)
 		local m = self.Map
@@ -472,7 +527,24 @@ function RunClient:BuildEventHandlers()
 			m.Hot = if p.Hot == false then nil else p.Hot
 			m.HotUntil = os.clock() + (p.Time or 0)
 		end
+		if p.HotSoon then
+			m.HotSoon = { Zone = p.HotSoon, At = os.clock() + (p.Time or 0) }
+			local zone = ArenaData.ByKey[p.HotSoon]
+			if zone then
+				C.BannerController:Toast("COMPASS: a 67 RUSH is coming to " .. zone.Name, "Info")
+			end
+		end
+		if p.Hot then
+			m.HotSoon = nil
+		end
+		if p.VaultSoon then
+			m.VaultSoon = { Index = p.VaultSoon, At = os.clock() + (p.Time or 0) }
+			C.BannerController:Toast("COMPASS: a 67 VAULT will wake up soon", "Info")
+		end
 		if p.Vault then
+			if p.State == "Awake" then
+				m.VaultSoon = nil
+			end
 			local v = m.Vaults[p.Vault] or {}
 			v.Event = p.State
 			if p.State == "Awake" then
@@ -495,20 +567,33 @@ function RunClient:BuildEventHandlers()
 	return e
 end
 
--- the life of a mini-boss encounter (Sim/MiniBosses): Warn -> Spawn -> Defeated / Left / Escaped
+-- the life of a boss encounter (Sim/MiniBosses): Warn -> Spawn -> Defeated / Left / Escaped
 function RunClient:OnMiniBoss(p)
 	local C = self.C
 	local phase = p.Phase
 	local enc = self.Encounters[p.Key]
 	if phase == "Warn" then
-		self.Encounters[p.Key] = { Key = p.Key, Title = p.Title, X = p.X, Z = p.Z, Zone = p.Zone, ZoneName = p.ZoneName, Stage = "Warn", Ids = {}, Hint = p.Hint, Since = os.clock() }
+		self.Encounters[p.Key] = {
+			Key = p.Key,
+			Title = p.Title,
+			Slot = p.Slot,
+			Main = p.Main == true,
+			X = p.X,
+			Z = p.Z,
+			Zone = p.Zone,
+			ZoneName = p.ZoneName,
+			Stage = "Warn",
+			Ids = {},
+			Hint = p.Hint,
+			Tests = p.Tests,
+			Crowned = p.Crowned == true,
+			SpawnAt = os.clock() + (p.Delay or 0),
+			Since = os.clock(),
+		}
 		C.BannerController:MiniBoss(p)
 	elseif phase == "Spawn" and enc then
 		enc.Stage = "Fight"
 		enc.Ids = p.Ids or {}
-		if p.Timer then
-			enc.TimerEnd = os.clock() + p.Timer
-		end
 		for _, id in enc.Ids do
 			self.Minis[id] = self.Minis[id] or { Id = id, HP = 1, Flags = 0 }
 			self.Minis[id].Encounter = p.Key
@@ -516,6 +601,25 @@ function RunClient:OnMiniBoss(p)
 		if p.Hint and p.Hint ~= "" then
 			C.BannerController:Toast(p.Title, "Info", p.Hint)
 		end
+	elseif phase == "Timer" and enc then
+		-- TICK TOCK: the clock starts when the fight does
+		enc.TimerEnd = os.clock() + (p.Timer or 67)
+		C.BannerController:Toast(p.Key == "TickTock" and "TICK TOCK started its clock: 67 seconds!" or "The clock is ticking!", "Error")
+	elseif phase == "Exposed" then
+		local m = self.Minis[p.Id]
+		if m then
+			m.ExposedUntil = os.clock() + (p.Time or 2)
+			m.ExposedText = p.Text
+		end
+		C.EffectsController:Exposed(p)
+	elseif phase == "Phase" then
+		local m = self.Minis[p.Id]
+		if m then
+			m.Phase = p.Index
+		end
+		C.CameraController:Shake(1.5)
+	elseif phase == "Crowned" and enc then
+		enc.Crowned = true
 	elseif phase == "Bond" then
 		local m = self.Minis[p.Id]
 		if m then
@@ -552,6 +656,10 @@ function RunClient:OnMiniBoss(p)
 		self.Encounters[p.Key] = nil
 		if phase == "Defeated" then
 			C.SoundController:Play("BossDeath", 1.15, 0.7)
+		end
+		if p.Main then
+			self.Arena = nil
+			C.ArenaController:SetSeal(nil)
 		end
 	end
 	C.ArenaController:Refresh()

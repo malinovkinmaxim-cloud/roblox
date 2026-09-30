@@ -192,7 +192,7 @@ function Panel.Refresh(state, data)
 			ui.Name.Text = def.Name
 			ui.Desc.Text = def.Desc
 			Cards.Set(ui, "", nil)
-			ui.Need.Text = "Max " .. def.MaxStacks .. (if def.MaxStacks == 1 then " stack" else " stacks")
+			ui.Need.Text = def.Category .. "  ·  " .. def.MaxLevel .. (if def.MaxLevel == 1 then " level" else " levels")
 		end
 	end
 end

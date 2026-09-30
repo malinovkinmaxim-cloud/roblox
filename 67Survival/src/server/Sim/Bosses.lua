@@ -1,9 +1,12 @@
 --[[
-	Bosses - boss attack patterns. Every attack is telegraphed (red circle / line / zone on
-	the ground, sent as a Telegraph record) so the player has to move:
-	  Slam DoubleSlam Leap Teleport Barrage Sweep Hazard Dash Ring Spiral Summon Rain
-	Below Params.EnrageAt HP the boss enrages: faster, attacks more often, and adds its
-	EnragePatterns.
+	Bosses - the attack patterns of the classic bosses and THE FINAL ONE. Every attack is
+	telegraphed (red circle / line / zone on the ground, sent as a Telegraph record) so the
+	player has to move:
+	  Slam DoubleSlam Leap Teleport Barrage Sweep Hazard Dash Ring Spiral Summon Rain DoomRing
+	PHASES come from shared/BossData.lua (Sim/MiniBosses.StepPhase): each one speeds the boss
+	up (e.Rate) and adds Params.PhasePatterns[phase] (or EnragePatterns in phase 2). After some
+	attacks the boss is EXPOSED (its weak point, BossData WeakPoint): e.PendingExpose.
+	DoomRing (THE FINAL ONE): a ring of shots with one gap; a line points at the gap.
 
 	Called by EnemyManager (which passes itself in, avoiding a require cycle).
 ]]
@@ -37,6 +40,7 @@ local EVERY = {
 	Barrage = "BarrageEvery",
 	Sweep = "SweepEvery",
 	Hazard = "HazardEvery",
+	DoomRing = "DoomRingEvery",
 }
 
 local function state(run, e, s: number)
@@ -56,21 +60,30 @@ function Bosses.Init(run, e)
 	end
 	e.Busy = 0
 	e.Enraged = false
-	e.EnrageAt = p.EnrageAt
+	e.Rate = e.Rate or 1
 	if run.Mods and run.Mods.BossRage then
-		-- BOSS RAGE difficulty: the enraged attacks are there from the start, rage comes sooner
-		for i, pattern in p.EnragePatterns or {} do
-			if not e.Timers[pattern] then
-				table.insert(e.Patterns, pattern)
-				e.Timers[pattern] = (p[EVERY[pattern]] or 6) * (0.6 + 0.25 * i)
-			end
-		end
-		if e.EnrageAt then
-			e.EnrageAt = math.max(e.EnrageAt, 0.7)
+		-- BOSS RAGE difficulty: the second phase's attacks are there from the start
+		Bosses.AddPhase(run, e, 2)
+	end
+	-- the big bar at the top of the screen: THE FINAL ONE (and a boss without an encounter)
+	local enc = e.Encounter
+	if not enc or enc.Main then
+		run.Boss = e
+		run:Event("BossSpawn", { Id = e.Id, Key = e.Key, Title = p.Title, MaxHP = math.ceil(e.MaxHP), Final = p.Final == true })
+	end
+end
+
+-- the patterns a phase adds
+function Bosses.AddPhase(run, e, phase: number)
+	local p = e.Def.Params
+	local add = (p.PhasePatterns and p.PhasePatterns[phase]) or (if phase == 2 then p.EnragePatterns else nil) or {}
+	for i, pattern in add do
+		if not e.Timers[pattern] then
+			table.insert(e.Patterns, pattern)
+			e.Timers[pattern] = 1.2 + i * 0.8
 		end
 	end
-	run.Boss = e
-	run:Event("BossSpawn", { Id = e.Id, Key = e.Key, Title = p.Title, MaxHP = math.ceil(e.MaxHP), Final = p.Final == true })
+	local _ = run
 end
 
 -- a delayed attack: shape 1 circle, 2 dash line (visual only), 3 lingering zone, 4 laser line,
@@ -104,12 +117,14 @@ local ACTIONS = {}
 function ACTIONS.Slam(run, e, p, scale)
 	telegraph(run, e, 1, run.PX, run.PZ, 0, p.SlamRadius, 0, p.SlamDelay, p.SlamDamage * scale, "Slam")
 	e.Busy = p.SlamDelay * 0.8
+	e.PendingExpose = { Reason = "Slam", At = run.Time + p.SlamDelay }
 	state(run, e, ES.Windup)
 end
 
 function ACTIONS.DoubleSlam(run, e, p, scale)
 	ACTIONS.Slam(run, e, p, scale)
 	e.SecondSlamAt = run.Time + 0.67
+	e.PendingExpose = { Reason = "DoubleSlam", At = run.Time + 0.67 + p.SlamDelay }
 end
 
 -- jumps onto the spot where the player stands
@@ -121,6 +136,7 @@ function ACTIONS.Leap(run, e, p, scale)
 	e.LeapT, e.LeapDur = 0, p.LeapDelay
 	e.Air = true
 	e.Busy = p.LeapDelay
+	e.PendingExpose = { Reason = "Leap", At = run.Time + p.LeapDelay }
 	state(run, e, ES.Dash)
 end
 
@@ -132,6 +148,7 @@ function ACTIONS.Teleport(run, e, p, scale)
 	e.TeleportAt = run.Time + p.TeleportDelay * 0.85
 	e.TeleportX, e.TeleportZ = tx, tz
 	e.Busy = p.TeleportDelay
+	e.PendingExpose = { Reason = "Teleport", At = run.Time + p.TeleportDelay }
 	run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 1.5, 0, GFX.Teleport)
 	state(run, e, ES.Windup)
 end
@@ -165,6 +182,7 @@ function ACTIONS.Sweep(run, e, p, scale)
 		telegraph(run, e, 4, run.PX - dx * half, run.PZ - dz * half, a, p.SweepLength, p.SweepWidth, p.SweepDelay + (i - 1) * 0.18, p.SweepDamage * scale, "Sweep")
 	end
 	e.Busy = p.SweepDelay * 0.6
+	e.PendingExpose = { Reason = "Sweep", At = run.Time + p.SweepDelay + n * 0.18 }
 	state(run, e, ES.Windup)
 end
 
@@ -202,12 +220,29 @@ function ACTIONS.Spiral(run, e, p, scale)
 	e.SpiralAngle = run.Rng:NextNumber(0, TAU)
 	e.SpiralTimer = 0
 	e.SpiralDamage = p.SpiralDamage * scale
+	e.PendingExpose = { Reason = "Spiral", At = run.Time + p.SpiralCount * 0.07 }
+end
+
+-- DOOM RING (THE FINAL ONE): a ring of shots with one gap; a line shows where the gap is
+function ACTIONS.DoomRing(run, e, p, scale)
+	local gapA = run.Rng:NextNumber(0, TAU)
+	local delay = p.DoomDelay or 1.2
+	e.DoomAt = run.Time + delay
+	e.DoomGap = gapA
+	e.DoomDamage = p.DoomDamage * scale
+	telegraph(run, e, 2, e.X, e.Z, gapA, 30, 6, delay, 0)
+	state(run, e, ES.Windup)
+	e.Busy = delay
 end
 
 function ACTIONS.Summon(run, e, p, _scale, EM)
+	local main = e.Encounter and e.Encounter.Main
 	for i = 1, p.SummonCount do
 		local a = (i / p.SummonCount) * TAU
-		EM.Spawn(run, p.SummonKey, e.X + cos(a) * (e.Radius + 3), e.Z + sin(a) * (e.Radius + 3), { Force = p.SummonKey == "Goblin67", NoScale = p.SummonKey == "Goblin67" })
+		local add = EM.Spawn(run, p.SummonKey, e.X + cos(a) * (e.Radius + 3), e.Z + sin(a) * (e.Radius + 3), { Force = p.SummonKey == "Goblin67" or main, NoScale = p.SummonKey == "Goblin67" })
+		if add and main then
+			add.ArenaAdd = true -- stays inside the sealed arena
+		end
 	end
 end
 
@@ -227,20 +262,23 @@ function Bosses.Step(run, e, dx: number, dz: number, d: number, dt: number, EM):
 	local p = e.Def.Params
 	local scale = e.DmgScale
 
-	local enrageAt = e.EnrageAt or p.EnrageAt
-	if enrageAt and not e.Enraged and e.HP < e.MaxHP * enrageAt then
-		e.Enraged = true
-		e.Speed *= 1.3
-		for _, pattern in p.EnragePatterns or {} do
-			if not e.Timers[pattern] then
-				table.insert(e.Patterns, pattern)
-				e.Timers[pattern] = 1.5
+	local rate = e.Rate or 1
+
+	-- the doom ring fires (everything but the gap)
+	if e.DoomAt and run.Time >= e.DoomAt then
+		e.DoomAt = nil
+		local n = p.DoomCount or 40
+		local gap = p.DoomGap or 5
+		local speed = p.DoomSpeed or 15
+		for i = 1, n do
+			local a = e.DoomGap + (i / n) * TAU
+			local off = (i % n)
+			if off > math.floor(gap / 2) and off < n - math.floor(gap / 2) then
+				EM.Shoot(run, e.X, e.Z, cos(a) * speed, sin(a) * speed, 1.5, e.DoomDamage, 5)
 			end
 		end
-		run:Banner(p.Title .. " IS ENRAGED", "It's getting serious", "Boss")
 		run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2, 0, GFX.Enrage)
 	end
-	local rate = if e.Enraged then 1.45 else 1
 
 	-- second slam of the 67 King
 	if e.SecondSlamAt and run.Time >= e.SecondSlamAt then
@@ -350,13 +388,13 @@ function Bosses.StepTelegraphs(run, _EM, dt: number?)
 				if t.Damage > 0 then
 					local dx, dz = run.PX - t.X, run.PZ - t.Z
 					if dx * dx + dz * dz <= (t.R + PLAYER_R * 0.5) ^ 2 then
-						run:HurtPlayer(t.Damage, true)
+						run:HurtPlayer(t.Damage, true, "Boss")
 					end
 				end
 				run:Write("Fx", 0, t.X, t.Z, 0, t.R, 0, if t.Kind == "Land" then GFX.Land else GFX.Slam)
 			elseif t.Shape == 4 then
 				if segmentDistance(run.PX, run.PZ, t.X, t.Z, t.Angle, t.R) <= t.Width / 2 + PLAYER_R * 0.5 then
-					run:HurtPlayer(t.Damage, true)
+					run:HurtPlayer(t.Damage, true, "Boss")
 				end
 				run:Write("Fx", 0, t.X, t.Z, t.Angle, t.R, t.Width, GFX.Sweep)
 			elseif t.Shape == 3 or t.Shape == 6 then
@@ -386,7 +424,7 @@ function Bosses.StepTelegraphs(run, _EM, dt: number?)
 				local dx, dz = run.PX - h.X, run.PZ - h.Z
 				if dx * dx + dz * dz <= (h.R + PLAYER_R * 0.3) ^ 2 then
 					h.Tick = 0.5
-					run:HurtPlayer(h.Damage, true)
+					run:HurtPlayer(h.Damage, true, "Hazard")
 					if h.Void then
 						run:Write("Fx", 0, run.PX, run.PZ, 0, 3, 0, GFX.Hazard)
 					end

@@ -28,8 +28,10 @@ local FLAGS = Protocol.Flags
 local WHITE = Color3.new(1, 1, 1)
 local FROZEN = Color3.fromRGB(150, 220, 255)
 local LIT = Color3.fromRGB(255, 60, 40)
+local STUNNED = Color3.fromRGB(255, 230, 120)
 local BURN = Color3.fromRGB(255, 140, 50)
 local ES = Protocol.EState
+local ELITE: Color3 -- set below (elite plates)
 local MAX_DYING = 40
 local atan2, sin, abs = math.atan2, math.sin, math.abs
 
@@ -84,9 +86,33 @@ function EnemyRenderer:Add(e)
 	e.Sky = if bit32.band(e.Flags, FLAGS.FromSky) ~= 0 then 0.55 else 0
 	table.insert(self.List, e)
 	e.Index = #self.List
-	if e.Def.Champion then
+	if e.Def.Champion or e.Def.MiniBoss then
 		self:AttachPlate(e, item)
 	end
+	local elite = self.PendingElites and self.PendingElites[e.Id]
+	if elite then
+		self.PendingElites[e.Id] = nil
+		self:MarkElite(e.Id, elite.Name, elite.Affixes)
+	end
+end
+
+-- an elite: a purple name plate with its affixes (the Elite event may come before or after
+-- the enemy itself)
+function EnemyRenderer:MarkElite(id: number, name: string, affixes: { string })
+	local e = self.C.RunClient.Enemies[id]
+	if not e or not e.Item then
+		self.PendingElites = self.PendingElites or {}
+		self.PendingElites[id] = { Name = name, Affixes = affixes }
+		return
+	end
+	e.EliteName = name
+	e.EliteAffixes = table.concat(affixes, " · ")
+	if not e.Plate then
+		self:AttachPlate(e, e.Item)
+	end
+	e.Plate.Name.Text = name
+	e.Plate.Name.TextColor3 = ELITE
+	e.Plate.Fill.BackgroundColor3 = ELITE
 end
 
 ---------------------------------------------------------------------------
@@ -94,6 +120,7 @@ end
 ---------------------------------------------------------------------------
 local PLATE_W, PLATE_H = 190, 56
 local MF = Protocol.MiniFlags
+ELITE = Color3.fromRGB(190, 110, 255)
 local REEL_SYMBOL = { Ring = "O", Cross = "X", Bombs = "!", Jackpot = "7" }
 local REEL_SPIN = { "O", "X", "!", "7" }
 
@@ -201,18 +228,32 @@ function EnemyRenderer:PlateStatus(e, m, now: number): (string, Color3)
 			return string.format("[ %s  %s  %s ]", sym, sym, sym), if reels.Result == "Jackpot" then C.Gold else C.Danger
 		end
 	end
+	if (m and m.ExposedUntil and now < m.ExposedUntil) or bit32.band(flags, MF.Exposed) ~= 0 then
+		return "WEAK POINT! " .. tostring(m and m.ExposedText or "HIT IT NOW"), Color3.fromRGB(255, 170, 40)
+	end
 	local enc = m and m.Encounter and run.Encounters[m.Encounter]
 	if enc and enc.TimerEnd then
 		local left = math.max(0, enc.TimerEnd - now)
 		return string.format("ALARM IN %d:%02d", math.floor(left / 60), math.floor(left % 60)), if left < 15 then C.Danger else C.Text
 	end
+	local marked = if bit32.band(flags, MF.Marked) ~= 0 then "  ✖" else ""
+	if e.EliteName then
+		return (e.EliteAffixes or "ELITE") .. marked, ELITE
+	end
 	if bit32.band(flags, MF.Home) ~= 0 then
 		return "GOING HOME TO HEAL", C.TextDim
 	end
-	if bit32.band(flags, MF.Enraged) ~= 0 then
-		return "ANGRY", C.Danger
+	local tag = if enc and enc.Slot then "BOSS " .. enc.Slot else "BOSS"
+	if enc and enc.Crowned then
+		tag = "👑 CROWNED " .. tag
 	end
-	return "MINI-BOSS", C.TextDim
+	if m and m.Phase and m.Phase > 1 then
+		return tag .. " · PHASE " .. m.Phase .. marked, C.Danger
+	end
+	if bit32.band(flags, MF.Enraged) ~= 0 then
+		return tag .. " · ANGRY" .. marked, C.Danger
+	end
+	return tag .. marked, C.TextDim
 end
 
 function EnemyRenderer:UpdatePlates()
@@ -229,7 +270,19 @@ function EnemyRenderer:UpdatePlates()
 		local hp = if m and m.HP then m.HP else 1
 		plate.Fill.Size = UDim2.fromScale(math.clamp(hp, 0, 1), 1)
 		local flags = if m then m.Flags or 0 else 0
-		plate.Fill.BackgroundColor3 = if bit32.band(flags, MF.Shielded) ~= 0 then C.Gold else C.Danger
+		local exposed = (m and m.ExposedUntil and now < m.ExposedUntil) or bit32.band(flags, MF.Exposed) ~= 0
+		plate.Fill.BackgroundColor3 = if bit32.band(flags, MF.Shielded) ~= 0 then C.Gold
+			elseif exposed then Color3.fromRGB(255, 170, 40)
+			elseif e.EliteName then ELITE
+			else C.Danger
+		if m and m.Encounter and not e.Titled then
+			local enc = run.Encounters[m.Encounter]
+			if enc then
+				e.Titled = true
+				plate.Name.Text = enc.Title
+				plate.Name.TextColor3 = if enc.Crowned then C.Gold else Color3.fromRGB(255, 170, 120)
+			end
+		end
 		local text, color = self:PlateStatus(e, m, now)
 		if plate.Status.Text ~= text then
 			plate.Status.Text = text
@@ -305,7 +358,7 @@ function EnemyRenderer:SetState(e, state: number)
 	if not item then
 		return
 	end
-	item.Root.Color = if state == ES.Frozen then FROZEN elseif state == ES.Lit then LIT else item.Info.BodyColor
+	item.Root.Color = if state == ES.Frozen then FROZEN elseif state == ES.Lit then LIT elseif state == ES.Stunned then item.Info.BodyColor:Lerp(STUNNED, 0.45) else item.Info.BodyColor
 	fade(item, if state == ES.Phased then 0.75 else 0)
 end
 
@@ -393,7 +446,10 @@ function EnemyRenderer:Update(dt: number)
 			local y = ground + info.Height
 			local pitch, roll = 0, 0
 			local ox, oz = 0, 0
-			if state == ES.Frozen or state == ES.Dormant or paused then
+			if state == ES.Stunned and not paused then
+				-- stunned: a dizzy wobble in place
+				roll = sin(now * 14 + e.Phase) * 0.18
+			elseif state == ES.Frozen or state == ES.Dormant or paused then
 				-- frozen / dormant / paused: no animation
 			elseif state == ES.Lit then
 				-- the fuse burns: shake + flash

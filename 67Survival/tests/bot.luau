@@ -6,9 +6,10 @@
 	(boss circles, laser lines, void zones, puddles, spills, lit bombers, leaper landings,
 	sniper lines), dodges enemy projectiles, collects gems and pickups, chases loot crates and
 	runaway goblins, stays away from the arena walls and walks around ponds (water slows you).
-	67 TOWN: goes for relics on the ground, open vaults, mini-bosses (while healthy) and the
-	67 RUSH zone, stays out of the sealed rift, dashes out of circles with Rocket Skates.
-	Cards: evolution > weapon level > new weapon > damage/speed passives > the rest.
+	67 TOWN: goes for items and souls on the ground, open vaults, the bosses of the timeline
+	(when the build can take them; THE FINAL ONE always) and the 67 RUSH zone, stays out of the
+	sealed rift, stays inside THE FINAL ONE's sealed arena, dashes out of circles.
+	Cards: evolution > weapon level > new weapon > item levels > damage/speed upgrades > rest.
 ]]
 
 local Harness = require("./harness")
@@ -71,7 +72,7 @@ function Bot.Direction(run, skill: number?): (number, number)
 	for _, g in run.Gems do
 		consider(g.X, g.Z, 1 + g.Value * 0.2)
 	end
-	for _, it in run.Items do
+	for _, it in run.Drops do
 		local v = if it.Kind == "Chest" or it.Kind == "Chest67" then 30
 			elseif it.Kind == "Snack" then (if hurt then 25 else 2)
 			elseif it.Kind == "Magnet" then 12
@@ -96,17 +97,15 @@ function Bot.Direction(run, skill: number?): (number, number)
 				consider(def.X, def.Z, 26)
 			end
 		end
-		if run.Level >= 6 then
-			for _, enc in m.Encounters do
-				if brave(enc.Zone) then
-					local x, z = enc.X, enc.Z
-					for _, body in enc.Bodies do
-						if body.Alive then
-							x, z = body.X, body.Z
-						end
+		for _, enc in m.Encounters do
+			if enc.Main or (run.Level >= 6 and brave(enc.Zone)) then
+				local x, z = enc.X, enc.Z
+				for _, body in enc.Bodies do
+					if body.Alive then
+						x, z = body.X, body.Z
 					end
-					consider(x, z, 16)
 				end
+				consider(x, z, if enc.Main then 400 else 45)
 			end
 		end
 		if m.Hot and brave(m.Hot.Zone) then
@@ -123,6 +122,14 @@ function Bot.Direction(run, skill: number?): (number, number)
 		local pull = if (mx * mx + mz * mz) > 0.5 then 0.35 else 0.9
 		mx += best[1] * pull
 		mz += best[2] * pull
+	end
+	-- badly hurt away from the square: fall back towards the centre (calmer, crates and snacks)
+	if run.HP < run.Stats.MaxHP * 0.35 and not (m and m.ArenaSealed) then
+		local d = math.sqrt(px * px + pz * pz)
+		if d > 60 then
+			mx -= px / d * 0.8
+			mz -= pz / d * 0.8
+		end
 	end
 
 	-- telegraphs: get out
@@ -224,6 +231,34 @@ function Bot.Direction(run, skill: number?): (number, number)
 		mz += (-margin - pz) / 20
 	end
 
+	-- THE FINAL ONE's sealed arena: stay inside the ring and circle around the boss
+	local seal = run.Map and run.Map.ArenaSealed
+	if seal then
+		for _, e in run.Enemies do
+			if e.Encounter and e.Encounter.Main and e.Alive then
+				local bx, bz = px - e.X, pz - e.Z
+				local bd = math.sqrt(bx * bx + bz * bz) + 0.01
+				if bd < e.Radius + 16 then
+					-- sideways (the way that heads back towards the centre of the ring)
+					local tx, tz = -bz / bd, bx / bd
+					local cx, cz = seal.X - px, seal.Z - pz
+					if tx * cx + tz * cz < 0 then
+						tx, tz = -tx, -tz
+					end
+					mx += tx * 3 * skill
+					mz += tz * 3 * skill
+				end
+			end
+		end
+		local ax, az = px - seal.X, pz - seal.Z
+		local ad = math.sqrt(ax * ax + az * az) + 0.01
+		if ad > seal.R - 6 then
+			local k = (ad - (seal.R - 6)) / 4
+			mx -= ax / ad * k * 3
+			mz -= az / ad * k * 3
+		end
+	end
+
 	local len = math.sqrt(mx * mx + mz * mz)
 	if len < 0.05 then
 		return 0, 0
@@ -231,7 +266,12 @@ function Bot.Direction(run, skill: number?): (number, number)
 	return mx / len, mz / len
 end
 
-local PASSIVE_PRIORITY = { Power = 5, RapidFire = 5, Expansion = 4, DoubleShot = 6, Vitality = 3, Armor = 3, Swiftness = 2, Regeneration = 2, CritMaster = 4, Percent67 = 6, Berserk = 3 }
+local PASSIVE_PRIORITY = {
+	Power = 5, RapidFire = 5, Expansion = 4, DoubleShot = 6, Vitality = 3, Armor = 3, Swiftness = 2, Regeneration = 3,
+	CritMaster = 4, Percent67 = 6, Berserk = 3, Brutal = 3, GiantSlayer = 4, Plating = 3, ToughSkin = 3, Penetration = 4,
+	Ricochet = 4, Split = 3, Momentum = 3, Execution = 3, Vampire = 3, Homing = 3, Explosive = 4, ChainShot = 3,
+	BigShots = 3, Dodge = 3, LastStand = 3, Combo = 3, Rampage = 3, Bully = 3,
+}
 
 function Bot.Pick(run): number
 	local offer = run.Offer
@@ -244,11 +284,13 @@ function Bot.Pick(run): number
 			score = 10 + (card.Level or 0) * 0.1
 		elseif card.Type == "Weapon" then
 			score = if #run.Weapons < 6 then 12 else 3
+		elseif card.Type == "ItemLevel" then
+			score = 11
 		elseif card.Type == "Passive" then
 			score = (PASSIVE_PRIORITY[card.Key] or 1) + (if card.Evolves then 4 else 0)
-			-- a fragile build takes some defence
-			if (card.Key == "Vitality" or card.Key == "Armor") and run.Stats.MaxHP < 100 + run.Level * 3 then
-				score = 9
+			-- a fragile build takes some defence (any DEFENSE upgrade: HP, armour, plating, regen...)
+			if card.Category == "DEFENSE" and run.Stats.MaxHP < 100 + run.Level * 3 then
+				score = if card.Key == "Vitality" or card.Key == "Armor" or card.Key == "Regeneration" then 9 else 7
 			end
 		end
 		if score > bestScore then
@@ -274,7 +316,7 @@ function Bot.Step(run, dt: number, skill: number?)
 			end
 		end
 	end
-	local speed = run.Stats.WalkSpeed * run:SlowFactor()
+	local speed = run.Stats.WalkSpeed * run:SpeedFactor()
 	run:SetPlayer(run.PX + dx * speed * dt, run.PZ + dz * speed * dt, dx, dz)
 	run:Step(dt)
 end

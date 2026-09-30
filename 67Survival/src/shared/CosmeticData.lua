@@ -151,7 +151,7 @@ CosmeticData.List = {
 	c("UITheme", "Gold67", { Name = "67 Gold", Desc = "Gold accents everywhere.", Pass = "CosmeticPass", Color = rgb(255, 205, 50), Rarity = "Epic" }),
 	-- auras
 	c("Aura", "None", { Name = "No Aura", Desc = "No glow.", Default = true }),
-	c("Aura", "Void", { Name = "Void Aura", Desc = "Defeat all 8 bosses.", Achievement = "BossCollector", Color = rgb(150, 80, 255), Rarity = "Legendary" }),
+	c("Aura", "Void", { Name = "Void Aura", Desc = "Defeat 8 different bosses.", Achievement = "BossCollector", Color = rgb(150, 80, 255), Rarity = "Legendary" }),
 	c("Aura", "Gold", { Name = "Gold Aura", Desc = "A soft golden glow.", Pass = "VIPCosmetics", Color = rgb(255, 205, 60), Rarity = "Epic" }),
 	c("Aura", "Aura67", { Name = "67 Aura", Desc = "Reach account level 67 (or a 67 Aura boost).", Level = 67, Color = rgb(255, 205, 50), Color2 = rgb(170, 90, 255), Rarity = "Mythic" }),
 	c("Aura", "Inferno", { Name = "Inferno Crown", Desc = "Win on INFERNO difficulty.", Achievement = "WinInferno", Color = rgb(255, 120, 50), Color2 = rgb(255, 214, 90), Rarity = "Legendary" }),

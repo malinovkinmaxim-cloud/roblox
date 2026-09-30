@@ -9,8 +9,12 @@
 	  die             lose all HP                   coins <n>    +n coins
 	  fragments <n>   +n fragments                  afk <min>    the AFK camp rested n minutes
 	  evolve          max abilities + their evolution passives
-	  miniboss <key>  a mini-boss comes out now     relic <key>  a relic at your feet
+	  boss <1-4|key>  that boss slot is announced now (its lair), or any enemy by key near you
+	  main            THE FINAL ONE comes to the 67 ARENA now
+	  item <key>      an item at your feet (no key: a random one of the loot)
+	  elite <key>     an elite now                  chips <n>    +n CHIPS
 	  vault           a 67 VAULT wakes up           rush         a 67 RUSH starts
+	  unlockitems     every premium item / boss relic unlocked
 	  unlockall       unlock everything             reset        wipe your profile (Studio)
 	  stats           server performance numbers
 ]]
@@ -33,10 +37,11 @@ local Defaults = require(script.Parent.Parent.Data.Defaults)
 local Sim = script.Parent.Parent.Sim
 local EnemyManager = require(Sim.EnemyManager)
 local WaveManager = require(Sim.WaveManager)
-local ArenaDirector = require(Sim.ArenaDirector)
-local Relics = require(Sim.Relics)
-local MiniBossData = require(Shared.MiniBossData)
-local RelicData = require(Shared.RelicData)
+local BossDirector = require(Sim.BossDirector)
+local Items = require(Sim.Items)
+local Elites = require(Sim.Elites)
+local BossData = require(Shared.BossData)
+local ItemData = require(Shared.ItemData)
 
 local AdminManager = {}
 
@@ -68,6 +73,18 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 		self.Services.RewardManager:GiveFragments(session, n or 100)
 		PM:Sync(player)
 		say("fragments added")
+	elseif command == "chips" then
+		session.Data.Chips += math.clamp(n or 1000, 0, 1e6)
+		PM:Sync(player)
+		say("CHIPS added")
+	elseif command == "unlockitems" then
+		for _, def in ItemData.List do
+			if ItemData.NeedsUnlock(def) then
+				session.Data.ItemUnlocks[def.Key] = true
+			end
+		end
+		PM:Sync(player)
+		say("every item unlocked")
 	elseif command == "afk" then
 		local afk = session.Data.Afk
 		afk.Since = math.max(1, (if afk.Since > 0 then afk.Since else os.time()) - (n or 60) * 60)
@@ -86,6 +103,11 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 		end
 		for _, def in HeroData.List do
 			session.Data.Heroes[def.Key] = true
+		end
+		for _, def in ItemData.List do
+			if ItemData.NeedsUnlock(def) then
+				session.Data.ItemUnlocks[def.Key] = true
+			end
 		end
 		self.Services.RewardManager:CheckAchievements(session)
 		PM:Sync(player)
@@ -116,8 +138,29 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 			run.PendingLevels += 1
 		end
 	elseif command == "boss" then
-		local key = if arg and EnemyData.ByKey[arg] then arg else "TheGiant"
-		EnemyManager.Spawn(run, key, run.PX + 30, run.PZ, { Force = true })
+		-- a slot (1-4) or a boss of the timeline: announced at its lair, like the real one
+		local def = arg and BossData.ByKey[arg]
+		local slot = if def then def.Slot else (n or run.BossNext)
+		if def and def.Slot == 5 then
+			if not BossDirector.ForceMain(run) then
+				say("THE FINAL ONE is already out")
+			end
+		elseif BossData.Slots[slot] then
+			BossDirector.Force(run, slot, if def then def.Key else nil, EnemyManager)
+			say("boss " .. slot .. " is coming (" .. BossData.Slots[slot].Zone .. ")")
+		elseif arg and EnemyData.ByKey[arg] then
+			EnemyManager.Spawn(run, arg, run.PX + 30, run.PZ, { Force = true })
+		else
+			say("boss <1-4 | boss key | enemy key>")
+		end
+	elseif command == "main" then
+		if not BossDirector.ForceMain(run) then
+			say("THE FINAL ONE is already out")
+		end
+	elseif command == "elite" then
+		if not Elites.Spawn(run, if arg and EnemyData.ByKey[arg] then arg else nil) then
+			say("no room for an elite here")
+		end
 	elseif command == "event" then
 		local key = if arg and WaveData.EventByKey[arg] then arg else "Percent67"
 		WaveManager.TriggerEvent(run, key)
@@ -143,20 +186,17 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 		say("god mode " .. (if run.Invulnerable > 0 then "ON" else "OFF"))
 	elseif command == "killall" then
 		for _, e in table.clone(run.Enemies) do
-			EnemyManager.Damage(run, e, e.HP + 1, 0, 0, 0, 0)
+			EnemyManager.Damage(run, e, e.MaxHP * 10 + 1, 0, 0, 0, 0) -- (armoured elites take less)
 		end
 	elseif command == "die" then
 		run.Invulnerable = 0
 		run:HurtPlayer(1e9, true)
-	elseif command == "miniboss" then
-		local key = if arg and MiniBossData.ByKey[arg] then arg else nil
-		if not ArenaDirector.Summon(run, "Debug", false, key, true) then
-			say("no mini-boss can come out now")
-		end
-	elseif command == "relic" then
-		local key = if arg and RelicData.ByKey[arg] then arg else Relics.Roll(run, 4)
+	elseif command == "item" then
+		local key = if arg and ItemData.ByKey[arg] then arg else Items.Roll(run, "Boss4")
 		if key then
-			Relics.Drop(run, key, run.PX + run.FX * 5, run.PZ + run.FZ * 5)
+			Items.Drop(run, key, run.PX + run.FX * 5, run.PZ + run.FZ * 5)
+		else
+			say("every item is maxed")
 		end
 	elseif command == "vault" then
 		run.Map.VaultAt = 0

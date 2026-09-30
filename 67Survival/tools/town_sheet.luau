@@ -111,21 +111,23 @@ if open then
 	Engine.Step(1)
 end
 if not quiet then
-	for _, key in { "BigQuack", "Cartzilla", "JackpotJimmy", "Twins", "TickTock" } do
-		cd:Fire("Admin", "miniboss", key)
+	-- one boss per lair (debug) and THE FINAL ONE in its arena
+	for _, key in { "BigQuack", "Cartzilla", "JackpotJimmy", "Twins" } do
+		cd:Fire("Admin", "boss", key)
 		Engine.Step(0.2)
 	end
+	cd:Fire("Admin", "main", "")
 	Engine.Step(3.6)
-	-- relics around the fountain (one of each tier)
-	local Relics = Engine.Module(server, "ServerScriptService.Server.Sim.Relics")
-	for i, key in { "Sneakers", "ThirdArm", "RocketSkates", "Crown67" } do
-		Relics.Drop(run, key, -20 + i * 8, 44)
+	-- items around the arena (one of each rarity)
+	local Items = Engine.Module(server, "ServerScriptService.Server.Sim.Items")
+	for i, key in { "MagneticBolt", "RicochetCore", "BloodEngine", "SecondShadow", "Fragment67" } do
+		Items.Drop(run, key, -28 + i * 9, 54)
 	end
 	Engine.Step(1)
 end
--- the enemies of the horde would cover the map: only the mini-bosses stay
+-- the enemies of the horde would cover the map: only the bosses stay
 for _, e in table.clone(run.Enemies) do
-	if not e.Def.Champion then
+	if not (e.Def.Champion or e.IsBoss) then
 		local EM = Engine.Module(server, "ServerScriptService.Server.Sim.EnemyManager")
 		EM.Despawn(run, e)
 	end

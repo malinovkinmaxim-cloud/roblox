@@ -44,8 +44,6 @@ export type Zone = {
 	Elite: number, -- elite chance multiplier
 	Flavor: { [string]: number }?, -- extra spawn weight of the zone's own enemies (only when already in the mix)
 	Decay: { After: number, XP: number }?, -- the zone pays less after a while (the square)
-	Threat: number?, -- kills here wake the zone's mini-boss
-	LootTier: number, -- 0..4: relic rarity of the zone's loot
 	Locked: boolean?, -- sealed until RiftOpensAt
 }
 
@@ -65,7 +63,6 @@ ArenaData.Zones = {
 		Coins = 1,
 		Elite = 0.5,
 		Decay = { After = 180, XP = 0.8 },
-		LootTier = 0,
 	},
 	{
 		Index = 2,
@@ -82,8 +79,6 @@ ArenaData.Zones = {
 		Coins = 1,
 		Elite = 1,
 		Flavor = { Goober = 1.6, Splitter = 1.6, Leaper = 1.4 },
-		Threat = 90,
-		LootTier = 1,
 	},
 	{
 		Index = 3,
@@ -100,8 +95,6 @@ ArenaData.Zones = {
 		Coins = 1.25,
 		Elite = 1.3,
 		Flavor = { Charger = 1.6, Bomber = 1.6, Brute = 1.3 },
-		Threat = 110,
-		LootTier = 2,
 	},
 	{
 		Index = 4,
@@ -118,8 +111,6 @@ ArenaData.Zones = {
 		Coins = 1.5,
 		Elite = 1.6,
 		Flavor = { Blinker = 1.7, Sniper = 1.5, Spitter = 1.4 },
-		Threat = 130,
-		LootTier = 3,
 	},
 	{
 		Index = 5,
@@ -136,8 +127,6 @@ ArenaData.Zones = {
 		Coins = 1.6,
 		Elite = 2.5,
 		Flavor = { Ghost = 1.8, Summoner = 1.5, Blinker = 1.4 },
-		Threat = 150,
-		LootTier = 4,
 		Locked = true,
 	},
 } :: { Zone }
@@ -231,7 +220,7 @@ ArenaData.RiftGates = {
 
 -- landmarks on the minimap (big things you can orient by)
 ArenaData.Landmarks = {
-	{ Key = "Fountain", Name = "67 FOUNTAIN", X = 0, Z = 0 },
+	{ Key = "Arena67", Name = "THE 67 ARENA", X = 0, Z = 0 },
 	{ Key = "Duck", Name = "BIG DUCK", X = -190, Z = 70 },
 	{ Key = "Store", Name = "HORDE MART", X = 40, Z = 206 },
 	{ Key = "Casino", Name = "67 CASINO", X = 212, Z = -40 },
@@ -244,9 +233,9 @@ ArenaData.Landmarks = {
 	also pays inside the run (RunReward).
 ]]
 ArenaData.RunSecrets = {
-	Backrooms = { Title = "NO-CLIP", Sub = "You found the Backrooms. Something was left here.", Relic = "SuspiciousRock" },
+	Backrooms = { Title = "NO-CLIP", Sub = "You found the Backrooms. Something was left here.", Item = "SuspiciousRock" },
 	Parked67 = { Title = "PERFECT PARKING", Sub = "Space 67. Of course.", Coins = 67 },
-	RiftCrack = { Title = "MIND THE GAP", Sub = "There was something in the crack.", RelicTier = 3 },
+	RiftCrack = { Title = "MIND THE GAP", Sub = "There was something in the crack.", Loot = "Secret" },
 }
 
 -- danger stars as text (zone chip, banners)

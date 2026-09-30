@@ -4,9 +4,11 @@
 	local (like the gates of 67 LAND):
 	  * THE RIFT gates: a force field you can't walk through until your rift opens (4:30);
 	    their label says when
-	  * a lair lights up (red ring + a column of light) while its mini-boss is out for you
+	  * a lair lights up (red ring + a column of light) while its boss is out for you
 	  * a 67 VAULT glows gold while it is awake; its ring fills while you crack it open
-	  * a 67 SPOT lights up where TICK TOCK is waiting
+	  * a 67 SPOT lights up when a boss waits on one
+	  * THE 67 ARENA: its pylons burn red while THE FINAL ONE is out; the SEAL (a ring wall of
+	    force field) becomes visible and solid for you while your arena is sealed
 	The server decides all of it (Sim/ArenaDirector); this only draws what RunClient knows.
 ]]
 
@@ -42,7 +44,16 @@ function ArenaController:Init(controllers)
 	self.Lairs = {} :: { [string]: { Ring: Remember?, Beam: BasePart? } }
 	self.Vaults = {} :: { [number]: { Ring: Remember?, Beam: BasePart?, Safe: Remember? } }
 	self.Spots = {} :: { [number]: Remember }
-	self.Lit = {} -- lair key / "vault:i" / "spot:i" -> true while lit
+	self.ArenaSeals = {} :: { BasePart }
+	self.Pylons = {} :: { Remember }
+	self.Sealed = nil :: any
+	self.Lit = {} -- lair key / "vault:i" / "spot:i" / "arena" -> true while lit
+end
+
+-- THE FINAL ONE's arena was sealed (seal = { X, Z, R }) or opened again (nil)
+function ArenaController:SetSeal(seal)
+	self.Sealed = seal
+	self:Refresh()
 end
 
 function ArenaController:Find(): boolean
@@ -81,6 +92,12 @@ function ArenaController:Find(): boolean
 			local spot = d:GetAttribute("Spot67")
 			if type(spot) == "number" then
 				self.Spots[spot] = remember(d)
+			end
+			if d:GetAttribute("ArenaSeal") then
+				table.insert(self.ArenaSeals, d)
+			end
+			if d:GetAttribute("ArenaPylon") then
+				table.insert(self.Pylons, remember(d))
 			end
 		end
 	end
@@ -179,6 +196,26 @@ function ArenaController:Refresh()
 			restore(s)
 		end
 	end
+	-- THE 67 ARENA
+	local mainOut = false
+	for _, enc in run.Encounters do
+		mainOut = mainOut or enc.Main == true
+	end
+	mainOut = active and mainOut
+	for _, p in self.Pylons do
+		if mainOut then
+			p.Part.Color = RED
+			p.Part.Material = Enum.Material.Neon
+		else
+			restore(p)
+		end
+	end
+	local sealed = active and self.Sealed ~= nil
+	for _, wall in self.ArenaSeals do
+		wall.CanCollide = sealed
+		wall.Transparency = if sealed then 0.35 else 1
+	end
+	self.Lit.arena = (mainOut or sealed) or nil
 end
 
 -- lit things pulse; a column of light is for finding the place from afar: it fades out as you
@@ -205,6 +242,12 @@ function ArenaController:Update()
 	if px and pz then
 		px += run.Center.X
 		pz += run.Center.Z
+	end
+	if self.Lit.arena and self.Sealed then
+		local a = 0.3 + math.sin(t * 5) * 0.08
+		for _, wall in self.ArenaSeals do
+			wall.Transparency = a
+		end
 	end
 	for key in self.Lit do
 		local l = self.Lairs[key]

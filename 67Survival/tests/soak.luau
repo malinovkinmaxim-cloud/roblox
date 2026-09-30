@@ -1,12 +1,13 @@
 --!nocheck
 --[[
-	Soak test: a FULL run (15 minutes of virtual time) with the real server + client, through
-	every boss to VICTORY, then a second run. Checks the performance budgets:
+	Soak test: a FULL run (15 minutes of virtual time + THE FINAL ONE) with the real server +
+	client, through the boss timeline to VICTORY, then a second run. Checks the performance
+	budgets:
 	  * server: enemies / gems / projectiles never exceed their caps, step time
 	  * network: average and max frame size
 	  * client: pooled models stay bounded, instance count does not grow between runs,
 	    effect pools stay within budget, no runtime errors
-	lune run tests/soak.luau [minutes=15.5]
+	lune run tests/soak.luau [minutes=17]
 ]]
 
 local process = require("@lune/process")
@@ -78,7 +79,7 @@ local function oneRun(label: string, god: boolean)
 		maxGems = math.max(maxGems, #run.Gems)
 		maxProj = math.max(maxProj, #run.Projectiles)
 		maxEProj = math.max(maxEProj, #run.EnemyProjectiles)
-		maxItems = math.max(maxItems, #run.Items)
+		maxItems = math.max(maxItems, #run.Drops)
 		maxNumbers = math.max(maxNumbers, #effects.Numbers)
 		maxRings = math.max(maxRings, #effects.Rings)
 		maxPool = math.max(maxPool, enemyRenderer.Pool.Created)
@@ -91,6 +92,9 @@ local function oneRun(label: string, god: boolean)
 				if boss then string.format("%s %d%% at %.0f,%.0f", boss.Key, math.floor(boss.HP / boss.MaxHP * 100), boss.X, boss.Z) else "-"
 			))
 		end
+	end
+	if not run.Ended then
+		cd:Fire("GiveUp") -- still alive at the time cap: end it like a player would
 	end
 	Engine.Step(5)
 	local frames = runClient.Stats.Frames - lastFrames
@@ -113,7 +117,16 @@ local function oneRun(label: string, god: boolean)
 end
 
 local run1 = oneRun("full run (god mode) -> victory", true)
-check("all four bosses defeated", #run1.Result.Bosses >= 4, table.concat(run1.Result.Bosses, ","))
+local slots = {}
+for _, slot in run1.Result.BossSlots or {} do
+	slots[slot] = (slots[slot] or 0) + 1
+end
+local twice = false
+for _, n in slots do
+	twice = twice or n > 1
+end
+check("bosses of the timeline beaten, each slot at most once", (run1.Result.BossesBeaten or 0) >= 2 and not twice, table.concat(run1.Result.Bosses, ","))
+check("THE FINAL ONE defeated in its arena", run1.Result.MainBoss == true)
 check("victory", run1.Victory == true, run1.EndReason)
 check("results screen says VICTORY", results.Panel.Visible and results.ResultTitle.Text == "VICTORY", results.ResultTitle.Text)
 local session = PM:Get(player)

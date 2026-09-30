@@ -30,7 +30,8 @@ local Bosses = require(script.Parent.Bosses)
 local Pickups = require(script.Parent.Pickups)
 local MiniBosses = require(script.Parent.MiniBosses)
 local ArenaDirector = require(script.Parent.ArenaDirector)
-local Relics = require(script.Parent.Relics)
+local Perks = require(script.Parent.Perks)
+local Elites = require(script.Parent.Elites)
 
 local EnemyManager = {}
 
@@ -87,7 +88,9 @@ export type SpawnOptions = {
 	Force: boolean?, -- ignore the enemy cap (bosses, event specials)
 	HPMult: number?,
 	DamageMult: number?, -- the zone's danger
-	Encounter: any?, -- mini-boss: its encounter (Sim/MiniBosses)
+	Encounter: any?, -- a boss of the timeline: its encounter (Sim/MiniBosses)
+	BossHP: number?, -- ... and its HP
+	BossDamage: number?, -- ... and its damage multiplier (shared/BossData.lua Slots Damage)
 	HomeX: number?, -- mini-boss: its lair
 	HomeZ: number?,
 }
@@ -123,6 +126,12 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 		dmgScale = WaveData.DamageScale(t) * diff.BossDamage
 	end
 	local hp = def.HP * hpScale * (o.HPMult or 1)
+	if o.BossHP then
+		hp = o.BossHP -- a boss of the timeline: its HP comes from shared/BossData.lua (Sim/MiniBosses)
+	end
+	if o.BossDamage then
+		dmgScale = o.BossDamage * diff.BossDamage
+	end
 	local radius, speed = def.Radius, def.Speed
 	if not isBoss and not o.NoScale then
 		speed *= diff.EnemySpeed -- FASTER HORDE
@@ -139,8 +148,8 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 		speed *= 0.85
 	end
 	if o.Elite then
-		hp *= 3
-		radius *= 1.3
+		hp *= GameConfig.Elite.HP
+		radius *= GameConfig.Elite.Size
 	end
 	x = math.clamp(x, -HALF, HALF)
 	z = math.clamp(z, -HALF, HALF)
@@ -156,7 +165,7 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 		HP = hp,
 		MaxHP = hp,
 		Speed = speed,
-		Damage = def.Damage * dmgScale * (o.DamageMult or 1),
+		Damage = def.Damage * dmgScale * (o.DamageMult or 1) * (if o.Elite then GameConfig.Elite.Damage else 1),
 		DmgScale = dmgScale,
 		Radius = radius,
 		Mass = def.Mass * (if o.Elite then 2 elseif giant then 1.5 else 1),
@@ -230,9 +239,10 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 	if e.Dormant then
 		setState(run, e, ES.Dormant)
 	end
-	if champion then
-		MiniBosses.Init(run, e, o)
-	elseif isBoss then
+	if o.Encounter or champion then
+		MiniBosses.Init(run, e, o) -- a boss of the timeline: its lair / the arena (debug: where it stands)
+	end
+	if isBoss and not champion then
 		Bosses.Init(run, e)
 	end
 	return e
@@ -375,13 +385,10 @@ function EnemyManager.Kill(run, e)
 	run.Kills += 1
 	result.EnemyKills[key] = (result.EnemyKills[key] or 0) + 1
 	run:OnKill(e)
-	if run.Map then
-		ArenaDirector.OnKill(run, e)
-	end
 
-	-- XP gem (the zone it died in pays more or less)
-	if def.XP > 0 then
-		local xp = def.XP * (if e.Golden then 5 elseif e.Elite then 4 elseif e.Giant then 1.5 else 1)
+	-- XP gem (the zone it died in pays more or less; an elite pays a burst: Sim/Elites)
+	if def.XP > 0 and not e.Elite then
+		local xp = def.XP * (if e.Golden then 5 elseif e.Giant then 1.5 else 1)
 		if run.Map then
 			xp *= ArenaDirector.XPMult(run, e.X, e.Z)
 		end
@@ -401,15 +408,8 @@ function EnemyManager.Kill(run, e)
 	if def.ItemChance > 0 and rng:NextNumber() < GameConfig.Drops.BaseItemChance * def.ItemChance * luck then
 		Pickups.SpawnItem(run, EnemyManager.RollItem(run), e.X, e.Z)
 	end
-	-- elites sometimes drop a hero fragment, rarely a relic
-	if e.Elite and rng:NextNumber() < GameConfig.Drops.EliteFragmentChance * min(3, luck) then
-		Pickups.SpawnItem(run, "Fragment", e.X, e.Z)
-	end
-	if e.Elite and run.Map and rng:NextNumber() < GameConfig.Map.EliteRelicChance * min(3, luck) then
-		local relic = Relics.Roll(run, max(0, ArenaDirector.Zone(run).LootTier - 1))
-		if relic then
-			Relics.Drop(run, relic, e.X, e.Z)
-		end
+	if e.Elite then
+		Elites.OnKilled(run, e, EnemyManager)
 	end
 	if params.SplitInto and not e.Tiny then
 		for i = 1, params.SplitCount do
@@ -432,7 +432,7 @@ function EnemyManager.Kill(run, e)
 	elseif key == "Mimic" then
 		run:Write("Fx", 0, e.X, e.Z, 0, 6, 0, GFX.Bomb)
 	end
-	if def.Champion then
+	if e.Encounter then
 		MiniBosses.OnKilled(run, e, EnemyManager)
 	elseif e.IsBoss then
 		Bosses.OnKilled(run, e, EnemyManager)
@@ -453,8 +453,8 @@ function EnemyManager.Damage(run, e, dmg: number, hitFlags: number, kx: number, 
 	if e.Dormant then
 		wake(run, e)
 	end
-	if e.StunnedUntil and e.StunnedUntil > run.Time then
-		dmg *= 1.5 -- JACKPOT! it can't block
+	if e.ArmorCut then
+		dmg *= 1 - e.ArmorCut -- an ARMORED elite
 	end
 	e.HP -= dmg
 	if run.FrameHits < GameConfig.Sim.MaxHitsPerFrame or dmg >= 100 or e.IsBoss then
@@ -483,6 +483,23 @@ function EnemyManager.Slow(e, factor: number, duration: number, now: number)
 	end
 	e.SlowFactor = min(e.SlowFactor, factor)
 	e.SlowUntil = max(e.SlowUntil, now + duration)
+end
+
+-- stops a normal enemy for a moment (abilities and items); frozen = the ice look
+function EnemyManager.Stun(run, e, time: number, frozen: boolean?)
+	if not e.Alive or e.IsBoss or e.Behavior == "Static" or time <= 0 then
+		return
+	end
+	local control = run.UP and run.UP.Duration and run.UP.Duration.Control
+	if control then
+		time *= control -- Duration IV
+	end
+	local now = run.Time
+	if e.FrozenUntil < now + time then
+		e.FrozenUntil = now + time
+		e.Thaw = true
+		run:Write("EState", e.Id, if frozen then ES.Frozen else ES.Stunned)
+	end
 end
 
 -- pushes every non-boss enemy in a radius away from (x, z)
@@ -611,7 +628,10 @@ local function stepEnemyProjectiles(run, dt: number)
 		local dx, dz = p.X - px, p.Z - pz
 		local hit = dx * dx + dz * dz <= (p.R + PLAYER_R) ^ 2
 		if hit then
-			run:HurtPlayer(p.Damage) -- shares the hurt cooldown: a volley is one hit
+			-- the Void Mirror sends it back; else it hurts (a volley shares the hurt cooldown)
+			if not Perks.OnEnemyShot(run, p) then
+				run:HurtPlayer(p.Damage, false, "Shot")
+			end
 			run:Write("EProjEnd", p.Id)
 		end
 		if hit or p.Life <= 0 then
@@ -929,6 +949,9 @@ function Behaviors.March(_run, e)
 end
 
 function Behaviors.Boss(run, e, dx, dz, d, dt)
+	if e.Encounter then
+		return MiniBosses.Step(run, e, dx, dz, d, dt, EnemyManager) -- lair / arena rules, then its attacks
+	end
 	return Bosses.Step(run, e, dx, dz, d, dt, EnemyManager)
 end
 
@@ -1113,6 +1136,26 @@ function EnemyManager.Step(run, dt: number)
 			e.Z = HALF
 		end
 
+		-- the sealed 67 ARENA: the horde stays out, the boss and its adds stay in
+		local seal = run.Map and run.Map.ArenaSealed
+		if seal then
+			local ax, az = e.X - seal.X, e.Z - seal.Z
+			local ad = sqrt(ax * ax + az * az)
+			if ad < 0.01 then
+				ax, az, ad = 0.01, 0, 0.01
+			end
+			if (e.Encounter and e.Encounter.Main) or e.ArenaAdd then
+				-- THE FINAL ONE and its adds stay in (other bosses keep to their lairs)
+				local lim = seal.R - e.Radius
+				if ad > lim then
+					e.X, e.Z = seal.X + ax / ad * lim, seal.Z + az / ad * lim
+				end
+			elseif ad < seal.R + e.Radius then
+				local lim = seal.R + e.Radius
+				e.X, e.Z = seal.X + ax / ad * lim, seal.Z + az / ad * lim
+			end
+		end
+
 		-- left far behind: reappear ahead of the player (the horde never thins out)
 		local pdx, pdz = px - e.X, pz - e.Z
 		local pd2 = pdx * pdx + pdz * pdz
@@ -1155,7 +1198,10 @@ function EnemyManager.Step(run, dt: number)
 
 	if touchCount > 0 then
 		-- swarmed: the strongest hit + a little per extra attacker
-		local taken = run:HurtPlayer(touchMax + min(touchCount - 1, 6) * 1.5)
+		local taken = run:HurtPlayer(touchMax + min(touchCount - 1, 6) * 1.5, false, "Contact")
+		if taken > 0 and touching then
+			Elites.OnTouch(run, touching, taken)
+		end
 		-- THE TANK: whatever touches you gets hurt back
 		if run.Mech == "Thorns" and taken > 0 and touching then
 			local dmg = (10 + run.Level * 1.5) * run.Stats.Might
@@ -1164,9 +1210,9 @@ function EnemyManager.Step(run, dt: number)
 				EnemyManager.Damage(run, e, dmg, 0, e.X - px, e.Z - pz, 6)
 			end
 		end
-		-- the Cactus Hug relic does the same for everyone
-		if run.Relics and touching then
-			Relics.Thorns(run, touching)
+		-- the Cactus Hug item does the same for everyone
+		if touching then
+			Perks.Thorns(run, touching)
 		end
 	end
 

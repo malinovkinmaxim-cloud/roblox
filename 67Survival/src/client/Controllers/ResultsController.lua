@@ -1,8 +1,9 @@
 --[[
 	ResultsController - "YOU DIED" (with a limited Robux revive offer and a countdown) and the
 	end screen: VICTORY / RUN OVER with your hero (its VICTORY pose when you won), time
-	survived, enemies defeated, level, coins, FRAGMENTS, new Collection Book entries,
-	achievements and unlocks, the final build (evolutions glow). One optional EXTRA CHEST
+	survived, enemies defeated, level, coins, FRAGMENTS, CHIPS, bosses beaten, items (with their
+	levels) and synergies, new Collection Book entries, achievements and unlocks, the final
+	build (evolutions glow). One optional EXTRA CHEST
 	(developer product). PLAY AGAIN is the big button: the "one more run" loop starts here.
 ]]
 
@@ -15,6 +16,7 @@ local WeaponData = require(Shared.WeaponData)
 local AchievementData = require(Shared.AchievementData)
 local CosmeticData = require(Shared.CosmeticData)
 local DifficultyData = require(Shared.DifficultyData)
+local SynergyData = require(Shared.SynergyData)
 local RunService = game:GetService("RunService")
 
 local Kit = require(script.Parent.Parent.UI.Kit)
@@ -35,8 +37,9 @@ local STATS = {
 	{ Key = "Level", Text = "LEVEL REACHED" },
 	{ Key = "Coins", Text = "COINS EARNED" },
 	{ Key = "Fragments", Text = "FRAGMENTS" },
-	{ Key = "Collection", Text = "COLLECTION" },
+	{ Key = "Chips", Text = "CHIPS" },
 }
+local ROMAN = { "I", "II", "III", "IV", "V" }
 
 function ResultsController:Init(controllers)
 	self.C = controllers
@@ -307,14 +310,16 @@ function ResultsController:ShowResults(p)
 	L.Coins.TextColor3 = C.Gold
 	L.Fragments.Text = "+" .. Format.Commas(r.Fragments or 0)
 	L.Fragments.TextColor3 = C.Fragment
-	L.Collection.Text = string.format("%d/%d", r.CollectionCount or 0, r.CollectionTotal or 0) .. (if (r.NewCollection or 0) > 0 then string.format("  +%d", r.NewCollection) else "")
+	L.Chips.Text = "+" .. Format.Commas(r.Chips or 0)
+	L.Chips.TextColor3 = Color3.fromRGB(120, 230, 255)
 	self.NewTags.Time.Visible = r.Best.Time == true
 	self.NewTags.Level.Visible = r.Best.Level == true
 
 	Widgets.Clear(self.Build)
 	local order = 0
-	-- the row holds 13: abilities first, up to 4 kept for the relics of 67 TOWN
-	local relics = s.Relics or {}
+	-- the row holds 13: abilities first, up to 4 kept for the items of 67 TOWN
+	local relics = s.Items or {}
+	local levels = s.ItemLevels or {}
 	local cap = math.min(11, 13 - math.min(#relics, 4))
 	for _, w in s.Build.Weapons do
 		local def = WeaponData.ByKey[w.Key]
@@ -352,7 +357,24 @@ function ResultsController:ShowResults(p)
 			break
 		end
 		order += 1
-		Icons.Make(self.Build, "Relic", key, 40, { LayoutOrder = order })
+		local tile = Icons.Make(self.Build, "Item", key, 40, { LayoutOrder = order })
+		local level = levels[key]
+		if level then
+			Kit.Label({
+				Name = "Level",
+				Text = ROMAN[level] or tostring(level),
+				Size = UDim2.fromOffset(26, 13),
+				Position = UDim2.new(1, 2, 1, 2),
+				AnchorPoint = Vector2.new(1, 1),
+				Font = F.Title,
+				MaxTextSize = 12,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				StrokeThickness = 1,
+				StrokeTransparency = 0.2,
+				ZIndex = 3,
+				Parent = tile,
+			})
+		end
 	end
 
 	-- the hero: victory pose when you won
@@ -379,13 +401,28 @@ function ResultsController:ShowResults(p)
 		local new = DifficultyData.Get(r.NewTier)
 		table.insert(lines, string.format("New difficulty: %s %s", new.Numeral, new.Name))
 	end
-	if (s.MiniBosses or 0) > 0 or (s.Vaults or 0) > 0 then
+	if s.MainBoss then
+		table.insert(lines, "THE FINAL ONE defeated!")
+	end
+	if #(s.Synergies or {}) > 0 then
+		local names = {}
+		for _, key in s.Synergies do
+			local syn = SynergyData.ByKey[key]
+			table.insert(names, if syn then syn.Name else key)
+		end
+		table.insert(lines, "Synergies: " .. table.concat(names, ", "))
+	end
+	if (s.BossesBeaten or 0) > 0 or #relics > 0 or (s.Vaults or 0) > 0 or (s.Elites or 0) > 0 then
 		local parts = {}
-		if (s.MiniBosses or 0) > 0 then
-			table.insert(parts, string.format("%d mini-boss%s defeated", s.MiniBosses, if s.MiniBosses == 1 then "" else "es"))
+		local slotBosses = (s.BossesBeaten or 0) - (if s.MainBoss then 1 else 0)
+		if slotBosses > 0 then
+			table.insert(parts, string.format("%d boss%s defeated", slotBosses, if slotBosses == 1 then "" else "es"))
+		end
+		if (s.Elites or 0) > 0 then
+			table.insert(parts, string.format("%d elite%s", s.Elites, if s.Elites == 1 then "" else "s"))
 		end
 		if #relics > 0 then
-			table.insert(parts, string.format("%d relic%s", #relics, if #relics == 1 then "" else "s"))
+			table.insert(parts, string.format("%d item%s", #relics, if #relics == 1 then "" else "s"))
 		end
 		if (s.Vaults or 0) > 0 then
 			table.insert(parts, string.format("%d vault%s cracked", s.Vaults, if s.Vaults == 1 then "" else "s"))
@@ -396,7 +433,7 @@ function ResultsController:ShowResults(p)
 		table.insert(lines, "Account level " .. r.LevelAfter .. "!")
 	end
 	if (r.NewCollection or 0) > 0 then
-		table.insert(lines, string.format("+%d in the Collection Book", r.NewCollection))
+		table.insert(lines, string.format("+%d in the Collection Book (%d/%d)", r.NewCollection, r.CollectionCount or 0, r.CollectionTotal or 0))
 	end
 	if (s.Evolved or 0) > 0 then
 		table.insert(lines, string.format("%d evolution%s", s.Evolved, if s.Evolved == 1 then "" else "s"))

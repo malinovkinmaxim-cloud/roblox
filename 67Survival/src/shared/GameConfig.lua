@@ -41,7 +41,7 @@ GameConfig.Arena = {
 	SpawnRadiusMax = 74,
 	RelocateDistance = 105, -- enemies left further behind than this are moved ahead of the player
 	StuckRelocate = 3, -- seconds an enemy may stay stuck on a wall (far from you) before it is moved ahead
-	StartOffsets = { -- where runs start: around the 67 fountain (a random one, so players spread out)
+	StartOffsets = { -- where runs start: in the 67 ARENA around its centre (a random one, so players spread out)
 		Vector3.new(0, 0, 26),
 		Vector3.new(-30, 0, 22),
 		Vector3.new(30, 0, 22),
@@ -57,12 +57,37 @@ GameConfig.Map = {
 	HotTime = 40,
 	HotXP = 1.67,
 	HotCoins = 2,
-	VaultFirstAt = 135, -- a 67 VAULT wakes up somewhere
-	VaultEvery = { 95, 125 },
+	VaultFirstAt = 250, -- a 67 VAULT wakes up somewhere (an item inside: shared/LootData.lua Vault)
+	VaultEvery = { 170, 210 },
 	VaultAwake = 60, -- seconds it stays open
-	EliteRelicChance = 0.03, -- an elite drops a (common-ish) relic
-	MaxLoot = 12, -- relics lying on the ground at once
 	MinimapHz = 10, -- minimap marker updates per second
+}
+
+--[[
+	ELITES (Sim/Elites.lua): rare, dangerous, worth hunting. Not bosses: a normal enemy of the
+	current wave, much tougher, with 1-2 affixes (shared/EnemyData.lua EliteAffixes).
+	The director tries every Every[1]..Every[2] seconds (the difficulty's Elite number makes
+	it try more often); a try spawns one with Chance. Never more than Max at once (MaxLate
+	from LateAt). Never in 67 SQUARE (the arena) or in a boss lair; a dangerous zone makes it
+	tougher (its HP / damage numbers). ELITE INVASION (difficulty rule): FirstAt 90, tries
+	40% more often, +1 at once.
+]]
+GameConfig.Elite = {
+	FirstAt = { 200, 240 },
+	Every = { 35, 55 },
+	Chance = 0.75,
+	Max = 1,
+	MaxLate = 2,
+	LateAt = 540,
+	Affixes = 1,
+	AffixesLate = 2,
+	Distance = { 30, 44 }, -- from the player
+	HP = 8, -- x its normal HP
+	Damage = 1.5,
+	Size = 1.45,
+	XP = 14, -- x its normal XP, as a burst of gems
+	Coins = 12,
+	FragmentChance = 0.25,
 }
 
 GameConfig.Lobby = {
@@ -105,8 +130,8 @@ GameConfig.Tutorial = {
 }
 
 GameConfig.Run = {
-	Length = 13 * 60, -- soft end; the final boss spawns at FinalBossAt
-	FinalBossAt = 12 * 60,
+	Length = 16 * 60, -- soft end (overtime after it); THE FINAL ONE comes at FinalBossAt
+	FinalBossAt = 15 * 60, -- shared/BossData.lua Main.At
 	LevelUpAutoPick = 60, -- safety net: a choice nobody makes is auto-picked after this
 	DeathReviveWindow = 10, -- seconds to accept a Robux revive before RUN OVER
 	RecentDamageWindow = 1.0,
@@ -129,6 +154,9 @@ GameConfig.LevelUp = {
 	NewWeaponWeight = 1.0, -- x rarity weight (shared/Rarity.lua)
 	WeaponLevelWeight = 1.35,
 	PassiveWeight = 0.9,
+	NewPassiveShare = 16, -- all the upgrades you do not have yet weigh as much as this many
+	ItemWeight = 0.18, -- rare cards: +1 level of an item you carry (from ItemFromLevel on)
+	ItemFromLevel = 8,
 	FreeRerolls = 1,
 	Heal = 8, -- HP healed on every level up (matters early, not late)
 	SkipCoins = 5,
@@ -142,9 +170,6 @@ GameConfig.Drops = {
 	BaseItemChance = 0.003, -- per regular kill (x Luck)
 	CoinChance = 0.035,
 	CrateEvery = 38, -- a loot crate appears near the player every N seconds
-	EliteChance = 0.012, -- a regular spawn becomes an ELITE (x3 HP, bigger, more XP) after EliteFrom
-	EliteFrom = 150,
-	EliteFragmentChance = 0.2, -- an elite drops a hero fragment
 }
 
 GameConfig.Rewards = {

@@ -1,7 +1,8 @@
 --[[
 	PointerController - arrows on the screen edge towards things worth walking to when they are
-	off screen: the boss, MINI-BOSSES ("⚠ MINI-BOSS" and how far), relics on the ground, an awake
-	67 VAULT, treasure chests, fragments and rare specials (67 Goblin, THE 67, Golden Goober).
+	off screen: the BOSSES ("BOSS 2 · 140" with the boss number, THE FINAL ONE "67"), elites,
+	items on the ground, an awake 67 VAULT, treasure chests, fragments and rare specials
+	(67 Goblin, THE 67, Golden Goober).
 	Each arrow carries a small monogram badge. Also the one-time "how to play" hint of the very
 	first run.
 ]]
@@ -22,7 +23,7 @@ local PointerController = {}
 
 local C = Theme.Colors
 local MAX_ARROWS = 6
-local MINI = Color3.fromRGB(255, 120, 70)
+local ELITE = Color3.fromRGB(190, 110, 255)
 local MARGIN = 0.07 -- fraction of the screen kept free at the edges
 local RARE_ICONS = { Goblin67 = "67", The67 = "67", GoldenGoober = "GG" }
 
@@ -56,7 +57,7 @@ function PointerController:Init(controllers)
 		local icon = Widgets.Mono(holder, "", C.Gold, 34, { Name = "Icon", Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 		icon.BackgroundColor3 = C.SurfaceDark
 		icon.BackgroundTransparency = Theme.Glass
-		-- "MINI-BOSS 120" under the badge (only for the big things)
+		-- "BOSS 2 · 120" under the badge (only for the big things)
 		local tag = Kit.Label({
 			Name = "Tag",
 			Text = "",
@@ -133,15 +134,15 @@ end
 function PointerController:Targets()
 	local run = self.C.RunClient
 	local out = {}
-	local boss = run.Boss
-	if boss then
-		local e = run.Enemies[boss.Id]
-		if e then
-			table.insert(out, { Pos = run:World(e.RX or e.X1, e.RZ or e.Z1, 3), Icon = "BOSS", Color = C.Danger })
-		end
-	end
-	-- mini-bosses: the reason to go somewhere
+	-- bosses: the reason to go somewhere (THE FINAL ONE first)
+	local encounters = {}
 	for _, enc in run.Encounters do
+		table.insert(encounters, enc)
+	end
+	table.sort(encounters, function(a, b)
+		return (a.Slot or 0) > (b.Slot or 0)
+	end)
+	for _, enc in encounters do
 		local x, z = enc.X, enc.Z
 		for _, id in enc.Ids do
 			local e = run.Enemies[id]
@@ -151,12 +152,23 @@ function PointerController:Targets()
 			end
 		end
 		if #out < MAX_ARROWS then
-			table.insert(out, { Pos = run:World(x, z, 3), Icon = "⚠", Color = MINI, Tag = "MINI-BOSS " .. distance(run, x, z) })
+			local label = if enc.Main then "THE FINAL ONE " else "BOSS " .. tostring(enc.Slot or "") .. " · "
+			table.insert(out, { Pos = run:World(x, z, 3), Icon = if enc.Main then "67" else tostring(enc.Slot or "!"), Color = if enc.Crowned then C.Gold else C.Danger, Tag = label .. distance(run, x, z) })
 		end
 	end
-	-- relics on the ground and an awake vault
+	-- elites nearby (they are worth it)
+	for id in run.Elites do
+		local e = run.Enemies[id]
+		if e and #out < MAX_ARROWS then
+			local x, z = e.RX or e.X1, e.RZ or e.Z1
+			if distance(run, x, z) < 120 then
+				table.insert(out, { Pos = run:World(x, z, 3), Icon = "E", Color = ELITE, Tag = "ELITE " .. distance(run, x, z) })
+			end
+		end
+	end
+	-- items on the ground and an awake vault
 	for _, item in self.C.LootRenderer.Items do
-		if #out < MAX_ARROWS then
+		if #out < MAX_ARROWS and not item.Soul then
 			table.insert(out, { Pos = run:World(item.X, item.Z, 2), Icon = "◆", Color = Rarity.Colors[item.Def.Rarity] or C.Gold })
 		end
 	end

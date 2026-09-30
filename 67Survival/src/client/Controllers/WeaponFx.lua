@@ -26,7 +26,7 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local WeaponData = require(Shared.WeaponData)
 local Protocol = require(Shared.Protocol)
 local CosmeticData = require(Shared.CosmeticData)
-local RelicData = require(Shared.RelicData)
+local ItemData = require(Shared.ItemData)
 local Rarity = require(Shared.Rarity)
 local HeroModels = require(Shared.HeroModels)
 local GameConfig = require(Shared.GameConfig)
@@ -364,20 +364,30 @@ end
 ---------------------------------------------------------------------------
 -- lingering zones (poison clouds, black holes) and the clone
 ---------------------------------------------------------------------------
+-- zones of the build (Sim/Perks, Protocol.ZoneStyle): colour, core colour, a vortex?
+local ZONE_STYLES = {
+	[250] = { rgb(90, 170, 255), rgb(200, 235, 255), false }, -- Puddle (slows)
+	[251] = { rgb(120, 50, 200), rgb(20, 10, 30), true }, -- Void
+	[252] = { rgb(120, 220, 90), rgb(90, 180, 60), false }, -- Cloud (poison)
+	[253] = { rgb(255, 140, 40), rgb(255, 200, 80), false }, -- Spill (fire)
+	[254] = { rgb(70, 30, 120), rgb(10, 5, 20), true }, -- Gravity (Gravity Seed)
+}
+
 function WeaponFx:Zone(id: number, weaponId: number, x: number, z: number, radius: number, duration: number)
 	local def = WeaponData.ById[weaponId]
-	if not def then
+	local style = ZONE_STYLES[weaponId]
+	if not def and not style then
 		return
 	end
 	self:ZoneEnd(id)
 	local run = self.C.RunClient
 	local pos = run:World(x, z, 0.4)
-	local color = self:ColorOf(def)
+	local color = if style then style[1] else self:ColorOf(def)
 	local disc = self:Take("Disc")
 	local core = self:Take("Ball")
 	disc.Color = color
-	core.Color = if def.Kind == "Vortex" then rgb(20, 10, 30) else color
-	local vortex = def.Kind == "Vortex"
+	local vortex = if style then style[3] else def.Kind == "Vortex"
+	core.Color = if style then style[2] elseif vortex then rgb(20, 10, 30) else color
 	local zone = { Disc = disc, Core = core, Pos = pos, R = radius, Until = os.clock() + duration, Vortex = vortex, Spin = 0 }
 	self.Zones[id] = zone
 	if vortex then
@@ -392,6 +402,38 @@ function WeaponFx:ZoneEnd(id: number)
 		self:Give("Disc", zone.Disc)
 		self:Give("Ball", zone.Core)
 	end
+end
+
+-- SECOND SHADOW: a dark copy of you that fights by your side (nil = gone)
+function WeaponFx:Shadow(state)
+	local run = self.C.RunClient
+	if not state then
+		if self.ShadowModel then
+			self.C.EffectsController:Poof(self.ShadowX or 0, self.ShadowZ or 0, rgb(80, 40, 120), 8)
+			self.ShadowModel:Destroy()
+			self.ShadowModel = nil
+		end
+		return
+	end
+	self.ShadowX, self.ShadowZ = state.X, state.Z
+	if not self.ShadowModel then
+		local model = Instance.new("Model")
+		model.Name = "SecondShadow"
+		model.Parent = self.Folder
+		local parts = HeroModels.Build(run.Hero or "Rookie", CFrame.new(run:World(state.X, state.Z, 3)), model, {})
+		for _, p in parts do
+			p.Color = rgb(40, 20, 60)
+			p.Transparency = math.max(p.Transparency, 0.35)
+			p.Material = Enum.Material.Neon
+		end
+		self.ShadowModel = model
+		self.C.EffectsController:Ring(run:World(state.X, state.Z, 0.3), 5, rgb(120, 60, 200), 0.4)
+	end
+	local model = self.ShadowModel :: Model
+	local target = CFrame.new(run:World(state.X, state.Z, 3))
+	pcall(function()
+		model:PivotTo(target)
+	end)
 end
 
 function WeaponFx:Clone(x: number, z: number, duration: number)
@@ -833,8 +875,8 @@ function WeaponFx:Generic(variant: number, x: number, z: number, pos: Vector3, a
 		fx:WorldText(pos + Vector3.new(0, 10, 0), "JACKPOT!", rgb(255, 215, 60), 3.2, 1.4)
 		sound:Play("Jackpot")
 	elseif variant == GFX.RelicTake then
-		local relic = RelicData.ById[math.floor(p2 + 0.5)]
-		local color = if relic then Rarity.Colors[relic.Rarity] or rgb(255, 255, 255) else rgb(255, 255, 255)
+		local item = ItemData.ById[math.floor(p2 + 0.5)]
+		local color = if item then Rarity.Colors[item.Rarity] or rgb(255, 255, 255) else rgb(255, 255, 255)
 		fx:Ring(pos, p1, color, 0.5)
 		fx:Emit("Big", pos + Vector3.new(0, 3, 0), color, 26)
 	elseif variant == GFX.TwinRevive then
@@ -857,6 +899,127 @@ function WeaponFx:Generic(variant: number, x: number, z: number, pos: Vector3, a
 		fx:Ring(pos, p1, rgb(200, 240, 255), 0.9, p1 * 0.2)
 		fx:Flash(rgb(180, 220, 255), 0.25)
 		sound:Play("Freeze")
+	else
+		self:BuildFx(variant, x, z, pos, angle, p1, p2)
+	end
+end
+
+-- a line effect from pos along angle (servo laser, cart wheel ram, pact)
+function WeaponFx:Line(pos: Vector3, angle: number, length: number, width: number, color: Color3, duration: number)
+	local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
+	local base = pos + Vector3.new(0, 1.5, 0)
+	local beam = self:Take("Beam")
+	beam.Color = color
+	local look = CFrame.lookAt(base, base + dir)
+	self:Transient(duration, function(t)
+		beam.Size = Vector3.new(math.max(0.3, width * (1 - t * 0.5)), 0.9, length)
+		beam.CFrame = look * CFrame.new(0, 0, -length / 2)
+		beam.Transparency = 0.2 + t * 0.8
+	end, function()
+		self:Give("Beam", beam)
+	end)
+end
+
+-- the build (items, upgrades, synergies: Sim/Perks) and the bosses / elites of 67 TOWN
+function WeaponFx:BuildFx(variant: number, x: number, z: number, pos: Vector3, angle: number, p1: number, p2: number)
+	local fx = self.C.EffectsController
+	local sound = self.C.SoundController
+	local cam = self.C.CameraController
+	local r = math.max(2, p1)
+	if variant == GFX.Synergy then
+		fx:Ring(pos, r, rgb(0, 225, 210), 0.7)
+		fx:Ring(pos, r * 0.6, rgb(255, 255, 255), 0.5)
+		fx:Emit("Big", pos + Vector3.new(0, 3, 0), rgb(0, 225, 210), 40)
+	elseif variant == GFX.Crowned then
+		fx:Ring(pos, r, rgb(255, 205, 60), 0.35)
+		fx:Emit("Big", pos + Vector3.new(0, 2, 0), rgb(255, 215, 80), 14)
+		sound:Play("Rare", 1.4, 0.4)
+	elseif variant == GFX.Stomp then
+		fx:Ring(pos, r, rgb(190, 150, 120), 0.4)
+		fx:Emit("Smoke", pos + Vector3.new(0, 1, 0), rgb(140, 110, 90), 10)
+		cam:Shake(0.4)
+	elseif variant == GFX.Strike then
+		self:Bolt(pos + Vector3.new(0, 40, 0), pos, rgb(180, 230, 255), 0.9, 0.2)
+		fx:Ring(pos, r, rgb(180, 230, 255), 0.3)
+		sound:Play("Zap", 0.9, 0.5)
+	elseif variant == GFX.MarkBlast then
+		fx:Ring(pos, r, rgb(255, 40, 60), 0.4)
+		fx:Emit("Big", pos + Vector3.new(0, 3, 0), rgb(255, 60, 70), 22)
+		fx:WorldText(pos + Vector3.new(0, 7, 0), "✖", rgb(255, 60, 70), 2.4, 0.7)
+		sound:Play("Boom", 1.1, 0.6)
+	elseif variant == GFX.Nova then
+		fx:Ring(pos, r, rgb(255, 230, 150), 0.35)
+	elseif variant == GFX.Pact then
+		self:Line(pos, angle, p1, 0.8, rgb(170, 110, 255), 0.25)
+	elseif variant == GFX.Shatter then
+		fx:Ring(pos, r, rgb(160, 230, 255), 0.4)
+		fx:Emit("Big", pos + Vector3.new(0, 2, 0), rgb(200, 240, 255), 16)
+		sound:Play("Freeze", 1.3, 0.5)
+	elseif variant == GFX.Dodge then
+		fx:WorldText(pos + Vector3.new(0, 6, 0), "DODGE", rgb(150, 230, 255), 1.4, 0.6)
+	elseif variant == GFX.Guard then
+		fx:Ring(pos, r, rgb(240, 240, 255), 0.3)
+		fx:WorldText(pos + Vector3.new(0, 6, 0), "BLOCK", rgb(240, 240, 255), 1.4, 0.6)
+	elseif variant == GFX.Panic then
+		fx:Ring(pos, r, rgb(255, 70, 70), 0.5)
+		fx:Flash(rgb(255, 60, 60), 0.3)
+		sound:Play("Boom", 0.8, 0.8)
+		cam:Shake(0.8)
+	elseif variant == GFX.Fracture then
+		fx:Ring(pos, r, rgb(200, 170, 255), 0.9, r * 0.2)
+		fx:Flash(rgb(190, 160, 255), 0.35)
+		sound:Play("Freeze", 0.7)
+	elseif variant == GFX.Ram then
+		self:Line(pos, angle, p1, math.max(1.5, p2), rgb(255, 170, 60), 0.3)
+		sound:Play("Slam", 1.2, 0.5)
+	elseif variant == GFX.Pulse then
+		fx:Ring(pos, r, rgb(120, 200, 255), 0.6, r * 0.1)
+	elseif variant == GFX.Reel then
+		fx:WorldText(pos + Vector3.new(0, 7, 0), "6-7-?", rgb(255, 215, 60), 1.6, 0.8)
+	elseif variant == GFX.Flop then
+		fx:Ring(pos, r, rgb(255, 214, 60), 0.4)
+		fx:Emit("Smoke", pos + Vector3.new(0, 1, 0), rgb(160, 220, 255), 10)
+		cam:Shake(0.5)
+	elseif variant == GFX.Servo then
+		self:Line(pos, angle, p1, math.max(1, p2), rgb(255, 60, 60), 0.3)
+		sound:Play("Beam", 1.3, 0.4)
+	elseif variant == GFX.Troops then
+		fx:Ring(pos, r, rgb(255, 180, 60), 0.4)
+	elseif variant == GFX.Marked then
+		fx:WorldText(pos + Vector3.new(0, 8, 0), "✖", rgb(255, 60, 70), 1.8, 0.8)
+	elseif variant == GFX.Whoopee then
+		fx:Ring(pos, r, rgb(255, 140, 200), 0.4)
+		fx:WorldText(pos + Vector3.new(0, 6, 0), "PFFFT", rgb(255, 150, 210), 1.6, 0.8)
+	elseif variant == GFX.ShadowIn then
+		fx:Ring(pos, r, rgb(120, 60, 200), 0.5)
+		fx:Emit("Smoke", pos + Vector3.new(0, 2, 0), rgb(60, 30, 90), 14)
+	elseif variant == GFX.Soul then
+		fx:Emit("Poof", pos + Vector3.new(0, 2, 0), rgb(170, 220, 255), 6)
+	elseif variant == GFX.Mirror then
+		fx:Ring(pos, r, rgb(150, 90, 255), 0.25)
+		sound:Play("Zap", 1.6, 0.3)
+	elseif variant == GFX.Phase then
+		fx:Ring(pos, r * 2, rgb(255, 30, 30), 0.9)
+		fx:Emit("Big", pos + Vector3.new(0, 3, 0), rgb(255, 60, 60), 40)
+		fx:Flash(rgb(255, 40, 40), 0.25)
+		cam:Shake(1.5)
+		sound:Play("BossSpawn", 0.8, 0.9)
+	elseif variant == GFX.Exposed then
+		fx:Ring(pos, r, rgb(255, 170, 40), 0.5)
+	elseif variant == GFX.Seal then
+		fx:Ring(pos, r, rgb(255, 60, 70), 1.2, r * 0.9)
+		fx:Flash(rgb(255, 50, 60), 0.3)
+		cam:Shake(1.2)
+		sound:Play("Slam", 0.6, 1)
+	elseif variant == GFX.EliteSpawn then
+		fx:Ring(pos, r, rgb(190, 110, 255), 0.7)
+		fx:Emit("Big", pos + Vector3.new(0, 2, 0), rgb(190, 110, 255), 20)
+	elseif variant == GFX.EliteBlast then
+		fx:Ring(pos, r, rgb(255, 120, 40), 0.3)
+	elseif variant == GFX.Pull then
+		fx:Ring(pos, r, rgb(255, 40, 80), 0.5)
+		fx:Emit("Smoke", pos + Vector3.new(0, 2, 0), rgb(80, 20, 40), 14)
+		sound:Play("Zap", 0.6, 0.8)
 	end
 end
 
@@ -1087,6 +1250,10 @@ function WeaponFx:Clear()
 	if self.CloneModel then
 		self.CloneModel:Destroy()
 		self.CloneModel = nil
+	end
+	if self.ShadowModel then
+		self.ShadowModel:Destroy()
+		self.ShadowModel = nil
 	end
 	if self.Bubble then
 		self.Bubble.Material = Enum.Material.Neon

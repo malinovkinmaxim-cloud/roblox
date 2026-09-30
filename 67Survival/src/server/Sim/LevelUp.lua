@@ -1,12 +1,23 @@
 --[[
-	LevelUp - builds the random cards of a LEVEL UP (or a chest) and applies the one the
+	LevelUp - builds the 3 random cards of a LEVEL UP (or a chest) and applies the one the
 	player picks. The client only ever sends an index into the current offer; everything
 	else is decided and validated here.
 
-	Card types: Weapon (new ability), WeaponLevel, Passive, Evolution, Filler
+	Card types
+	  Weapon       a new ability                  WeaponLevel  the next level of an ability
+	  Passive      a level-up upgrade (new or its next level, shared/UpgradeData)
+	  Evolution    an ability's Mythic form       ItemLevel    rare: +1 level of an item you carry
+	  Filler       a snack / coins when nothing else can be offered
 
-	Weights: every ability / passive has a Rarity (shared/Rarity.lua); Luck makes the rare
-	tiers more likely. An EVOLUTION that is ready always takes the first slot.
+	Every card says what changes: Level (the level it brings) / Current / MaxLevel, Change
+	(the short change: "+1 bolt"), Mechanic (a NEW behaviour this level unlocks), Category
+	(OFFENSE, PROJECTILES, DEFENSE, MOVEMENT, XP, ABILITY, ITEM), Synergy ("BULLET HELL 3/4":
+	the build it moves forward, shared/SynergyData).
+	No impossible cards: upgrades with Requires (a projectile ability, a dash) only show up
+	when they can do something; maxed things never do.
+
+	Weights: every ability / upgrade / item has a Rarity (shared/Rarity.lua); Luck makes the
+	rare tiers more likely. An EVOLUTION that is ready always takes the first slot.
 	Offers: Level (3 cards), Chest (3, THE LUCKY +1), Chest67 (4, luck boosted a lot).
 ]]
 
@@ -16,7 +27,12 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local GameConfig = require(Shared.GameConfig)
 local WeaponData = require(Shared.WeaponData)
 local UpgradeData = require(Shared.UpgradeData)
+local ItemData = require(Shared.ItemData)
+local SynergyData = require(Shared.SynergyData)
 local Rarity = require(Shared.Rarity)
+
+local Perks = require(script.Parent.Perks)
+local Items = require(script.Parent.Items)
 
 local LevelUp = {}
 
@@ -26,13 +42,20 @@ export type Card = {
 	Key: string,
 	Title: string,
 	Desc: string,
+	Change: string?,
+	Mechanic: string?,
 	Rarity: string,
 	Category: string?,
+	Symbol: string?,
 	Level: number?,
+	Current: number?,
 	MaxLevel: number?,
 	New: boolean?,
 	Evolves: string?, -- this pick completes an evolution recipe
+	Synergy: string?, -- "BULLET HELL 3/4"
 }
+
+local PROJECTILE_KINDS = { Projectile = true, Missile = true, Boomerang = true, Swords = true, Drone = true, Lob = true }
 
 local function passiveCount(run): number
 	local n = 0
@@ -42,7 +65,37 @@ local function passiveCount(run): number
 	return n
 end
 
-local function weaponCard(def, level: number): Card
+-- the build after a pick, for synergy tags ("tag" as SynergyData.Of: "Upgrade:Key" ...)
+local function synergyTag(run, tag: string, key: string, kind: string): string?
+	if not SynergyData.Of[tag] then
+		return nil
+	end
+	local before = Perks.Build(run)
+	local after = {
+		Upgrades = table.clone(before.Upgrades),
+		Items = table.clone(before.Items),
+		Abilities = table.clone(before.Abilities),
+		Dash = before.Dash,
+	}
+	if kind == "Upgrade" then
+		after.Upgrades[key] = (after.Upgrades[key] or 0) + 1
+	elseif kind == "Item" then
+		after.Items[key] = (after.Items[key] or 0) + 1
+	else
+		after.Abilities[key] = true
+	end
+	local syn, have, total = SynergyData.BestFor(tag, after)
+	if not syn then
+		return nil
+	end
+	local had = SynergyData.Progress(syn, before)
+	if have <= had or have < 2 then
+		return nil -- it does not move a synergy forward (yet)
+	end
+	return if have >= total then syn.Name .. " READY" else string.format("%s %d/%d", syn.Name, have, total)
+end
+
+local function weaponCard(run, def, level: number): Card
 	local isNew = level == 1
 	local delta = def.Levels[level]
 	return {
@@ -50,12 +103,16 @@ local function weaponCard(def, level: number): Card
 		Type = if isNew then "Weapon" else "WeaponLevel",
 		Key = def.Key,
 		Title = def.Name,
-		Desc = if isNew then def.Desc else (delta and delta.Desc or "Stronger"),
+		Desc = def.Desc,
+		Change = if isNew then def.Desc else (delta and delta.Desc or "Stronger"),
+		Mechanic = if not isNew and delta and delta.New then delta.Desc else nil,
 		Rarity = def.Rarity,
 		Category = def.Category,
 		Level = level,
+		Current = level - 1,
 		MaxLevel = def.MaxLevel,
 		New = isNew,
+		Synergy = if isNew then synergyTag(run, "Ability:" .. def.Key, def.Key, "Ability") else nil,
 	}
 end
 
@@ -69,6 +126,7 @@ local function evolutionCard(run, baseKey: string): Card
 		Key = baseKey,
 		Title = evo.Name,
 		Desc = evo.Desc,
+		Change = evo.Desc,
 		Rarity = "Mythic",
 		Category = evo.Category,
 		Evolves = base.Name .. " + " .. (if with then with.Name else evo.Evolution.With),
@@ -86,13 +144,77 @@ local function evolvesWith(run, passiveKey: string): string?
 	return nil
 end
 
+-- can this upgrade do something for this build?
+local function requirementsMet(run, def): boolean
+	local req = def.Requires
+	if not req then
+		return true
+	end
+	if req.Category then
+		for _, w in run.Weapons do
+			if w.Def.Category == req.Category or (req.Category == "PROJECTILE" and PROJECTILE_KINDS[w.Def.Kind]) then
+				return true
+			end
+		end
+		return false
+	end
+	if req.Dash then
+		return Perks.HasDash(run)
+	end
+	return true
+end
+LevelUp.RequirementsMet = requirementsMet
+
+local function passiveCard(run, def, level: number): Card
+	local l = def.Levels[level]
+	return {
+		Id = "P:" .. def.Key,
+		Type = "Passive",
+		Key = def.Key,
+		Title = def.Name,
+		Desc = def.Desc,
+		Change = l.Desc,
+		Mechanic = l.New,
+		Rarity = def.Rarity,
+		Category = def.Category,
+		Symbol = def.Symbol,
+		Level = level,
+		Current = level - 1,
+		MaxLevel = def.MaxLevel,
+		New = level == 1,
+		Evolves = if level == 1 then evolvesWith(run, def.Key) else nil,
+		Synergy = synergyTag(run, "Upgrade:" .. def.Key, def.Key, "Upgrade"),
+	}
+end
+
+local function itemCard(run, def, level: number): Card
+	local l = def.Levels[level]
+	return {
+		Id = "I:" .. def.Key,
+		Type = "ItemLevel",
+		Key = def.Key,
+		Title = def.Name,
+		Desc = def.Desc,
+		Change = l.Desc,
+		Mechanic = l.New,
+		Rarity = def.Rarity,
+		Category = "ITEM",
+		Symbol = def.Symbol,
+		Level = level,
+		Current = level - 1,
+		MaxLevel = def.MaxLevel,
+		New = false,
+		Synergy = synergyTag(run, "Item:" .. def.Key, def.Key, "Item"),
+	}
+end
+
 -- every normal card that could be offered right now, with weights
 local function candidates(run, luck: number): { { any } }
 	local out = {}
 	local cfg = GameConfig.LevelUp
 	for _, w in run.Weapons do
 		if w.Level < w.Def.MaxLevel then
-			table.insert(out, { weaponCard(w.Def, w.Level + 1), cfg.WeaponLevelWeight })
+			table.insert(out, { weaponCard(run, w.Def, w.Level + 1), cfg.WeaponLevelWeight })
 		end
 	end
 	if #run.Weapons < run.Stats.WeaponSlots then
@@ -103,36 +225,47 @@ local function candidates(run, luck: number): { { any } }
 				and not run:GetWeapon(def.Key)
 				and (def.MinPlayerLevel or 0) <= run.Level
 			then
-				table.insert(out, { weaponCard(def, 1), cfg.NewWeaponWeight * Rarity.WeightFor(def.Rarity, luck) })
+				table.insert(out, { weaponCard(run, def, 1), cfg.NewWeaponWeight * Rarity.WeightFor(def.Rarity, luck) })
 			end
 		end
 	end
 	local canAddPassive = passiveCount(run) < GameConfig.Player.MaxPassives
+	-- new upgrades share one budget (the list is long: it must not crowd out the abilities);
+	-- the next level of an upgrade you have keeps the full weight
+	local fresh = {}
 	for _, def in UpgradeData.Passives do
-		local stacks = run.Passives[def.Key] or 0
+		local level = run.Passives[def.Key] or 0
 		local available = def.Secret == nil or run.Unlocked[def.Key] == true
-		if available and stacks < def.MaxStacks and (stacks > 0 or canAddPassive) then
-			local evolves = if stacks == 0 then evolvesWith(run, def.Key) else nil
+		if available and level < def.MaxLevel and (level > 0 or canAddPassive) and requirementsMet(run, def) then
+			local card = passiveCard(run, def, level + 1)
 			local weight = cfg.PassiveWeight * Rarity.WeightFor(def.Rarity, luck)
-			if evolves then
+			if card.Evolves then
 				weight *= 1.6 -- nudges players towards discovering evolutions
 			end
-			table.insert(out, {
-				{
-					Id = "P:" .. def.Key,
-					Type = "Passive",
-					Key = def.Key,
-					Title = def.Name,
-					Desc = def.Desc,
-					Rarity = def.Rarity,
-					Category = "PASSIVE",
-					Level = stacks + 1,
-					MaxLevel = def.MaxStacks,
-					New = stacks == 0,
-					Evolves = evolves,
-				},
-				weight,
-			})
+			if card.Synergy then
+				weight *= 1.3 -- ... and towards finishing a synergy
+			end
+			local entry = { card, weight }
+			table.insert(out, entry)
+			if level == 0 then
+				table.insert(fresh, entry)
+			end
+		end
+	end
+	if #fresh > cfg.NewPassiveShare then
+		local k = cfg.NewPassiveShare / #fresh
+		for _, entry in fresh do
+			entry[2] *= k
+		end
+	end
+	-- rare: one more level of an item you carry
+	if run.Level >= cfg.ItemFromLevel then
+		for _, key in run.ItemOrder do
+			local def = ItemData.ByKey[key]
+			local level = run.Items[key] or 0
+			if def and not def.Secret and level < def.MaxLevel then
+				table.insert(out, { itemCard(run, def, level + 1), cfg.ItemWeight * Rarity.WeightFor(def.Rarity, luck) })
+			end
 		end
 	end
 	return out
@@ -195,7 +328,7 @@ function LevelUp.Build(run, kind: string): { Card }
 		local card = pick(rng, pool, taken)
 		if not card then
 			local fill = UpgradeData.Fillers[(slot - 1) % #UpgradeData.Fillers + 1]
-			card = { Id = "F:" .. fill.Key, Type = "Filler", Key = fill.Key, Title = fill.Name, Desc = fill.Desc, Rarity = "Common" }
+			card = { Id = "F:" .. fill.Key, Type = "Filler", Key = fill.Key, Title = fill.Name, Desc = fill.Desc, Change = fill.Desc, Rarity = "Common" }
 		end
 		if not taken[card.Id] then
 			taken[card.Id] = true
@@ -244,6 +377,10 @@ function LevelUp.Apply(run, card: Card)
 		end
 	elseif t == "Passive" then
 		local key = card.Key
+		local def = UpgradeData.PassiveByKey[key]
+		if not def or (run.Passives[key] or 0) >= def.MaxLevel then
+			return
+		end
 		if not run.Passives[key] then
 			table.insert(run.PassiveOrder, key)
 		end
@@ -257,6 +394,8 @@ function LevelUp.Apply(run, card: Card)
 		end
 	elseif t == "Evolution" then
 		run:Evolve(card.Key)
+	elseif t == "ItemLevel" then
+		Items.Gain(run, card.Key)
 	elseif t == "Filler" then
 		if card.Key == "Snack" then
 			run:Heal(30)

@@ -46,9 +46,11 @@ local M = Theme.Margin
 
 LobbyController.Tagline = GameConfig.Tagline
 
+local NAV_W = 92 -- five buttons fit between the corners of the hub (the hero card on the right)
 local NAV = {
 	{ Key = "Heroes", Text = "HEROES" },
 	{ Key = "Abilities", Text = "ABILITIES" },
+	{ Key = "Items", Text = "ITEMS" },
 	{ Key = "Shop", Text = "SHOP" },
 	{ Key = "More", Text = "MORE" },
 }
@@ -641,7 +643,7 @@ end
 function LobbyController:BuildNav(safe: Frame)
 	local nav = Kit.New("Frame", {
 		Name = "Nav",
-		Size = UDim2.fromOffset(4 * 116 + 12, 48),
+		Size = UDim2.fromOffset(#NAV * NAV_W + 12, 48),
 		Position = UDim2.fromScale(0.5, 1),
 		AnchorPoint = Vector2.new(0.5, 1),
 		BackgroundColor3 = C.Surface,
@@ -669,7 +671,7 @@ function LobbyController:BuildNav(safe: Frame)
 			TextColor3 = C.TextDim,
 			BackgroundColor3 = C.SurfaceLight,
 			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(116, 38),
+			Size = UDim2.fromOffset(NAV_W, 38),
 			LayoutOrder = i,
 			Parent = nav,
 		})
@@ -752,7 +754,7 @@ function LobbyController:ClosePanel()
 end
 
 --[[
-	key: panel module name without "Panel" (Heroes, Abilities, Shop, More, Achievements,
+	key: panel module name without "Panel" (Heroes, Abilities, Items, Shop, More, Achievements,
 	Collection, Challenges, AfkCamp, Party, Leaderboard, Statistics, Codes, Settings,
 	Profile, Daily, Credits, Difficulty, HowToPlay)
 	overlay: show above the run HUD (settings from the pause menu); arg: passed to OnOpen

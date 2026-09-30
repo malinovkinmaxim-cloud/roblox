@@ -6,10 +6,13 @@
 	  * the five zones in their colours; a zone you have not been to is dim with a "?"
 	  * THE RIFT: locked (a lock + when it opens) until it opens
 	  * you (an arrow), your party (blue dots)
-	  * mini-bosses (red "!" markers, blinking while they arrive), the big boss
-	  * relics on the ground (rarity colour), chests, an awake 67 VAULT (gold)
+	  * BOSSES: a big red marker with the boss number (1-4), blinking at its lair while it is
+	    announced, pulsing where it fights; THE FINAL ONE: a huge "67" marker in the centre
+	  * the 67 ARENA ring in the centre (from 14:30, bright while it is sealed)
+	  * ELITES (purple), items on the ground (rarity colour), souls, chests, an awake 67
+	    VAULT (gold)
 	  * the 67 RUSH zone (a gold frame)
-	  * lairs of zones you have visited (small rings)
+	  * lairs (rings; the lair of the next boss always)
 	Never enemies, gems or secrets. Static shapes are built once; markers come from a small
 	pool and move GameConfig.Map.MinimapHz times a second; your arrow every frame.
 ]]
@@ -22,6 +25,7 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local ArenaData = require(Shared.ArenaData)
 local GameConfig = require(Shared.GameConfig)
 local Rarity = require(Shared.Rarity)
+local BossData = require(Shared.BossData)
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -33,7 +37,9 @@ local C = Theme.Colors
 local F = Theme.Fonts
 local M = Theme.Margin
 local HALF = GameConfig.Arena.HalfSize
-local MAX_MARKERS = 24
+local MAX_MARKERS = 28
+local BOSS_RED = Color3.fromRGB(255, 70, 60)
+local ELITE = Color3.fromRGB(190, 110, 255)
 local PAD = 6
 
 -- the minimap's size in design units (the HUD lays the right column out around it)
@@ -169,6 +175,25 @@ function MinimapController:Init(controllers)
 		Kit.Stroke(ring, 1.5, C.Text, 0.35)
 		self.LairRings[lair.Key] = ring
 	end
+	-- THE FINAL ONE's arena in the centre
+	do
+		local main = BossData.Main
+		local d = math.max(10, main.ArenaR * 2 / (HALF * 2) * self.MapSize)
+		local ring = Kit.New("Frame", {
+			Name = "Arena67",
+			BackgroundColor3 = BOSS_RED,
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(d, d),
+			Position = uv(main.X, main.Z),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Visible = false,
+			ZIndex = 3,
+			Parent = map,
+		})
+		Kit.Corner(ring, d)
+		self.ArenaStroke = Kit.Stroke(ring, 2, BOSS_RED, 0.2)
+		self.ArenaRing = ring
+	end
 	-- north
 	Kit.Label({
 		Name = "North",
@@ -241,9 +266,22 @@ function MinimapController:Targets(now: number): { any }
 			table.insert(out, { X = def.X, Z = def.Z, Size = 11, Color = C.Gold, Glyph = "", Round = false, Blink = true })
 		end
 	end
-	-- relics, chests
+	-- items, souls, chests
 	for _, item in self.C.LootRenderer.Items do
-		table.insert(out, { X = item.X, Z = item.Z, Size = 9, Color = Rarity.Colors[item.Def.Rarity] or C.Text, Diamond = true })
+		if item.Soul then
+			table.insert(out, { X = item.X, Z = item.Z, Size = 5, Color = Color3.fromRGB(170, 220, 255), Round = true })
+		else
+			table.insert(out, { X = item.X, Z = item.Z, Size = 9, Color = Rarity.Colors[item.Def.Rarity] or C.Text, Diamond = true })
+		end
+	end
+	-- elites
+	for id, elite in run.Elites do
+		local e = run.Enemies[id]
+		if e then
+			table.insert(out, { X = e.RX or e.X1, Z = e.RZ or e.Z1, Size = 10, Color = ELITE, Glyph = "E", Diamond = true })
+		elseif now - elite.Since < 4 then
+			table.insert(out, { X = elite.X, Z = elite.Z, Size = 10, Color = ELITE, Glyph = "E", Diamond = true, Blink = true })
+		end
 	end
 	for _, item in self.C.PickupRenderer.Items do
 		if item.Kind == "Chest" or item.Kind == "Chest67" then
@@ -262,26 +300,21 @@ function MinimapController:Targets(now: number): { any }
 			end
 		end
 	end
-	-- the big boss
-	local boss = run.Boss
-	if boss then
-		local e = run.Enemies[boss.Id]
-		if e then
-			table.insert(out, { X = e.RX or e.X1, Z = e.RZ or e.Z1, Size = 15, Color = C.Danger, Glyph = "!!", Round = true })
-		end
-	end
-	-- mini-bosses: arriving (blinking at the lair) or out
+	-- BOSSES (last = drawn on top): arriving (blinking at the lair / the arena) or out
 	for _, enc in run.Encounters do
+		local size = if enc.Main then 22 else 17
+		local glyph = if enc.Main then "67" else tostring(enc.Slot or "!")
+		local color = if enc.Crowned then C.Gold else BOSS_RED
 		local shown = false
 		for _, id in enc.Ids do
 			local e = run.Enemies[id]
 			if e then
-				table.insert(out, { X = e.RX or e.X1, Z = e.RZ or e.Z1, Size = 13, Color = Color3.fromRGB(255, 110, 70), Glyph = "!", Round = true, Pulse = true })
+				table.insert(out, { X = e.RX or e.X1, Z = e.RZ or e.Z1, Size = size, Color = color, Glyph = glyph, Round = true, Pulse = true })
 				shown = true
 			end
 		end
 		if not shown then
-			table.insert(out, { X = enc.X, Z = enc.Z, Size = 13, Color = Color3.fromRGB(255, 110, 70), Glyph = "!", Round = true, Blink = true })
+			table.insert(out, { X = enc.X, Z = enc.Z, Size = size, Color = color, Glyph = glyph, Round = true, Blink = true })
 		end
 	end
 	return out
@@ -303,9 +336,28 @@ function MinimapController:UpdateMarkers(now: number)
 	local riftOpen = run.Map.Rift == true
 	self.Lock.Visible = not riftOpen
 	self.LockText.Visible = not riftOpen
-	for _, lair in ArenaData.Lairs do
-		self.LairRings[lair.Key].Visible = run.Map.Visited[lair.Zone] == true
+	-- lairs: the ones you have seen, the next boss's always
+	local runTime = run:Now()
+	local nextZone = nil
+	for _, slot in BossData.Slots do
+		if slot.At > runTime - 5 then
+			nextZone = slot.Zone
+			break
+		end
 	end
+	for _, lair in ArenaData.Lairs do
+		local ring = self.LairRings[lair.Key]
+		ring.Visible = run.Map.Visited[lair.Zone] == true or lair.Zone == nextZone
+	end
+	-- the 67 ARENA: from 14:30 (or when THE FINAL ONE is out), bright while sealed
+	local main = BossData.Main
+	local mainOut = false
+	for _, enc in run.Encounters do
+		mainOut = mainOut or enc.Main
+	end
+	self.ArenaRing.Visible = mainOut or run.Arena ~= nil or runTime >= main.At - 30
+	self.ArenaRing.BackgroundTransparency = if run.Arena then 0.55 + math.sin(now * 5) * 0.1 else 1
+	self.ArenaStroke.Transparency = if run.Arena or mainOut then 0 else 0.4
 	-- markers
 	local targets = self:Targets(now)
 	for i = 1, MAX_MARKERS do

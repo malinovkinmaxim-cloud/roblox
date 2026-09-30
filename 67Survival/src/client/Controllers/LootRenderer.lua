@@ -1,11 +1,13 @@
 --[[
-	LootRenderer - RELICS lying on the ground (shared/RelicData.lua, Sim/Relics.lua).
+	LootRenderer - ITEMS lying on the ground (shared/ItemData.lua, Sim/Items.lua) and SOULS.
 
-	A relic is loot you walk to: a spinning crystal in the colour of its rarity floating over a
+	An item is loot you walk to: a spinning crystal in the colour of its rarity floating over a
 	glowing ring, a column of light you can see from across the map (taller and brighter for
-	better relics), and its name when you come close. Walk over it to take it (the server
-	decides; the HUD shows the card).
-	Only a handful exist at once, so every relic is its own small model (no pool needed).
+	better items: a boss relic has a double beam, the 67 FRAGMENT a huge pink one), and its
+	name (+ "LEVEL II" when you already carry it) when you come close. Walk over it to take it
+	(the server decides; the HUD shows the ITEM ACQUIRED card).
+	A SOUL (Soul Collector) is a small pale wisp. Only a handful exist at once, so every piece of
+	loot is its own small model (no pool needed).
 ]]
 
 local RunService = game:GetService("RunService")
@@ -13,7 +15,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
-local RelicData = require(Shared.RelicData)
+local ItemData = require(Shared.ItemData)
 local Rarity = require(Shared.Rarity)
 
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -23,7 +25,9 @@ local LootRenderer = {}
 local rgb = Color3.fromRGB
 local FLAT = CFrame.Angles(0, 0, math.rad(90))
 -- the column of light: height and glow by rarity
-local BEAM = { Common = 12, Rare = 16, Epic = 21, Legendary = 26, Secret = 26 }
+local BEAM = { Common = 12, Rare = 16, Epic = 21, Legendary = 26, Mythic = 40, Secret = 26 }
+local SOUL = 255 -- LootSpawn id of a soul (Sim/Items.SOUL)
+local ROMAN = { "I", "II", "III", "IV", "V" }
 
 local function part(name: string, size: Vector3, color: Color3, material: Enum.Material?, shape: Enum.PartType?): Part
 	local p = Instance.new("Part")
@@ -51,16 +55,44 @@ function LootRenderer:Init(controllers)
 	self.Items = {} :: { [number]: any }
 end
 
-function LootRenderer:Add(id: number, relicId: number, x: number, z: number)
+-- a SOUL: a pale wisp that bobs over the ground
+function LootRenderer:AddSoul(id: number, x: number, z: number)
+	local run = self.C.RunClient
+	local color = rgb(170, 220, 255)
+	local model = Instance.new("Model")
+	model.Name = "Soul"
+	local base = run:World(x, z, 0)
+	local ring = part("Ring", Vector3.new(0.15, 3, 3), color, Enum.Material.Neon, Enum.PartType.Cylinder)
+	ring.Transparency = 0.6
+	ring.CFrame = CFrame.new(base + Vector3.new(0, 0.25, 0)) * FLAT
+	ring.Parent = model
+	local beam = part("Beam", Vector3.new(6, 0.3, 0.3), color, Enum.Material.Neon, Enum.PartType.Cylinder)
+	beam.Transparency = 0.75
+	beam.CFrame = CFrame.new(base + Vector3.new(0, 3, 0)) * FLAT
+	beam.Parent = model
+	local gem = part("Gem", Vector3.new(1, 1, 1), color, Enum.Material.Neon, Enum.PartType.Ball)
+	gem.Transparency = 0.2
+	gem.Parent = model
+	local core = part("Core", Vector3.new(0.5, 0.5, 0.5), rgb(255, 255, 255), Enum.Material.Neon, Enum.PartType.Ball)
+	core.Parent = model
+	model.Parent = self.Folder
+	self.Items[id] = { Id = id, Soul = true, X = x, Z = z, Model = model, Gem = gem, Core = core, Ring = ring, Beam = beam, Base = base, Phase = math.random() * 6, Born = os.clock() }
+end
+
+function LootRenderer:Add(id: number, itemId: number, x: number, z: number)
 	self:Take(id, false)
-	local def = RelicData.ById[relicId]
+	if itemId == SOUL then
+		self:AddSoul(id, x, z)
+		return
+	end
+	local def = ItemData.ById[itemId]
 	if not def then
 		return
 	end
 	local run = self.C.RunClient
 	local color = Rarity.Colors[def.Rarity] or rgb(255, 255, 255)
 	local model = Instance.new("Model")
-	model.Name = "Relic_" .. def.Key
+	model.Name = "Item_" .. def.Key
 	local base = run:World(x, z, 0)
 	local ring = part("Ring", Vector3.new(0.15, 6, 6), color, Enum.Material.Neon, Enum.PartType.Cylinder)
 	ring.Transparency = 0.45
@@ -75,10 +107,17 @@ function LootRenderer:Add(id: number, relicId: number, x: number, z: number)
 	gem.Parent = model
 	local core = part("Core", Vector3.new(0.9, 0.9, 0.9), rgb(255, 255, 255), Enum.Material.Neon, Enum.PartType.Ball)
 	core.Parent = model
-	if def.Rarity == "Epic" or def.Rarity == "Legendary" or def.Rarity == "Secret" then
+	if def.Type == "BossRelic" then
+		-- a boss relic: a second, wider beam
+		local outer = part("Outer", Vector3.new(height * 0.8, 1.4, 1.4), color, Enum.Material.Neon, Enum.PartType.Cylinder)
+		outer.Transparency = 0.82
+		outer.CFrame = CFrame.new(base + Vector3.new(0, height * 0.4, 0)) * FLAT
+		outer.Parent = model
+	end
+	if def.Rarity == "Epic" or def.Rarity == "Legendary" or def.Rarity == "Mythic" or def.Rarity == "Secret" then
 		local light = Instance.new("PointLight")
 		light.Color = color
-		light.Range = 14
+		light.Range = if def.Rarity == "Mythic" then 24 else 14
 		light.Brightness = 2
 		light.Parent = gem
 	end
@@ -91,7 +130,15 @@ function LootRenderer:Add(id: number, relicId: number, x: number, z: number)
 	gui.MaxDistance = 55
 	gui.AlwaysOnTop = true
 	gui.Adornee = gem
-	for i, line in { { string.upper(def.Rarity) .. " RELIC", 14, color }, { def.Name, 20, Theme.Colors.Text } } do
+	local have = 0
+	for _, it in run.Items do
+		if it.Key == def.Key then
+			have = it.Level
+		end
+	end
+	local kind = if def.Type == "BossRelic" then " BOSS RELIC" elseif def.Type == "Premium" then " PREMIUM" else " ITEM"
+	local top = if have >= def.MaxLevel then "MAXED (+COINS)" elseif have > 0 then "LEVEL " .. (ROMAN[have + 1] or tostring(have + 1)) else string.upper(def.Rarity) .. kind
+	for i, line in { { top, 14, color }, { def.Name, 20, Theme.Colors.Text } } do
 		local label = Instance.new("TextLabel")
 		label.Name = "Line" .. i
 		label.BackgroundTransparency = 1
@@ -145,7 +192,7 @@ function LootRenderer:Update()
 	end
 end
 
--- relics on the ground (for the minimap and the edge pointers)
+-- items and souls on the ground (for the minimap and the edge pointers)
 function LootRenderer:List(): { any }
 	local out = {}
 	for _, item in self.Items do

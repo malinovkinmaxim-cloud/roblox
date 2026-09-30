@@ -143,6 +143,7 @@ function GameManager:CreateEntry(player: Player, opts)
 		LiveEvent = LiveEvents.Mods(os.time()),
 		Follower = opts.Follower,
 		Difficulty = opts.Difficulty,
+		ItemUnlocks = data.ItemUnlocks, -- premium items / boss relics bought with CHIPS
 	})
 	local entry = {
 		Player = player,
@@ -274,7 +275,7 @@ function GameManager:ReadPosition(entry): (number?, number?, number?, number?)
 	local p = root.Position - CENTER
 	local look = root.CFrame.LookVector
 	local run = entry.Run
-	local maxStep = run.Stats.WalkSpeed * STEP * 1.35 + 0.35
+	local maxStep = run.Stats.WalkSpeed * math.max(1, run:SpeedFactor()) * STEP * 1.35 + 0.35
 	local dx, dz = p.X - entry.LastX, p.Z - entry.LastZ
 	local d = math.sqrt(dx * dx + dz * dz)
 	local x, z = p.X, p.Z
@@ -289,6 +290,17 @@ function GameManager:ReadPosition(entry): (number?, number?, number?, number?)
 		-- the character is somewhere else for too long: put it back where the server thinks it is
 		entry.Drift = 0
 		self.Services.CharacterManager:Teleport(entry.Player, CFrame.new(CENTER + Vector3.new(x, 0.5, z)))
+	end
+	-- THE FINAL ONE's sealed arena: nobody walks out (the ring is solid on the client too)
+	local seal = run.Map and run.Map.ArenaSealed
+	if seal then
+		local ax, az = x - seal.X, z - seal.Z
+		local ad = math.sqrt(ax * ax + az * az)
+		if ad > seal.R - 1 then
+			local k = (seal.R - 2) / math.max(ad, 0.01)
+			x, z = seal.X + ax * k, seal.Z + az * k
+			self.Services.CharacterManager:Teleport(entry.Player, CFrame.new(CENTER + Vector3.new(x, 0.5, z)))
+		end
 	end
 	entry.LastX, entry.LastZ = x, z
 	return x, z, look.X, look.Z
@@ -316,7 +328,7 @@ function GameManager:StepEntry(entry)
 
 	-- walk speed follows stats (slower in water and puddles); frozen while choosing / dead / paused
 	local wade = if run:InWater(run.PX, run.PZ) then GameConfig.Water.PlayerSpeed else 1
-	local speed = if run:IsPaused() then 0 else run.Stats.WalkSpeed * wade * run:SlowFactor()
+	local speed = if run:IsPaused() then 0 else run.Stats.WalkSpeed * wade * run:SpeedFactor()
 	if speed ~= entry.WalkSpeed then
 		entry.WalkSpeed = speed
 		self.Services.CharacterManager:SetWalkSpeed(entry.Player, speed)

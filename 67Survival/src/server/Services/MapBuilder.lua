@@ -95,7 +95,7 @@ local function buildSpawns(map: Model)
 	spawns.Parent = Workspace
 	-- the lobby spawn is the hub stage's pedestal (its top is 0.65 above the floor)
 	marker("Lobby", CFrame.new(LOBBY + STAGE + Vector3.new(0, 0.7, 0)), spawns)
-	-- runs start around the 67 fountain in the middle of 67 TOWN
+	-- runs start in THE 67 ARENA in the middle of 67 TOWN
 	for i, offset in GameConfig.Arena.StartOffsets do
 		marker("Arena" .. i, CFrame.new(CENTER + offset + Vector3.new(0, 0.5, 0)), spawns)
 	end

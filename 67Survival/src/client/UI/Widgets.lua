@@ -423,6 +423,36 @@ function Widgets.Fragment(parent: Instance, size: number, props: { [string]: any
 	return holder
 end
 
+-- CHIPS icon (the currency of premium items / boss relics): a cyan poker chip with a 67 notch
+Widgets.ChipColor = Color3.fromRGB(90, 220, 255)
+function Widgets.Chip(parent: Instance, size: number, props: { [string]: any }?): Frame
+	local chip = Kit.New("Frame", {
+		Name = "Chip",
+		Size = UDim2.fromOffset(size, size),
+		BackgroundColor3 = Widgets.ChipColor,
+		BorderSizePixel = 0,
+		Parent = parent,
+	})
+	if props then
+		for k, v in props do
+			(chip :: any)[k] = v
+		end
+	end
+	Kit.Corner(chip, size)
+	Kit.Stroke(chip, math.max(1, size * 0.12), Color3.fromRGB(20, 90, 140), 0)
+	local ring = Kit.New("Frame", {
+		Size = UDim2.fromScale(0.6, 0.6),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = chip,
+	})
+	Kit.Corner(ring, size)
+	Kit.Stroke(ring, math.max(1, size * 0.08), Color3.new(1, 1, 1), 0.2)
+	return chip
+end
+
 -- Price chip for fragment costs (like Widgets.Price for coins)
 function Widgets.FragmentPrice(parent: Instance, amount: number, props: { [string]: any }?): Frame
 	local chip = Kit.New("Frame", {
@@ -853,6 +883,8 @@ function Widgets.Price(button: GuiObject, cost: number?, currency: string?)
 		})
 		if kind == "Fragment" then
 			Widgets.Fragment(frame, 18, { LayoutOrder = 1 })
+		elseif kind == "Chip" then
+			Widgets.Chip(frame, 18, { LayoutOrder = 1 })
 		else
 			Widgets.Coin(frame, 18, { LayoutOrder = 1 })
 		end

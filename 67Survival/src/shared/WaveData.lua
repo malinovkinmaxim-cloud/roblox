@@ -1,5 +1,5 @@
 --[[
-	WaveData - the run timeline (~12-13 minutes) and the rare 67 EVENTS.
+	WaveData - the run timeline (15 minutes) and the rare 67 EVENTS.
 
 	Timeline entries are active from `At` (seconds) until the next entry:
 	  Rate      - enemies spawned per second
@@ -7,14 +7,23 @@
 	  Mix       - spawn weights by enemy key
 	  Pack      - some enemies spawn in groups: { Key = count }
 	  Burst     - one-shot formation when the entry starts ("Ring" around the player / "Wall")
-	  Boss      - boss when the entry starts: a slot number (EnemyData.BossSlots) or a key
 	  Banner    - big text when the entry starts
 
-	Pacing: fast growth in the first minutes, build-crafting in the middle, a huge horde and
-	the final boss at the end. Short enough for "one more run".
+	The BOSSES are not in here: shared/BossData.lua (3:00, 6:00, 9:00, 12:00 in their zones,
+	15:00 THE FINAL ONE in the arena). The horde thins out a little around each boss so the
+	walk to its lair and the fight stay readable, then grows past what it was before.
+
+	  0-3    the basics: goobers, skitters, husks, chargers; the build takes shape
+	  3-6    splitters, spitters, bombers, blinkers; the first elites
+	  6-9    brutes, divers, leapers, summoners, ghosts; synergies come together
+	  9-12   snipers, walls and rings of brutes; strong elites
+	  12-15  the last waves: everything, as dense as it gets
+	  15+    THE FINAL ONE; OVERTIME if it is still standing at 17:00
 ]]
 
 local WaveData = {}
+
+local LATE = { Goober = 1, Skitter = 2.6, Husk = 2, Charger = 2.2, Splitter = 1.6, Spitter = 1.4, Bomber = 1.6, Blinker = 1.6, Brute = 1.7, Diver = 1.5, Leaper = 1.4, Summoner = 0.7, Ghost = 1.4, Sniper = 1.1 }
 
 WaveData.Timeline = {
 	{ At = 0, Rate = 1.4, MinAlive = 8, Mix = { Goober = 1 } },
@@ -37,15 +46,9 @@ WaveData.Timeline = {
 		Pack = { Skitter = 4 },
 		Banner = { Title = "NEW ENEMIES", Sub = "Spitters keep their distance" },
 	},
-	{ At = 150, Rate = 3.1, MinAlive = 32, Mix = { Goober = 3, Skitter = 1.8, Husk = 2.4, Charger = 1.3, Splitter = 0.9, Spitter = 0.5, Bomber = 0.6 }, Pack = { Skitter = 4 } },
-	{
-		At = 180,
-		Rate = 2.4,
-		MinAlive = 26,
-		Mix = { Goober = 3, Skitter = 1.8, Husk = 2, Charger = 1, Bomber = 0.5 },
-		Pack = { Skitter = 4 },
-		Boss = 1,
-	},
+	{ At = 150, Rate = 3.0, MinAlive = 30, Mix = { Goober = 3, Skitter = 1.8, Husk = 2.4, Charger = 1.3, Splitter = 0.9, Spitter = 0.5, Bomber = 0.6 }, Pack = { Skitter = 4 } },
+	-- BOSS 1 (3:00): a calmer minute to walk to the gardens
+	{ At = 170, Rate = 2.4, MinAlive = 24, Mix = { Goober = 3, Skitter = 1.8, Husk = 2, Charger = 1, Bomber = 0.5 }, Pack = { Skitter = 4 } },
 	{ At = 225, Rate = 3.6, MinAlive = 44, Mix = { Goober = 2.6, Skitter = 2, Husk = 2.4, Charger = 1.4, Splitter = 1, Spitter = 0.7, Bomber = 0.8, Blinker = 0.8 }, Pack = { Skitter = 5 } },
 	{
 		At = 260,
@@ -58,21 +61,15 @@ WaveData.Timeline = {
 	},
 	{ At = 300, Rate = 4.8, MinAlive = 66, Mix = { Goober = 2, Skitter = 2.2, Husk = 2.4, Charger = 1.6, Splitter = 1.1, Spitter = 0.9, Bomber = 1, Blinker = 1.1, Brute = 0.6, Diver = 1, Leaper = 0.6, Summoner = 0.25 }, Pack = { Skitter = 6 } },
 	{
-		At = 340,
-		Rate = 5.4,
-		MinAlive = 78,
+		At = 330,
+		Rate = 5.2,
+		MinAlive = 74,
 		Mix = { Goober = 2, Skitter = 2.2, Husk = 2.4, Charger = 1.7, Splitter = 1.1, Spitter = 0.9, Bomber = 1.1, Blinker = 1.1, Brute = 0.7, Diver = 1, Leaper = 0.8, Summoner = 0.3, Ghost = 0.8, Mimic = 0.1 },
 		Pack = { Skitter = 6 },
 		Burst = { Kind = "Wall", Key = "Charger", Count = 20 },
 	},
-	{
-		At = 360,
-		Rate = 4,
-		MinAlive = 60,
-		Mix = { Goober = 2, Skitter = 2, Husk = 2.4, Charger = 1.3, Spitter = 0.8, Bomber = 0.9, Blinker = 1, Ghost = 0.7 },
-		Pack = { Skitter = 5 },
-		Boss = 2,
-	},
+	-- BOSS 2 (6:00)
+	{ At = 350, Rate = 4, MinAlive = 60, Mix = { Goober = 2, Skitter = 2, Husk = 2.4, Charger = 1.3, Spitter = 0.8, Bomber = 0.9, Blinker = 1, Ghost = 0.7 }, Pack = { Skitter = 5 } },
 	{
 		At = 420,
 		Rate = 6.5,
@@ -89,34 +86,34 @@ WaveData.Timeline = {
 		Pack = { Skitter = 7 },
 		Burst = { Kind = "Ring", Key = "Brute", Count = 10, Radius = 42 },
 	},
-	{
-		At = 540,
-		Rate = 5,
-		MinAlive = 80,
-		Mix = { Goober = 1.5, Skitter = 2.2, Husk = 2.2, Charger = 1.5, Spitter = 1, Bomber = 1.1, Blinker = 1.1, Brute = 0.8, Ghost = 1, Sniper = 0.7 },
-		Pack = { Skitter = 6 },
-		Boss = 3,
-	},
+	-- BOSS 3 (9:00)
+	{ At = 530, Rate = 5, MinAlive = 80, Mix = { Goober = 1.5, Skitter = 2.2, Husk = 2.2, Charger = 1.5, Spitter = 1, Bomber = 1.1, Blinker = 1.1, Brute = 0.8, Ghost = 1, Sniper = 0.7 }, Pack = { Skitter = 6 } },
 	{
 		At = 600,
-		Rate = 9.5,
-		MinAlive = 140,
+		Rate = 9,
+		MinAlive = 135,
 		Mix = { Goober = 1.2, Skitter = 2.6, Husk = 2, Charger = 2.2, Splitter = 1.5, Spitter = 1.3, Bomber = 1.5, Blinker = 1.5, Brute = 1.4, Diver = 1.4, Leaper = 1.3, Summoner = 0.6, Ghost = 1.3, Mimic = 0.1, Sniper = 1 },
 		Pack = { Skitter = 8 },
 		Burst = { Kind = "Wall", Key = "Brute", Count = 14 },
 		Banner = { Title = "EXTREME PHASE", Sub = "Only the horde" },
 	},
-	{ At = 660, Rate = 11, MinAlive = 160, Mix = { Goober = 1, Skitter = 2.6, Husk = 2, Charger = 2.2, Splitter = 1.6, Spitter = 1.4, Bomber = 1.6, Blinker = 1.6, Brute = 1.7, Diver = 1.5, Leaper = 1.4, Summoner = 0.7, Ghost = 1.4, Sniper = 1.1 }, Pack = { Skitter = 9 } },
+	{ At = 660, Rate = 10.5, MinAlive = 155, Mix = LATE, Pack = { Skitter = 9 } },
+	-- BOSS 4 (12:00)
+	{ At = 710, Rate = 7, MinAlive = 120, Mix = { Goober = 1.5, Skitter = 2.4, Husk = 2, Charger = 2, Splitter = 1.4, Spitter = 1.2, Bomber = 1.4, Blinker = 1.4, Brute = 1.3, Diver = 1.3, Ghost = 1.2, Sniper = 0.9 }, Pack = { Skitter = 7 } },
 	{
-		At = 720,
-		Rate = 7,
-		MinAlive = 120,
-		Mix = { Goober = 1.5, Skitter = 2.4, Husk = 2, Charger = 2, Splitter = 1.4, Spitter = 1.2, Bomber = 1.4, Blinker = 1.4, Brute = 1.3, Diver = 1.3, Ghost = 1.2, Sniper = 0.9 },
-		Pack = { Skitter = 7 },
-		Boss = "TheFinalOne",
+		At = 780,
+		Rate = 11.5,
+		MinAlive = 170,
+		Mix = LATE,
+		Pack = { Skitter = 10 },
+		Burst = { Kind = "Ring", Key = "Brute", Count = 12, Radius = 44 },
+		Banner = { Title = "THE LAST WAVES", Sub = "Get ready for THE FINAL ONE" },
 	},
+	{ At = 840, Rate = 12.5, MinAlive = 180, Mix = LATE, Pack = { Skitter = 10 } },
+	-- MAIN BOSS (15:00): the arena is sealed, the horde outside waits
+	{ At = 890, Rate = 5, MinAlive = 60, Mix = LATE, Pack = { Skitter = 6 } },
 	{
-		At = 840,
+		At = 1020,
 		Rate = 15,
 		MinAlive = 200,
 		Mix = { Skitter = 2.5, Husk = 1.5, Charger = 2.5, Splitter = 2, Spitter = 2, Bomber = 2, Blinker = 2, Brute = 2.5, Diver = 2, Leaper = 2, Ghost = 2, Sniper = 1.5 },
@@ -159,7 +156,7 @@ WaveData.Events = {
 	{ Key = "Luck67", Title = "67 LUCK", Sub = "Rare cards and drops everywhere", Weight = 2, Duration = 25 },
 	{ Key = "Chaos67", Title = "67 CHAOS", Sub = "Anything can happen", Weight = 2, Duration = 20 },
 	{ Key = "Mode67", Title = "67 MODE", Sub = "", Weight = 2, Duration = 25, MinTime = 100 },
-	{ Key = "Boss67", Title = "67 BOSS", Sub = "THE 67 KING has arrived", Weight = 0.6, Duration = 5, MinTime = 240 },
+	{ Key = "Boss67", Title = "67 BOSS", Sub = "The next boss wears a golden crown: tougher, double loot", Weight = 0.6, Duration = 5, MinTime = 150 },
 	{ Key = "The67", Title = "THE 67", Sub = "It's here. Defeat it before it leaves.", Weight = 0.5, Duration = 50, MinTime = 300 },
 }
 WaveData.EventByKey = {}

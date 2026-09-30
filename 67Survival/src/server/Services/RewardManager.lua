@@ -1,5 +1,5 @@
 --[[
-	RewardManager - everything a finished run gives: coins, account XP, FRAGMENTS,
+	RewardManager - everything a finished run gives: coins, account XP, FRAGMENTS, CHIPS,
 	statistics and bests, the Collection Book (enemies, abilities, events seen), daily quest
 	and weekly challenge progress, achievements (and the heroes / abilities / cosmetics they
 	unlock), leaderboard submissions. Also secret places and the Extra Chest product.
@@ -7,6 +7,9 @@
 	All numbers come from the server-side run summary; the client never reports rewards.
 	Bonuses: party (+10% coins / XP per other member, max 3), friends in the server (+5%
 	each, max 3), limited-time events (LiveEvents). No paid multipliers.
+	CHIPS (shared/LootData.lua Chips): minutes survived, bosses by slot, THE FINAL ONE, elites,
+	x the difficulty's Reward. Every player gets the CHIPS of their own run (a party shares
+	nothing), no social bonus. ~100 for a good run.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,6 +27,10 @@ local CosmeticData = require(Shared.CosmeticData)
 local CollectionData = require(Shared.CollectionData)
 local LiveEvents = require(Shared.LiveEvents)
 local DifficultyData = require(Shared.DifficultyData)
+local LootData = require(Shared.LootData)
+local BossData = require(Shared.BossData)
+local ItemData = require(Shared.ItemData)
+local SynergyData = require(Shared.SynergyData)
 
 local RewardManager = {}
 
@@ -114,9 +121,16 @@ local function refreshDerived(data)
 		kinds += 1
 	end
 	stats.EventKinds = kinds
+	-- the bosses of the timeline beaten at least once (every body of it: THE TWINS are two)
 	local bosses = 0
-	for _, def in EnemyData.List do
-		if (def.Boss or def.MiniBoss) and (data.Collection[def.Key] or 0) > 0 then
+	for _, def in BossData.List do
+		local all = true
+		for _, body in def.Bodies do
+			if (data.Collection[body] or 0) <= 0 then
+				all = false
+			end
+		end
+		if all then
 			bosses += 1
 		end
 	end
@@ -301,6 +315,11 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 	fragments = math.floor(fragments * (1 + (live.FragmentBonus or 0)) + 0.5)
 	self:GiveFragments(session, fragments)
 
+	-- CHIPS: this player's own run only (premium items / boss relics)
+	local chips = LootData.ChipsFor(run.Time, run.BossSlots or {}, run.MainBoss == true, run.Elites or 0, tier.Reward)
+	data.Chips += chips
+	stats.LifetimeChips += chips
+
 	-- difficulty progress: bests per tier open the next tiers; a first win pays a bonus
 	local diff = data.Difficulty
 	local openBefore = DifficultyData.Unlocked(diff.Best)
@@ -353,6 +372,10 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 	if run.Victory then
 		stats.Wins += 1
 	end
+	stats.Elites += run.Elites or 0
+	if run.MainBoss then
+		stats.MainBoss += 1
+	end
 	if run.Reason == "Death" then
 		stats.Deaths += 1
 	end
@@ -390,6 +413,16 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 			seen.Events[key] = true
 		end
 	end
+	for _, key in run.Items or {} do
+		if ItemData.ByKey[key] then
+			seen.Items[key] = true
+		end
+	end
+	for _, key in run.Synergies or {} do
+		if SynergyData.ByKey[key] then
+			seen.Synergies[key] = true
+		end
+	end
 
 	-- quests & challenges
 	local per = counters(run, ctx)
@@ -416,6 +449,8 @@ function RewardManager:OnRunEnd(session, run, context: { Party: number, Friends:
 		LevelAfter = levelAfter,
 		Fragments = fragments,
 		FragmentsTotal = data.Fragments,
+		Chips = chips,
+		ChipsTotal = data.Chips,
 		NewCollection = collectedAfter - collectedBefore,
 		CollectionCount = collectedAfter,
 		CollectionTotal = collectionTotal,

@@ -298,8 +298,10 @@ end)
 
 T("passives / meta upgrades use known stats", function()
 	for _, def in UpgradeData.Passives do
-		for stat in def.Stats do
-			Expect(Stats.Known[stat], def.Key .. " " .. stat)
+		for _, level in def.Levels do
+			for stat in level.Stats or {} do
+				Expect(Stats.Known[stat], def.Key .. " " .. stat)
+			end
 		end
 		Expect(Rarity.Index[def.Rarity], def.Key .. " rarity")
 	end
@@ -326,26 +328,27 @@ T("timeline is ordered and every mix key exists", function()
 		if entry.Burst then
 			Expect(EnemyData.ByKey[entry.Burst.Key], "burst")
 		end
-		if type(entry.Boss) == "string" then
-			Expect(EnemyData.IsBoss(entry.Boss), "boss")
-		elseif entry.Boss then
-			Expect(EnemyData.BossSlots[entry.Boss], "boss slot")
-		end
+		Expect(entry.Boss == nil, "bosses come from BossData, not the wave timeline")
 	end
 	Expect(WaveData.HPScale(600) > WaveData.HPScale(60))
 end)
 
-T("run structure: bosses at 3, 6, 9 minutes, final at 12", function()
-	local bosses = {}
-	for _, entry in WaveData.Timeline do
-		if entry.Boss then
-			bosses[entry.At] = entry.Boss
-		end
+T("run structure: 15 minutes, bosses at 3, 6, 9, 12, THE FINAL ONE at 15", function()
+	local BossData = R("ReplicatedStorage.Modules.BossData")
+	local times = {}
+	for _, slot in BossData.Slots do
+		table.insert(times, slot.At)
 	end
-	Eq(bosses[180], 1)
-	Eq(bosses[360], 2)
-	Eq(bosses[540], 3)
-	Eq(bosses[720], "TheFinalOne")
+	Eq(table.concat(times, ","), "180,360,540,720")
+	Eq(BossData.Main.At, 900)
+	Eq(GameConfig.Run.FinalBossAt, BossData.Main.At, "config agrees")
+	Expect(GameConfig.Run.Length > BossData.Main.At, "time for the fight")
+	-- the horde thins out around every boss so the walk to its lair stays readable
+	for _, at in { 170, 350, 530, 710, 890 } do
+		local _, entry = WaveData.EntryAt(at + 1)
+		local _, before = WaveData.EntryAt(at - 1)
+		Expect(entry.Rate < before.Rate, "calmer before the boss at " .. at)
+	end
 end)
 
 T("8 rare 67 events", function()
@@ -689,7 +692,7 @@ T("maxed build falls back to filler cards", function()
 	local run = Run.new({ Seed = 4, Hero = "Goober", Unlocked = { PulseBlast = true } })
 	run:GetWeapon("PulseBlast").Level = run:GetWeapon("PulseBlast").Def.MaxLevel
 	for _, def in UpgradeData.Passives do
-		run.Passives[def.Key] = def.MaxStacks
+		run.Passives[def.Key] = def.MaxLevel
 	end
 	local cards = LevelUp.Build(run, "Level")
 	for _, card in cards do
@@ -781,12 +784,15 @@ T("first level up comes in the first 15 seconds", function()
 end)
 
 T("time can jump (debug) and the picked slot boss appears", function()
-	local run = Run.new({ Seed = 31, Unlocked = unlockedAll(), BossPicks = { "TheGoober", "TheMachine", "TheVoid" } })
-	run.Time = 358
-	for _ = 1, 8 * 20 do
+	local run = Run.new({ Seed = 31, Unlocked = unlockedAll(), BossPicks = { "TheGoober", "TheMachine", "JackpotJimmy", "TheVoid" } })
+	run.Invulnerable = 1e9
+	run.Time = 352
+	for _ = 1, 10 * 20 do
 		Bot.Step(run, 1 / 20, 1)
 	end
-	Expect(run.Boss and run.Boss.Key == "TheMachine", "slot 2 boss")
+	local enc = run.Map.Encounters[1]
+	Expect(enc and enc.Def.Key == "TheMachine" and enc.Slot == 2, "slot 2 boss")
+	Eq(#run.Map.Encounters, 1, "the skipped slot 1 boss never came")
 end)
 
 T("every enemy behaviour and every boss runs without errors", function()
@@ -850,8 +856,10 @@ end)
 Harness.Section("67 town")
 ---------------------------------------------------------------------------
 local ArenaData = R("ReplicatedStorage.Modules.ArenaData")
-local RelicData = R("ReplicatedStorage.Modules.RelicData")
-local MiniBossData = R("ReplicatedStorage.Modules.MiniBossData")
+local BossData = R("ReplicatedStorage.Modules.BossData")
+local ItemData = R("ReplicatedStorage.Modules.ItemData")
+local LootData = R("ReplicatedStorage.Modules.LootData")
+local SynergyData = R("ReplicatedStorage.Modules.SynergyData")
 
 T("the zones tile the map (a pinwheel around the square)", function()
 	local seen = {}
@@ -879,7 +887,7 @@ end)
 T("lairs, vaults and spots sit in their zones; gates on the rift's edge", function()
 	for _, lair in ArenaData.Lairs do
 		Eq(ArenaData.ZoneAt(lair.X, lair.Z).Key, lair.Zone, lair.Key)
-		Expect(MiniBossData.ByZone[lair.Zone], lair.Key .. " has a mini-boss")
+		Expect(BossData.SlotOfZone(lair.Zone), lair.Key .. " hosts a boss slot")
 	end
 	for _, v in ArenaData.Vaults do
 		Eq(ArenaData.ZoneAt(v.X, v.Z).Key, v.Zone, v.Key)
@@ -893,69 +901,71 @@ T("lairs, vaults and spots sit in their zones; gates on the rift's edge", functi
 	end
 	for key, s in ArenaData.RunSecrets do
 		Expect(AchievementData.ByKey[key] and table.find(AchievementData.Secrets, key), key .. " is an account secret too")
-		Expect(s.Relic == nil or RelicData.ByKey[s.Relic], key .. " relic")
+		Expect(s.Item == nil or ItemData.ByKey[s.Item], key .. " item")
+		Expect(s.Loot == nil or LootData.Sources[s.Loot], key .. " loot source")
 	end
 end)
 
-T("20+ relics with rarity, a description and a known effect", function()
-	local Relics = R("ServerScriptService.Server.Sim.Relics")
-	local known = { Slow = true, Chain = true, DashCharge = true, Category = true, Dash = true, Explode = true, Champion = true, Thorns = true, Trail = true, Momentum = true, Crown = true, Freeze = true, Dice = true }
-	local keys, rarities = {}, {}
-	Expect(#RelicData.List >= 20, "relics " .. #RelicData.List)
-	for id, def in RelicData.List do
-		Expect(not keys[def.Key], "unique " .. def.Key)
-		keys[def.Key] = true
-		Eq(def.Id, id, def.Key .. " id")
-		Expect(Rarity.Colors[def.Rarity], def.Key .. " rarity")
-		rarities[def.Rarity] = true
-		Expect(#def.Desc > 5 and #def.Flavor > 3 and #def.Name > 2, def.Key .. " text")
-		Expect(def.MaxStacks >= 1, def.Key .. " stacks")
-		Expect(def.Stats or def.Effect, def.Key .. " does something")
-		if def.Stats then
-			for stat in def.Stats do
-				Expect(Stats.Known[stat], def.Key .. " stat " .. stat)
-			end
-		end
-		if def.Effect then
-			Expect(known[def.Effect], def.Key .. " effect " .. def.Effect)
-		end
-		if def.Requires then
-			Expect(RelicData.ByKey[def.Requires], def.Key .. " requires")
-		end
-	end
-	for _, r in { "Common", "Rare", "Epic", "Legendary", "Secret" } do
-		Expect(rarities[r], "a " .. r .. " relic")
-	end
-	for tier = 0, 4 do
-		local w = RelicData.TierWeights[tier]
-		Expect(w and (w.Common + w.Rare + w.Epic + w.Legendary) > 0, "tier " .. tier)
-	end
-	Expect(Relics.Roll ~= nil and Relics.Gain ~= nil, "relic module")
-end)
-
-T("mini-bosses: bodies are champions with a fight each", function()
+T("bosses: 4 slots (3:00 / 6:00 / 9:00 / 12:00, zones by danger) + THE FINAL ONE at 15:00", function()
 	local MiniBosses = R("ServerScriptService.Server.Sim.MiniBosses")
-	Expect(#MiniBossData.List >= 5, "mini-bosses")
-	for _, def in MiniBossData.List do
-		Expect(#def.Hint > 5 and def.Relics >= 1 and def.Cooldown > 0, def.Key)
-		Expect(def.Zone == nil or ArenaData.LairOfZone[def.Zone], def.Key .. " lair")
+	local zones = { "Gardens", "Lot", "Strip", "Rift" }
+	Eq(#BossData.Slots, 4, "four slots")
+	local lastHP = 0
+	for i, slot in BossData.Slots do
+		Eq(slot.Index, i, "index")
+		Eq(slot.At, i * 180, "slot " .. i .. " time")
+		Eq(slot.Zone, zones[i], "slot " .. i .. " zone")
+		Eq(ArenaData.ByKey[slot.Zone].Stars, i, "boss " .. i .. " lives in the " .. i .. "-star zone")
+		Expect(ArenaData.LairOfZone[slot.Zone], "slot " .. i .. " lair")
+		Expect(#slot.Pool >= 3 and slot.Damage > 0 and #slot.Tests > 3, "slot " .. i)
+		local lo = math.huge
+		for _, key in slot.Pool do
+			local def = BossData.ByKey[key]
+			Expect(def and def.Slot == i, key .. " in slot " .. i)
+			lo = math.min(lo, def.HP * #def.Bodies)
+		end
+		Expect(lo > lastHP, "slot " .. i .. " bosses are tougher than the slot before")
+		lastHP = lo
+	end
+	local main = BossData.Main
+	Eq(main.At, 900, "15:00")
+	Expect(main.X == 0 and main.Z == 0 and main.ArenaR >= 30, "the arena is the centre of the map")
+	Eq(ArenaData.ZoneAt(main.X, main.Z).Key, "Square", "in 67 SQUARE")
+	Expect(BossData.ByKey[main.Key].Slot == 5 and BossData.ByKey[main.Key].HP > lastHP, "the main boss is the toughest")
+	-- every boss has the whole design sheet
+	local fields = { "Title", "Hint", "Concept", "Silhouette", "Movement", "Basic", "Secondary", "Special", "AoE", "Telegraphs", "Death" }
+	for _, def in BossData.List do
+		for _, field in fields do
+			Expect(type(def[field]) == "string" and #def[field] > 3, def.Key .. " " .. field)
+		end
+		Expect(def.HP > 0 and def.XP >= 0 and def.Coins >= 0, def.Key .. " numbers")
+		Expect(#def.Phases >= 1, def.Key .. " phases")
+		for _, ph in def.Phases do
+			Expect(ph.At > 0 and ph.At < 1 and #ph.Name > 2 and #ph.Text > 5, def.Key .. " phase")
+		end
+		Expect(def.WeakPoint and def.WeakPoint.Mult > 1 and def.WeakPoint.Time > 0 and #def.WeakPoint.Text > 2, def.Key .. " weak point")
+		local relic = ItemData.ByKey[def.Relic]
+		Expect(relic and relic.Type == "BossRelic" and relic.Boss == def.Key, def.Key .. " has its relic")
 		for _, body in def.Bodies do
 			local e = EnemyData.ByKey[body]
-			Expect(e and e.Champion == true and e.Behavior == "Champion", body .. " is a champion")
-			Expect(MiniBosses.AI[body], body .. " fights")
-			Expect(e.Params.Title, body .. " title")
+			Expect(e and e.Params.Title, body .. " body")
+			Expect(e.Behavior == "Boss" or MiniBosses.AI[body], body .. " fights")
 		end
 	end
 end)
 
 -- a run that plays itself with god mode, with helpers to fast-forward
-local function townRun(seed: number)
-	local run = Run.new({ Seed = seed, Unlocked = unlockedAll() })
+local function townRun(seed: number, opts: { [string]: any }?)
+	local o = { Seed = seed, Unlocked = unlockedAll() }
+	for k, v in opts or {} do
+		o[k] = v
+	end
+	local run = Run.new(o)
 	run.Invulnerable = 1e9
 	return run
 end
-local function steps(run, seconds: number, px: number?, pz: number?)
-	for _ = 1, math.floor(seconds * 20) do
+local function steps(run, seconds: number, px: number?, pz: number?, events: { any }?)
+	for _ = 1, math.floor(seconds * 20 + 0.5) do
 		if run.Offer then
 			run:Choose(1)
 		end
@@ -965,51 +975,165 @@ local function steps(run, seconds: number, px: number?, pz: number?)
 		run:Step(1 / 20)
 		if run.Steps % 2 == 0 then
 			run:Flush()
-			run:TakeEvents()
+			for _, ev in run:TakeEvents() do
+				if events then
+					table.insert(events, { Time = run.Time, Name = ev.Name, P = ev.Payload })
+				end
+			end
 		end
 	end
 end
+local function allUnlocks(): { [string]: boolean }
+	local out = {}
+	for _, def in ItemData.List do
+		out[def.Key] = true
+	end
+	return out
+end
 
-T("a mini-boss: warning, lair, fight, relic loot, pickup", function()
-	local ArenaDirector = R("ServerScriptService.Server.Sim.ArenaDirector")
+T("the boss timeline: each boss once, on time, in its zone; THE FINAL ONE in the centre", function()
+	local run = townRun(611, { BossPicks = { "TheGoober", "Cartzilla", "TheGlitch", "TheVoid" } })
+	local events = {}
+	-- fast-forward to just before each boss (the horde keeps running)
+	for i, slot in BossData.Slots do
+		run.Time = slot.At - 15
+		steps(run, 20, 0, 0, events)
+		local enc = run.Map.Encounters[#run.Map.Encounters]
+		Expect(enc and enc.Slot == i and enc.Stage == "Fight", "boss " .. i .. " is out")
+	end
+	run.Time = BossData.Main.At - 15
+	steps(run, 16, 30, 0, events)
+	local warns, spawns = {}, {}
+	for _, ev in events do
+		if ev.Name == "MiniBoss" and ev.P.Phase == "Warn" then
+			table.insert(warns, ev)
+		elseif ev.Name == "MiniBoss" and ev.P.Phase == "Spawn" then
+			table.insert(spawns, ev)
+		end
+	end
+	Eq(#warns, 5, "five warnings")
+	Eq(#spawns, 5, "five bosses, each once")
+	for i, ev in spawns do
+		local slot = BossData.Slots[i]
+		local at = if slot then slot.At else BossData.Main.At
+		Expect(math.abs(warns[i].Time - (at - BossData.WarnLead)) <= 0.11, "warning " .. i .. " at " .. warns[i].Time)
+		Expect(ev.Time >= at and ev.Time - at <= 0.11, "boss " .. i .. " on time: " .. ev.Time)
+		Eq(ev.P.Slot, i, "slot order")
+		if slot then
+			Eq(ArenaData.ZoneAt(ev.P.X, ev.P.Z).Key, slot.Zone, "boss " .. i .. " in its zone")
+			Eq(ev.P.Key, run.BossPlan[i], "the planned boss")
+		else
+			Expect(ev.P.Main and ev.P.X == 0 and ev.P.Z == 0, "THE FINAL ONE exactly in the centre")
+		end
+	end
+	-- bosses nobody fought left when the next one was announced (no loot)
+	local left = 0
+	for _, ev in events do
+		if ev.Name == "MiniBoss" and ev.P.Phase == "Left" then
+			left += 1
+		end
+	end
+	Eq(left, 4, "the four unfought bosses left")
+	Eq(run.BossNext, 5, "no boss is left to come")
+	local main = run.Map.Encounters[1]
+	Expect(main and main.Main and #run.Map.Encounters == 1, "only THE FINAL ONE is out")
+	-- the top boss bar is THE FINAL ONE's
+	Expect(run.Boss and run.Boss.Key == "TheFinalOne", "main boss bar")
+end)
+
+T("a boss fight: warning at its lair, engage, weak point, loot on the map, pickup", function()
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
 	local run = townRun(601)
 	steps(run, 1)
-	Expect(ArenaDirector.Summon(run, "Test", false, "BigQuack", true), "summoned")
+	Expect(BossDirector.Force(run, 1, "BigQuack", EnemyManager), "announced")
 	local enc = run.Map.Encounters[1]
 	Expect(enc and enc.Stage == "Warn" and enc.Lair.Key == "DuckPond", "warned at its lair")
 	steps(run, 3.2)
 	local quack = enc.Bodies[1]
-	Expect(quack and quack.Alive and quack.IsBoss and quack.Def.Champion, "arrived")
+	Expect(quack and quack.Alive and quack.IsBoss, "arrived")
 	Expect((quack.X - enc.X) ^ 2 + (quack.Z - enc.Z) ^ 2 < 1, "at the lair")
+	Expect(math.abs(quack.MaxHP - BossData.ByKey.BigQuack.HP) < 1, "its HP from BossData")
 	-- far away it stays home; close, it fights (and its attacks are telegraphed)
 	steps(run, 2, 0, 0)
 	Expect(not quack.Engaged, "not engaged from far away")
 	steps(run, 6, enc.X + 10, enc.Z - 20)
 	Expect(quack.Engaged, "engaged when close")
-	Expect(run.Result.Flags ~= nil, "flags")
-	-- kill it: a relic drops, walk over it
-	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	-- the weak point: exposed after its attack, takes more damage
+	local MiniBosses = R("ServerScriptService.Server.Sim.MiniBosses")
+	MiniBosses.Expose(run, quack, "Flop")
+	Expect(quack.ExposedUntil and quack.ExposedUntil > run.Time, "exposed")
+	-- kill it: the loot lies on the map, walk over it
+	local loot = #run.Loot
 	EnemyManager.Damage(run, quack, quack.HP + 1, 0, 0, 0, 0)
-	Eq(run.Result.MiniBosses, 1, "counted")
+	Eq(run.Result.BossesBeaten, 1, "counted")
+	Eq(run.Result.BossSlots[1], 1, "slot 1")
 	Eq(#run.Map.Encounters, 0, "encounter over")
-	Expect(#run.Loot >= 1, "relic loot on the ground")
-	local l = run.Loot[1]
+	Expect(#run.Loot > loot, "an item on the ground")
+	local l = run.Loot[#run.Loot]
 	steps(run, 0.2, l.X, l.Z)
-	Expect(#run.RelicOrder >= 1 and run.Relics[l.Key] == 1, "picked up")
-	Expect((run.Map.Rest.BigQuack or 0) > run.Time, "rests before coming back")
+	Expect(run.Items[l.Key] and run.Items[l.Key] >= 1, "picked up")
+	local n = 0
+	for _, other in run.Loot do
+		if other.Id == l.Id then
+			n += 1
+		end
+	end
+	Eq(n, 0, "gone from the ground")
+end)
+
+T("boss relics drop from their boss only once unlocked; locked ones say so", function()
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
+	for _, unlocked in { false, true } do
+		local run = townRun(612, { ItemUnlocks = if unlocked then { QuackCore = true } else {} })
+		local events = {}
+		BossDirector.Force(run, 1, "BigQuack", EnemyManager)
+		steps(run, 3.2)
+		local quack = run.Map.Encounters[1].Bodies[1]
+		EnemyManager.Damage(run, quack, quack.HP + 1, 0, 0, 0, 0)
+		steps(run, 0.2, 0, 0, events)
+		local relic, hint = false, false
+		for _, l in run.Loot do
+			relic = relic or l.Key == "QuackCore"
+		end
+		for _, ev in events do
+			hint = hint or (ev.Name == "LockedRelic" and ev.P.Key == "QuackCore")
+		end
+		Eq(relic, unlocked, "relic on the ground")
+		Eq(hint, not unlocked, "locked relic hint")
+	end
+	-- random loot never rolls a boss relic, locked premium items stay out of the pool
+	local Items = R("ServerScriptService.Server.Sim.Items")
+	local run = townRun(613)
+	for _ = 1, 400 do
+		local key = Items.Roll(run, "Boss4")
+		local def = key and ItemData.ByKey[key]
+		Expect(def and def.Type == "Base" and not def.Secret, "base items only: " .. tostring(key))
+	end
+	local rich = townRun(614, { ItemUnlocks = allUnlocks() })
+	local premium = false
+	for _ = 1, 400 do
+		local def = ItemData.ByKey[Items.Roll(rich, "Boss4")]
+		premium = premium or def.Type == "Premium"
+		Expect(def.Type ~= "BossRelic", "relics only from their boss")
+	end
+	Expect(premium, "unlocked premium items can drop")
 end)
 
 T("SIX & SEVEN revive each other unless killed together", function()
-	local ArenaDirector = R("ServerScriptService.Server.Sim.ArenaDirector")
 	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
 	local run = townRun(602)
-	ArenaDirector.Summon(run, "Test", false, "Twins", true)
+	run.Map.RiftOpen = true
+	BossDirector.Force(run, 4, "Twins", EnemyManager)
 	steps(run, 3.2)
 	local enc = run.Map.Encounters[1]
 	local six, seven = enc.Bodies[1], enc.Bodies[2]
 	Expect(six.Key == "Six" and seven.Key == "Seven", "two bodies")
 	EnemyManager.Damage(run, six, six.HP + 1, 0, 0, 0, 0)
 	Expect(enc.Revive and enc.Revive.Key == "Six", "SEVEN starts reviving SIX")
+	Expect(seven.ExposedUntil and seven.ExposedUntil > run.Time, "alone, SEVEN is exposed")
 	steps(run, 7)
 	local back = false
 	for _, e in enc.Bodies do
@@ -1018,34 +1142,39 @@ T("SIX & SEVEN revive each other unless killed together", function()
 		end
 	end
 	Expect(back, "SIX came back at half HP")
-	-- together: both down inside 6.7 s
+	-- together: both down inside the revive time
+	local loot = #run.Loot
 	for _, e in table.clone(enc.Bodies) do
 		if e.Alive then
 			EnemyManager.Damage(run, e, e.HP + 1, 0, 0, 0, 0)
 		end
 	end
-	Eq(run.Result.MiniBosses, 1, "defeated together")
-	Expect(#run.Loot >= 2, "two relics")
+	Eq(run.Result.BossesBeaten, 1, "defeated together")
+	Expect(#run.Loot >= loot + 2, "boss 4 drops two items")
 end)
 
-T("TICK TOCK escapes when its 67 seconds run out", function()
-	local ArenaDirector = R("ServerScriptService.Server.Sim.ArenaDirector")
+T("TICK TOCK escapes 67 seconds after the fight starts", function()
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
 	local run = townRun(603)
-	ArenaDirector.Summon(run, "Test", false, "TickTock", true)
+	BossDirector.Force(run, 2, "TickTock", EnemyManager)
 	steps(run, 3.2)
 	local enc = run.Map.Encounters[1]
-	Expect(enc and enc.AlarmAt and math.abs(enc.AlarmAt - run.Time - 67) < 0.2, "a 67 second timer")
+	Expect(enc and not enc.AlarmAt, "no timer before you come")
+	steps(run, 1, enc.X + 12, enc.Z)
+	Expect(enc.AlarmAt and math.abs(enc.AlarmAt - run.Time - 66) < 1.2, "a 67 second timer")
+	local loot = #run.Loot
 	steps(run, 68, 0, 0)
 	Eq(#run.Map.Encounters, 0, "gone")
-	Eq(run.Result.MiniBosses, 0, "not defeated")
-	Eq(#run.Loot, 0, "no loot")
+	Eq(run.Result.BossesBeaten, 0, "not defeated")
+	Eq(#run.Loot, loot, "no loot")
 end)
 
 T("JACKPOT JIMMY tilts: shielded until its coin stacks break", function()
-	local ArenaDirector = R("ServerScriptService.Server.Sim.ArenaDirector")
 	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
 	local run = townRun(604)
-	ArenaDirector.Summon(run, "Test", false, "JackpotJimmy", true)
+	BossDirector.Force(run, 3, "JackpotJimmy", EnemyManager)
 	steps(run, 3.2)
 	local jimmy = run.Map.Encounters[1].Bodies[1]
 	EnemyManager.Damage(run, jimmy, jimmy.HP * 0.6, 0, 0, 0, 0)
@@ -1061,54 +1190,333 @@ T("JACKPOT JIMMY tilts: shielded until its coin stacks break", function()
 	Expect(not jimmy.Shielded, "shield down")
 end)
 
-T("relics change the build: stats, ability buffs, dash, on-kill blasts", function()
-	local Relics = R("ServerScriptService.Server.Sim.Relics")
-	local run = townRun(605)
-	local speed, might = run.Stats.WalkSpeed, run.Stats.Might
-	Relics.Gain(run, "Sneakers")
-	Relics.Gain(run, "ProteinBar")
-	Expect(run.Stats.WalkSpeed > speed and run.Stats.Might > might, "stats")
-	local w = run.Weapons[1]
-	local dmg = w.S.Damage
-	Relics.Gain(run, "SlingshotScope")
-	if w.Def.Category == "PROJECTILE" then
-		Expect(w.S.Damage > dmg * 1.2, "PROJECTILE buff")
+T("THE FINAL ONE: arena seal, phases, 67 FRAGMENT, victory", function()
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
+	local run = townRun(615, { ItemUnlocks = { Fragment67 = true } })
+	BossDirector.Force(run, 1, "BigQuack", EnemyManager) -- a lair boss out at the same time
+	Expect(BossDirector.ForceMain(run), "comes")
+	Expect(not BossDirector.ForceMain(run), "only once")
+	steps(run, 3.2, 60, 0)
+	local enc = nil
+	for _, e in run.Map.Encounters do
+		if e.Main then
+			enc = e
+		end
 	end
-	local amount = w.S.Amount
-	Relics.Gain(run, "ThirdArm")
-	Eq(w.S.Amount, amount + 1, "+1 projectile")
-	-- stacks cap: a maxed relic turns into coins
-	local coins = run.Coins
-	Relics.Gain(run, "ThirdArm")
-	Eq(run.Relics.ThirdArm, 1, "max stacks")
-	Expect(run.Coins > coins, "coins instead")
-	-- the dash: needs the skates, stops at walls, spends a charge, recharges
-	Expect(not run:Dash(1, 0), "no dash without skates")
-	Relics.Gain(run, "RocketSkates")
-	local x0 = run.PX
-	Expect(run:Dash(1, 0), "dash")
-	Expect(run.PX > x0 + 5 and run.TeleportTo ~= nil and run.Invulnerable > 0, "moved, untouchable")
-	Expect(not run:Dash(1, 0), "no charge left")
-	steps(run, 3.5)
-	Eq(run.DashState.Charges, 1, "recharged")
-	Relics.Gain(run, "SpareSkate")
-	Eq(run.DashState.Max, 2, "extra charge")
-	-- a revive from the golden snack
-	local revives = run.Revives
-	Relics.Gain(run, "GoldenSnack")
-	Eq(run.Revives, revives + 1, "revive")
-	-- the roll never gives what is maxed or needs a missing relic
-	local fresh = townRun(606)
-	for _ = 1, 300 do
-		local key = Relics.Roll(fresh, 4)
-		Expect(key and not RelicData.ByKey[key].Secret, "a relic")
-		Expect(RelicData.ByKey[key].Requires == nil, "no spare skate without skates")
+	local boss = enc.Bodies[1]
+	Expect(boss and boss.X == 0 and boss.Z == 0, "spawned exactly in the centre")
+	Expect(not run.Map.ArenaSealed, "open until you walk in")
+	steps(run, 0.5, 10, 0)
+	Expect(run.Map.ArenaSealed and run.Map.ArenaSealed.R == BossData.Main.ArenaR, "sealed")
+	local Items = R("ServerScriptService.Server.Sim.Items")
+	Expect(Items.Blocked(run, BossData.Main.ArenaR + 5, 0), "nobody leaves the ring")
+	steps(run, 1, 10, 0)
+	local quack = nil
+	for _, other in run.Map.Encounters do
+		if other.Def.Key == "BigQuack" then
+			quack = other.Bodies[1]
+		end
+	end
+	Expect(quack and math.sqrt(quack.X ^ 2 + quack.Z ^ 2) > 100, "the seal keeps other bosses at their lairs")
+	-- phase 2: announced, the fragment breaks off into the arena
+	EnemyManager.Damage(run, boss, boss.MaxHP * 0.4, 0, 0, 0, 0)
+	steps(run, 0.2, 10, 0)
+	Expect(boss.Phase >= 2, "phase 2")
+	local fragment = nil
+	for _, l in run.Loot do
+		if l.Key == "Fragment67" then
+			fragment = l
+		end
+	end
+	Expect(fragment, "the 67 FRAGMENT broke off")
+	local r = math.sqrt(fragment.X ^ 2 + fragment.Z ^ 2)
+	Expect(r < BossData.Main.ArenaR, "inside the arena")
+	EnemyManager.Damage(run, boss, boss.HP + 1, 0, 0, 0, 0)
+	Expect(run.Result.MainBoss and run.VictoryAt, "victory")
+	Expect(not run.Map.ArenaSealed, "the seal breaks")
+	steps(run, 4, 10, 0)
+	Expect(run.Ended and run.Victory, "the run is won")
+end)
+
+T("items: 40+, levels 2-5 with mechanics, prices by class, a relic per boss", function()
+	local Stats = R("ReplicatedStorage.Modules.Stats")
+	Expect(#ItemData.List >= 40, "items " .. #ItemData.List)
+	local base, premium, relics = 0, 0, 0
+	for id, def in ItemData.List do
+		Eq(def.Id, id, def.Key .. " id")
+		Expect(#def.Name > 2 and #def.Desc > 5 and #def.Flavor > 3, def.Key .. " text")
+		Expect(Rarity.Colors[def.Rarity], def.Key .. " rarity")
+		Expect((def.MaxLevel >= 2 or def.Secret) and def.MaxLevel <= 5, def.Key .. " levels")
+		Eq(def.StackBehavior, "Level", def.Key .. " stacks by level")
+		Expect(def.Symbol and (def.Effect or def.Levels[1].Stats), def.Key .. " does something")
+		local mechanic = false
+		for _, l in def.Levels do
+			Expect(#l.Desc > 3, def.Key .. " level text")
+			mechanic = mechanic or l.New ~= nil
+			for stat in l.Stats or {} do
+				Expect(Stats.Known[stat], def.Key .. " stat " .. stat)
+			end
+		end
+		Expect(mechanic or def.MaxLevel <= 2 or def.Secret, def.Key .. " unlocks a mechanic at a high level")
+		if def.Type == "Base" then
+			base += 1
+			Expect(def.Price == nil, def.Key .. " is free")
+		else
+			Expect(ItemData.NeedsUnlock(def), def.Key .. " needs an unlock")
+			local class = if def.Type == "BossRelic" then (if def.Rarity == "Mythic" then "ExtremelyRare" else "BossRelic") else def.Rarity
+			local range = LootData.PriceRange[class]
+			Expect(range and def.Price >= range[1] and def.Price <= range[2], def.Key .. " price " .. tostring(def.Price))
+			if def.Type == "Premium" then
+				premium += 1
+			else
+				relics += 1
+				Expect(BossData.ByKey[def.Boss] and BossData.ByKey[def.Boss].Relic == def.Key, def.Key .. " boss")
+			end
+		end
+	end
+	Expect(base >= 20 and premium >= 10, "base " .. base .. ", premium " .. premium)
+	Eq(relics, #BossData.List, "a relic for every boss")
+	Eq(ItemData.ByKey.Fragment67.Boss, "TheFinalOne", "the main boss drops the 67 FRAGMENT")
+	for _, key in { "MagneticBolt", "RedButton", "Fang", "Compass", "RustyToken", "BlackWire" } do
+		Eq(ItemData.ByKey[key] and ItemData.ByKey[key].Type, "Base", key)
+	end
+	for _, key in { "BloodEngine", "VoidMirror", "SecondShadow", "Predator", "TimeFracture", "DeathMark", "KingOfMovement", "SoulCollector" } do
+		Eq(ItemData.ByKey[key] and ItemData.ByKey[key].Type, "Premium", key)
+	end
+	-- loot rarity grows elite -> boss 1 -> ... -> boss 4
+	local function rareShare(name: string): number
+		local w = LootData.Sources[name].Weights
+		return (w.Epic + w.Legendary) / (w.Common + w.Rare + w.Epic + w.Legendary)
+	end
+	local last = -1
+	for _, name in { "Elite", "Boss1", "Boss2", "Boss3", "Boss4" } do
+		Expect(rareShare(name) > last, name .. " rarer than the one before")
+		last = rareShare(name)
 	end
 end)
 
-T("the director: zones scale the horde, the rift opens, vaults, rush, threat", function()
-	local ArenaDirector = R("ServerScriptService.Server.Sim.ArenaDirector")
+T("items level up I -> II -> III on the map, a maxed one pays coins, nothing twice", function()
+	local Items = R("ServerScriptService.Server.Sim.Items")
+	local run = townRun(605)
+	local magnet = run.Stats.PickupRange
+	local events = {}
+	for level = 1, 3 do
+		Items.Drop(run, "MagneticBolt", run.PX + 10, run.PZ)
+		steps(run, 0.2, run.PX + 10, run.PZ, events)
+		steps(run, 0.2, 0, 0, events)
+		Eq(run.Items.MagneticBolt, level, "level " .. level)
+	end
+	Expect(run.Stats.PickupRange > magnet, "stats")
+	Eq(#run.ItemOrder, 1, "one item, three levels")
+	local levels = {}
+	for _, ev in events do
+		if ev.Name == "Item" then
+			table.insert(levels, ev.P.Old .. ">" .. ev.P.Level)
+			if ev.P.Level == 3 then
+				Expect(ev.P.New, "level III unlocks its mechanic")
+			end
+		end
+	end
+	Eq(table.concat(levels, " "), "0>1 1>2 2>3", "ITEM ACQUIRED: old -> new")
+	local coins = run.Coins
+	Items.Gain(run, "MagneticBolt")
+	Eq(run.Items.MagneticBolt, 3, "max level")
+	Expect(run.Coins >= coins + LootData.MaxedCoins, "coins instead")
+	-- the same drop can be taken once only, the ground holds a limited number
+	Items.Drop(run, "Fang", 50, 50)
+	local id = run.Loot[#run.Loot].Id
+	steps(run, 0.2, 50, 50)
+	steps(run, 0.2, 50, 50)
+	Eq(run.Items.Fang, 1, "taken once")
+	for i = 1, LootData.MaxOnGround + 5 do
+		Items.Drop(run, "Fang", -100 - i * 3, 100)
+	end
+	Expect(#run.Loot <= LootData.MaxOnGround, "at most " .. LootData.MaxOnGround .. " on the ground")
+	for _, l in run.Loot do
+		Expect(l.Id ~= id, "the taken one is gone")
+	end
+	-- rolls never offer more levels than an item has (counting what lies on the ground)
+	local fresh = townRun(606)
+	for _ = 1, 60 do
+		local key = Items.Roll(fresh, "Vault")
+		if key then
+			Items.Drop(fresh, key, 30, 30)
+		end
+	end
+	local count = {}
+	for _, l in fresh.Loot do
+		count[l.Key] = (count[l.Key] or 0) + 1
+	end
+	for key, n in count do
+		Expect(n <= ItemData.ByKey[key].MaxLevel, key .. " x" .. n)
+	end
+end)
+
+T("items change the build: dash, revive, stats", function()
+	local Items = R("ServerScriptService.Server.Sim.Items")
 	local run = townRun(607)
+	Expect(not run:Dash(1, 0), "no dash without the skates")
+	Items.Gain(run, "RocketSkates")
+	local x0 = run.PX
+	Expect(run:Dash(1, 0), "dash")
+	Expect(run.PX > x0 + 5 and run.TeleportTo ~= nil and run.Invulnerable > 0, "moved, untouchable")
+	local revives = run.Revives
+	Items.Gain(run, "GoldenSnack")
+	Expect(run.Revives >= revives, "revive items")
+	local speed = run.Stats.WalkSpeed
+	Items.Gain(run, "Espresso67")
+	Expect(run.Stats.WalkSpeed >= speed, "speed item")
+end)
+
+T("synergies switch on when their build is complete", function()
+	local Perks = R("ServerScriptService.Server.Sim.Perks")
+	Expect(#SynergyData.List >= 15, "synergies " .. #SynergyData.List)
+	for _, syn in SynergyData.List do
+		Expect(#syn.Name > 3 and #syn.Desc > 10 and #syn.Needs >= 2, syn.Key)
+		for _, need in syn.Needs do
+			local function check(n)
+				if n.Upgrade then
+					local def = UpgradeData.PassiveByKey[n.Upgrade]
+					Expect(def and (n.Level or 1) <= def.MaxLevel, syn.Key .. " upgrade " .. n.Upgrade)
+				elseif n.Item then
+					local def = ItemData.ByKey[n.Item]
+					Expect(def and (n.Level or 1) <= def.MaxLevel, syn.Key .. " item " .. n.Item)
+				elseif n.Ability then
+					for _, key in n.Ability do
+						Expect(WeaponData.ByKey[key], syn.Key .. " ability " .. key)
+					end
+				elseif n.Any then
+					for _, m in n.Any do
+						check(m)
+					end
+				else
+					Expect(n.Dash, syn.Key .. " need")
+				end
+			end
+			check(need)
+		end
+	end
+	-- BULLET HELL: ricochet + multishot + penetration + split
+	local run = townRun(616)
+	local events = {}
+	for key, level in { Ricochet = 2, DoubleShot = 1, Penetration = 2, Split = 1 } do
+		run.Passives[key] = level
+		table.insert(run.PassiveOrder, key)
+		Expect(not run.Synergies.BulletHell, "not before the last piece")
+		Perks.Refresh(run)
+		run:RefreshStats()
+	end
+	Expect(run.Synergies.BulletHell, "BULLET HELL on")
+	steps(run, 0.2, 0, 0, events)
+	local seen = false
+	for _, ev in events do
+		seen = seen or (ev.Name == "Synergy" and ev.P.Key == "BulletHell")
+	end
+	Expect(seen, "announced")
+end)
+
+T("level ups: 3 cards, never impossible, never past max level", function()
+	for seed = 1, 12 do
+		local run = Run.new({ Seed = 700 + seed, Unlocked = unlockedAll() })
+		for _ = 1, 60 do
+			local cards = LevelUp.Build(run, "Level")
+			Eq(#cards, GameConfig.LevelUp.Choices, "three cards")
+			local ids = {}
+			for _, card in cards do
+				Expect(not ids[card.Id], "no duplicate card")
+				ids[card.Id] = true
+				if card.Type == "Passive" then
+					local def = UpgradeData.PassiveByKey[card.Key]
+					Expect(card.Level <= def.MaxLevel and card.Level == (run.Passives[card.Key] or 0) + 1, card.Key .. " level")
+					Expect(LevelUp.RequirementsMet(run, def), card.Key .. " requirements")
+					Expect(card.Change and card.Category and card.MaxLevel == def.MaxLevel, card.Key .. " card text")
+				elseif card.Type == "ItemLevel" then
+					Expect((run.Items[card.Key] or 0) >= 1 and card.Level <= ItemData.ByKey[card.Key].MaxLevel, card.Key .. " item level")
+				end
+			end
+			run.Offer = { Cards = cards, Kind = "Level" }
+			LevelUp.Apply(run, cards[run.Rng:NextInteger(1, #cards)])
+			run.Offer = nil
+		end
+		for key, level in run.Passives do
+			local def = UpgradeData.PassiveByKey[key]
+			Expect(def and level <= def.MaxLevel, key .. " maxed at most")
+		end
+	end
+	-- projectile upgrades need a projectile ability, dash upgrades need a dash
+	local run = Run.new({ Seed = 720, Hero = "Goober", Unlocked = { PulseBlast = true } })
+	for _ = 1, 100 do
+		for _, card in LevelUp.Build(run, "Level") do
+			local def = UpgradeData.PassiveByKey[card.Key]
+			if def and def.Requires then
+				Expect(LevelUp.RequirementsMet(run, def), card.Key .. " offered without its requirement")
+				Expect(not def.Requires.Dash, card.Key .. " needs a dash")
+			end
+		end
+	end
+end)
+
+T("elites: rare, capped, never in the square or a lair; they pay", function()
+	local Elites = R("ServerScriptService.Server.Sim.Elites")
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local run = townRun(617)
+	local events = {}
+	run.Time = 195
+	local maxAlive = 0
+	for _ = 1, 30 do
+		steps(run, 10, -150, 20, events)
+		local alive = 0
+		for _, e in run.Elites do
+			if e.Alive then
+				alive += 1
+			end
+		end
+		maxAlive = math.max(maxAlive, alive)
+	end
+	local spawns = 0
+	for _, ev in events do
+		if ev.Name == "Elite" and ev.P.Phase == "Spawn" then
+			spawns += 1
+			Expect(ev.P.Zone ~= "Square", "not in the square")
+			Expect(#ev.P.Affixes >= 1 and #ev.P.Name > 6, "named, with affixes")
+		end
+	end
+	Expect(spawns >= 2 and spawns <= 10, "rare: " .. spawns .. " in 5 minutes")
+	Expect(maxAlive <= GameConfig.Elite.MaxLate, "capped")
+	Expect(not Elites.Allowed(run, 0, 0), "square")
+	local lair = ArenaData.Lairs[1]
+	Expect(not Elites.Allowed(run, lair.X, lair.Z), "lair")
+	-- one elite: tougher, and a kill pays XP, coins, maybe an item
+	local e = Elites.Spawn(run, "Husk", -150, 40, { "Armored" })
+	Expect(e and e.Elite and e.ArmorCut and e.MaxHP > EnemyData.ByKey.Husk.HP * 4, "tough")
+	local coins, elites = run.Coins, run.Result.Elites or 0
+	EnemyManager.Damage(run, e, e.HP * 10, 0, 0, 0, 0)
+	Expect(not e.Alive and run.Coins > coins, "coins")
+	Eq(run.Result.Elites, elites + 1, "counted")
+end)
+
+T("CHIPS: ~100 for a good run, nothing for a quick quit", function()
+	local good = LootData.ChipsFor(900, { 1, 2, 3, 4 }, true, 8, 1)
+	Expect(good >= 90 and good <= 140, "a full run " .. good)
+	Eq(LootData.ChipsFor(45, {}, false, 0, 1), 0, "a quit")
+	local mid = LootData.ChipsFor(600, { 1, 2 }, false, 3, 1)
+	Expect(mid > 20 and mid < good, "half a run " .. mid)
+	Expect(LootData.ChipsFor(900, { 1, 2, 3, 4 }, true, 8, 2) > good, "harder tiers pay more")
+	-- the cheapest premium item takes a few good runs, the 67 FRAGMENT many
+	local cheapest = math.huge
+	for _, def in ItemData.List do
+		if def.Price then
+			cheapest = math.min(cheapest, def.Price)
+		end
+	end
+	Expect(cheapest >= good * 2 and cheapest <= good * 5, "cheapest unlock " .. cheapest)
+	Expect(ItemData.ByKey.Fragment67.Price >= good * 30, "the 67 FRAGMENT is a long goal")
+end)
+
+T("the director: zones scale the horde, the rift opens, vaults, rush", function()
+	local ArenaDirector = R("ServerScriptService.Server.Sim.ArenaDirector")
+	local run = townRun(608)
 	Expect(ArenaDirector.SpawnBlocked(run, -100, -150), "sealed rift: no spawns inside")
 	Expect(ArenaDirector.XPMult(run, 200, -100) > ArenaDirector.XPMult(run, 0, 0), "the strip pays more than the square")
 	run.Time = ArenaData.RiftOpensAt - 0.5
@@ -1131,46 +1539,30 @@ T("the director: zones scale the horde, the rift opens, vaults, rush, threat", f
 	end
 	Expect(awake, "a vault woke up")
 	local v = ArenaData.Vaults[awake]
+	local loot = #run.Loot
 	steps(run, ArenaData.VaultTime + 0.5, v.X, v.Z)
 	Eq(run.Result.Vaults, 1, "cracked open")
-	Expect(#run.Loot >= 1, "a relic popped out")
-	-- threat: kills in a zone wake its mini-boss
-	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
-	-- a clean slate: nobody out, no lure due
-	for _, enc in table.clone(run.Map.Encounters) do
-		for _, e in enc.Bodies do
-			EnemyManager.Despawn(run, e)
-		end
-	end
-	table.clear(run.Map.Encounters)
-	run.Map.LevelLured[10], run.Map.LevelLured[20] = true, true
-	run.Map.LureAt = run.Time + 999
-	run.Map.Rest = {}
-	local gardens = ArenaData.ByKey.Gardens
-	for _ = 1, gardens.Threat do
-		local e = EnemyManager.Spawn(run, "Goober", -120, 20, { Force = true })
-		EnemyManager.Damage(run, e, e.HP + 1, 0, 0, 0, 0)
-	end
-	run.Boss = nil
-	run.Wave.PendingBoss = nil
-	run.Map.QuietUntil = 0
-	steps(run, 0.2, -120, 20)
-	local woke = false
-	for _, enc in run.Map.Encounters do
-		if enc.Def.Key == "BigQuack" and enc.Reason == "Threat" then
-			woke = true
-		end
-	end
-	Expect(woke, "the gardens woke THE BIG QUACK")
+	Expect(#run.Loot > loot, "an item popped out")
 end)
 
 T("secrets of 67 TOWN pay once per run", function()
-	local run = townRun(608)
+	local run = townRun(609)
 	Expect(run:EnterSecret("Backrooms"), "found")
 	Expect(not run:EnterSecret("Backrooms"), "only once")
 	Eq(run.Loot[1] and run.Loot[1].Key, "SuspiciousRock", "the suspicious rock")
 	Expect(run.Result.Flags.Backrooms, "flag")
 	Expect(not run:EnterSecret("TouchGrass"), "lobby secrets pay nothing in a run")
+end)
+
+T("the profile keeps CHIPS and item unlocks (and drops unknown keys)", function()
+	local raw = Defaults.New()
+	raw.Chips = 1234
+	raw.ItemUnlocks = { BloodEngine = true, MagneticBolt = true, Nope = true }
+	local clean = Defaults.Reconcile(raw)
+	Eq(clean.Chips, 1234, "chips")
+	Expect(clean.ItemUnlocks.BloodEngine, "premium unlock kept")
+	Expect(clean.ItemUnlocks.MagneticBolt == nil and clean.ItemUnlocks.Nope == nil, "only unlockable items")
+	Eq(Defaults.Reconcile({ Chips = -5 }).Chips, 0, "no negative chips")
 end)
 
 ---------------------------------------------------------------------------

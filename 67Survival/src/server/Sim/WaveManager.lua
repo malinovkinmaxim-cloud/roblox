@@ -1,7 +1,8 @@
 --[[
 	WaveManager - the run director: follows the timeline (shared/WaveData.lua), spawns the
-	horde around the player (packs, elites, bursts), bosses, loot crates, the rare 67 EVENTS
-	and the in-run secrets.
+	horde around the player (packs, bursts), loot crates, the rare 67 EVENTS and the in-run
+	secrets, and runs the other directors: the bosses (Sim/BossDirector: 3:00, 6:00, 9:00,
+	12:00, THE FINAL ONE at 15:00), the elites (Sim/Elites) and the map (Sim/ArenaDirector).
 
 	67 EVENTS (WaveData.Events): "6... 7... 67 EVENT" then one of
 	  67% EVENT   +67% damage, +67% XP, +67% enemies
@@ -10,22 +11,21 @@
 	  67 LUCK     huge luck: rare cards, drops, loot boxes, a goblin
 	  67 CHAOS    random things every few seconds
 	  67 MODE     a rule change: TINY / TURBO / GLASS / GIANT
-	  67 BOSS     THE 67 KING appears
+	  67 BOSS     the boss that is out (or the next one) wears a golden crown: tougher, double loot
 	  THE 67      the rarest enemy: circles you, leaves after 50 s if not defeated
 
 	In a party, members' runs are Followers: their events come from the leader's run
 	(GameManager calls WaveManager.TriggerEvent on them) so everyone sees the same moment.
 
-	67 TOWN: the zone you stand in scales the horde spawned around you (HP, damage, elites and
-	a little more of its own enemies) and the map's director runs after the timeline
-	(Sim/ArenaDirector: mini-bosses, threat, the rift, 67 RUSH, vaults).
+	67 TOWN: the zone you stand in scales the horde spawned around you (HP, damage and a little
+	more of its own enemies). While a boss is being fought the horde thins out; while THE
+	FINAL ONE's arena is sealed only a trickle comes (it can't get in anyway).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 
 local GameConfig = require(Shared.GameConfig)
-local EnemyData = require(Shared.EnemyData)
 local WaveData = require(Shared.WaveData)
 local Protocol = require(Shared.Protocol)
 
@@ -33,6 +33,9 @@ local EnemyManager = require(script.Parent.EnemyManager)
 local CombatManager = require(script.Parent.CombatManager)
 local Pickups = require(script.Parent.Pickups)
 local ArenaDirector = require(script.Parent.ArenaDirector)
+local BossDirector = require(script.Parent.BossDirector)
+local MiniBosses = require(script.Parent.MiniBosses)
+local Elites = require(script.Parent.Elites)
 
 local WaveManager = {}
 
@@ -71,15 +74,9 @@ end
 
 function WaveManager.Init(run, bossPicks: { string }?)
 	local rng = run.Rng
-	local bosses = {}
-	for i, pair in EnemyData.BossSlots do
-		local forced = bossPicks and bossPicks[i]
-		bosses[i] = if forced and table.find(pair, forced) then forced else pair[rng:NextInteger(1, #pair)]
-	end
 	run.Wave = {
 		Entry = 0,
 		Acc = 0,
-		Bosses = bosses,
 		NextEventAt = rng:NextNumber(WaveData.EventFirstAt[1], WaveData.EventFirstAt[2]) / eventRate(run),
 		LastEvent = nil,
 		EventKey = nil,
@@ -101,7 +98,15 @@ function WaveManager.Init(run, bossPicks: { string }?)
 	if run.Follower then
 		run.Wave.NextEventAt = math.huge
 	end
+	BossDirector.Init(run, bossPicks)
+	Elites.Init(run)
 end
+
+-- a boss is being fought or THE FINAL ONE's arena is sealed (events wait, the horde thins out)
+local function bossMoment(run): boolean
+	return run.Map ~= nil and (run.Map.ArenaSealed ~= nil or MiniBosses.Fighting(run))
+end
+WaveManager.BossMoment = bossMoment
 
 ---------------------------------------------------------------------------
 -- spawning
@@ -120,12 +125,8 @@ local function spawnKind(run, key: string, entry)
 	end
 	local invasion = now < run.Wave.InvasionUntil
 	local zone = ArenaDirector.Zone(run)
-	-- ELITE INVASION difficulty: elites a minute sooner; every tier scales how many
-	local eliteFrom = if run.Mods and run.Mods.EliteInvasion then 90 else GameConfig.Drops.EliteFrom
-	local eliteChance = GameConfig.Drops.EliteChance * (if run.Diff then run.Diff.Elite else 1) * zone.Elite
-	local elite = not invasion and now >= eliteFrom and key ~= "Skitter" and rng:NextNumber() < eliteChance
-	-- the zone's danger
-	local opts = { Elite = elite or nil, HPMult = zone.HP * (if invasion then 0.4 else 1), DamageMult = zone.Damage }
+	-- the zone's danger (elites have their own director: Sim/Elites)
+	local opts = { HPMult = zone.HP * (if invasion then 0.4 else 1), DamageMult = zone.Damage }
 	local e = EnemyManager.Spawn(run, key, x, z, opts)
 	-- packs: some enemies come in groups
 	local pack = entry.Pack and entry.Pack[key]
@@ -155,19 +156,6 @@ local function burst(run, b, opts)
 			EnemyManager.Spawn(run, b.Key, cx + tx * off, cz + tz * off, opts or { Force = true })
 		end
 	end
-end
-
-local function warnBoss(run, key: string)
-	local def = EnemyData.Get(key)
-	run.Wave.PendingBoss = { Key = key, At = run.Time + 3.5 }
-	run:Event("BossWarning", { Key = key, Title = def.Params.Title, Delay = 3.5, Final = def.Params.Final == true })
-end
-
-local function spawnBoss(run, key: string)
-	local def = EnemyData.Get(key)
-	local x, z = EnemyManager.RingPoint(run, 38, 46)
-	EnemyManager.Spawn(run, key, x, z, { Force = true })
-	run:Write("Fx", 0, x, z, 0, def.Radius * 3, 0, GFX.Enrage)
 end
 
 ---------------------------------------------------------------------------
@@ -241,8 +229,14 @@ function EVENTS.Mode67(run, ev, variantKey: string?)
 	return variant
 end
 
-function EVENTS.Boss67(run)
-	warnBoss(run, "King67")
+-- 67 BOSS: no extra boss (there are no random bosses): the boss that is out, or the next
+-- one, wears a golden crown: tougher, double loot
+function EVENTS.Boss67(run, ev)
+	local title = BossDirector.Crown(run)
+	if title then
+		return { Key = "Crown", Title = "67 BOSS", Sub = title .. " wears a golden crown: tougher, double loot" }
+	end
+	return nil
 end
 
 function EVENTS.The67(run)
@@ -356,7 +350,7 @@ local function stepEvents(run, dt: number)
 	if mods.Chaos and now >= w.SurpriseAt then
 		-- CHAOS: the arena throws a random surprise (never during a boss fight)
 		w.SurpriseAt = now + run.Rng:NextNumber(35, 50)
-		if not run.Boss and not w.PendingBoss then
+		if not bossMoment(run) then
 			chaosTick(run)
 		end
 	end
@@ -390,7 +384,7 @@ local function stepEvents(run, dt: number)
 
 	-- next event: never during a boss fight
 	if now >= w.NextEventAt and now >= w.EventUntil then
-		if run.Boss or w.PendingBoss then
+		if bossMoment(run) then
 			w.NextEventAt = now + 10
 			return
 		end
@@ -508,18 +502,6 @@ function WaveManager.Step(run, dt: number)
 		if entry.Burst then
 			burst(run, entry.Burst)
 		end
-		if entry.Boss then
-			local key = if type(entry.Boss) == "number" then w.Bosses[entry.Boss] else entry.Boss
-			if key then
-				warnBoss(run, key)
-			end
-		end
-	end
-
-	if w.PendingBoss and now >= w.PendingBoss.At then
-		local key = w.PendingBoss.Key
-		w.PendingBoss = nil
-		spawnBoss(run, key)
 	end
 
 	-- steady spawns (+ catch-up when the screen is too empty)
@@ -527,7 +509,7 @@ function WaveManager.Step(run, dt: number)
 	local invasion = now < w.InvasionUntil
 	-- difficulty: a bigger horde (NO MERCY: denser still)
 	local density = (if run.Diff then run.Diff.Spawn else 1) * (if run.Mods and run.Mods.NoMercy then 1.15 else 1)
-	local rate = entry.Rate * density * (if run.Boss then 0.55 else 1)
+	local rate = entry.Rate * density * (if run.Map and run.Map.ArenaSealed then 0.3 elseif bossMoment(run) then 0.55 else 1)
 	if run:Buff("P67") then
 		rate *= 1.67
 	end
@@ -565,6 +547,8 @@ function WaveManager.Step(run, dt: number)
 	stepEvents(run, dt)
 	stepSecrets(run)
 	ArenaDirector.Step(run, dt)
+	BossDirector.Step(run, EnemyManager)
+	Elites.Step(run, dt)
 end
 
 -- timeline mixes as arrays (cached)

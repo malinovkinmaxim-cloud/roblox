@@ -8,13 +8,13 @@
 
 	The same object runs headless in tests/ with a bot at the controls.
 
-	Step order: WaveManager (spawns, bosses, 67 events, then the map's director:
-	ArenaDirector -> MiniBosses) -> EnemyManager (AI, movement, contact, burning) ->
-	CombatManager (abilities, projectiles, zones, allies) -> Pickups (gems, items) -> Relics
-	(dash, trails, relic loot) -> level ups.
+	Step order: WaveManager (spawns, 67 events, then the directors: ArenaDirector -> the
+	bosses (BossDirector -> MiniBosses) -> Elites) -> EnemyManager (AI, movement, contact,
+	burning) -> CombatManager (abilities, projectiles, zones, allies) -> Pickups (gems, drops)
+	-> Items (dash, item loot, and every periodic mechanic of the build: Sim/Perks) -> level ups.
 
-	Hero mechanics (shared/HeroData.lua Mechanic) live here and in the modules above;
-	relics (shared/RelicData.lua) in Sim/Relics.lua.
+	Hero mechanics (shared/HeroData.lua Mechanic) live here and in the modules above; the
+	build (level-up upgrades, items, synergies) in Sim/Perks.lua; items in Sim/Items.lua.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,9 +35,11 @@ local CombatManager = require(script.Parent.CombatManager)
 local WaveManager = require(script.Parent.WaveManager)
 local Pickups = require(script.Parent.Pickups)
 local LevelUp = require(script.Parent.LevelUp)
-local Relics = require(script.Parent.Relics)
+local Items = require(script.Parent.Items)
+local Perks = require(script.Parent.Perks)
 local ArenaDirector = require(script.Parent.ArenaDirector)
 local MiniBosses = require(script.Parent.MiniBosses)
+local Elites = require(script.Parent.Elites)
 
 local Run = {}
 Run.__index = Run
@@ -52,7 +54,8 @@ export type Options = {
 	Colliders: any?,
 	StartX: number?,
 	StartZ: number?,
-	BossPicks: { string }?, -- forced boss of each timeline slot (tests)
+	BossPicks: { string }?, -- forced boss of each slot (BossData keys; tests)
+	ItemUnlocks: { [string]: boolean }?, -- premium items / boss relics unlocked with CHIPS
 	LiveEvent: { [string]: number }?, -- limited-time event modifiers (EventRate...)
 	Follower: boolean?, -- party member: 67 events come from the party leader's run
 	Difficulty: number?, -- tier (shared/DifficultyData.lua); default II, the classic balance
@@ -134,7 +137,7 @@ function Run.new(opts: Options)
 	self.EnemyById = {}
 	self.Grid = SpatialGrid.new(GameConfig.Sim.GridCell)
 	self.Gems = {}
-	self.Items = {}
+	self.Drops = {} -- pickups on the ground (snacks, coins, chests; Sim/Pickups)
 	self.Projectiles = {}
 	self.EnemyProjectiles = {}
 	self.Telegraphs = {}
@@ -175,13 +178,19 @@ function Run.new(opts: Options)
 		MaxWeapons = 0,
 		Fragments = 0,
 		LowestHP = math.huge,
-		MiniBosses = 0, -- 67 TOWN
-		Relics = 0,
+		BossesBeaten = 0, -- bosses 1-4 + THE FINAL ONE defeated
+		BossSlots = {}, -- the slots defeated (CHIPS)
+		MainBoss = false,
+		ItemsPicked = 0, -- items picked up (levels included)
 		Vaults = 0,
 		Dashes = 0,
+		Elites = 0,
+		ElitesSeen = 0,
+		Synergies = 0,
+		Souls = 0,
 	}
 
-	Relics.Init(self)
+	Items.Init(self, opts.ItemUnlocks)
 	self:RefreshStats()
 	self.HP = self.Stats.MaxHP
 	self.Rerolls = self.Stats.Rerolls + GameConfig.LevelUp.FreeRerolls
@@ -313,16 +322,8 @@ function Run:CheckEvolutions()
 end
 
 function Run:Sources()
-	local passives = {}
-	for key, stacks in self.Passives do
-		local def = UpgradeData.PassiveByKey[key]
-		if def then
-			for stat, value in def.Stats do
-				passives[stat] = (passives[stat] or 0) + value * stacks
-			end
-		end
-	end
-	local sources = { self.CharStats, self.MetaStats, passives, Relics.Sources(self) }
+	-- the build: level-up upgrades at their level, items at theirs, souls (Sim/Perks)
+	local sources = { self.CharStats, self.MetaStats, Perks.Sources(self) }
 	if self.Diff.Luck > 0 then
 		table.insert(sources, { Luck = self.Diff.Luck }) -- harder tiers: rarer cards and drops
 	end
@@ -335,6 +336,7 @@ function Run:Sources()
 end
 
 function Run:RefreshStats()
+	Perks.Refresh(self) -- levels, items, synergies, the dash: before the numbers
 	local oldMax = self.Stats and self.Stats.MaxHP
 	self.Stats = Stats.Compute(self:Sources())
 	if oldMax and self.Stats.MaxHP > oldMax and self.HP then
@@ -352,7 +354,7 @@ function Run:RefreshStats()
 		elseif self.Mech == "ArcaneEcho" and (w.Def.Kind == "Missile" or w.Def.Kind == "Projectile") then
 			w.S.Amount += 1
 		end
-		Relics.ApplyWeapon(self, w) -- ability-type relics
+		Perks.ApplyWeapon(self, w) -- items, projectile upgrades, synergies
 	end
 	self.StatsDirty = true
 end
@@ -363,7 +365,7 @@ function Run:DamageMult(e): number
 	if self.Mech == "Headhunter" and e and (e.IsBoss or e.Elite) then
 		m *= 1.4
 	end
-	return m * Relics.DamageMult(self, e)
+	return m
 end
 
 function Run:FireRate(): number
@@ -372,7 +374,7 @@ function Run:FireRate(): number
 	if self.Mech == "Redline" then
 		rate += 0.6 * missing
 	end
-	return rate
+	return rate + Perks.FireRate(self)
 end
 
 -- Loadout for the HUD and client-side ability visuals (orbit radius, aura size...)
@@ -392,16 +394,24 @@ function Run:SendLoadout()
 	end
 	local passives = {}
 	for _, key in self.PassiveOrder do
-		table.insert(passives, { Key = key, Stacks = self.Passives[key] })
+		local def = UpgradeData.PassiveByKey[key]
+		table.insert(passives, { Key = key, Level = self.Passives[key], MaxLevel = if def then def.MaxLevel else 1, Stacks = self.Passives[key] })
 	end
-	local relics = {}
-	for _, key in self.RelicOrder do
-		table.insert(relics, { Key = key, Stacks = self.Relics[key] })
+	local items = {}
+	for _, key in self.ItemOrder do
+		table.insert(items, { Key = key, Level = self.Items[key] })
 	end
+	local synergies = {}
+	for key in self.Synergies do
+		table.insert(synergies, key)
+	end
+	table.sort(synergies)
 	self:Event("Loadout", {
 		Weapons = weapons,
 		Passives = passives,
-		Relics = relics,
+		Items = items,
+		Synergies = synergies,
+		Souls = self.Perk.Souls,
 		Dash = if self.DashState then self.DashState.Max else 0,
 		Slots = self.Stats.WeaponSlots,
 		WalkSpeed = self.Stats.WalkSpeed,
@@ -484,6 +494,11 @@ function Run:InWater(x: number, z: number): boolean
 	return false
 end
 
+-- walk speed multiplier right now: slows on the ground and the build's speed boosts
+function Run:SpeedFactor(): number
+	return Perks.SpeedFactor(self, self:SlowFactor())
+end
+
 -- walk speed multiplier of the ground you stand on (THE BIG QUACK's puddles)
 function Run:SlowFactor(): number
 	local f = 1
@@ -498,9 +513,13 @@ function Run:SlowFactor(): number
 	return f
 end
 
--- the DASH (Rocket Skates relic): the client asks with the direction it holds
+-- the DASH (Rocket Skates / Cart Wheel / Void Eye items): the client asks with the direction it holds
 function Run:Dash(dx: number, dz: number): boolean
-	return Relics.Dash(self, dx, dz)
+	return Items.Dash(self, dx, dz)
+end
+
+function Run:SendDash()
+	Items.SendDash(self)
 end
 
 -- the player stands in a secret place of the map (the server checked the position)
@@ -527,6 +546,7 @@ function Run:AddXP(amount: number)
 		self.XP -= GameConfig.XPNeeded(self.Level)
 		self.Level += 1
 		self.PendingLevels += 1
+		Perks.OnLevelUp(self)
 		-- every level up patches you up a little (early levels come fast: a natural safety net)
 		self:Heal(GameConfig.LevelUp.Heal + (if self.Mech == "QuickStudy" and self.Level <= 6 then 15 else 0))
 	end
@@ -547,13 +567,16 @@ function Run:Heal(amount: number)
 	local before = self.HP
 	self.HP = math.min(self.Stats.MaxHP, self.HP + amount)
 	local healed = self.HP - before
+	if amount > healed + 0.01 then
+		Perks.OnOverheal(self, amount - healed)
+	end
 	if healed >= 1 then
 		self:Write("Heal", healed)
 	end
 end
 
 -- THE GLITCH: blink away from the nearest crowd instead of taking the hit
-function Run:GlitchStep(): boolean
+function Run:GlitchStep(distance: number?): boolean
 	local ax, az = 0, 0
 	for _, e in self.Enemies do
 		local dx, dz = self.PX - e.X, self.PZ - e.Z
@@ -570,7 +593,7 @@ function Run:GlitchStep(): boolean
 		ax, az, len = math.cos(a), math.sin(a), 1
 	end
 	ax, az = ax / len, az / len
-	local distance = 10
+	distance = distance or 10
 	local h = GameConfig.Arena.HalfSize - 4
 	local tx = math.clamp(self.PX + ax * distance, -h, h)
 	local tz = math.clamp(self.PZ + az * distance, -h, h)
@@ -582,7 +605,8 @@ function Run:GlitchStep(): boolean
 end
 
 -- Damage to the player. Returns the damage actually taken.
-function Run:HurtPlayer(amount: number, ignoreCooldown: boolean?): number
+-- kind: "Contact" / "Shot" / "Boss" (a telegraphed attack) / "Hazard" (the build reacts: Sim/Perks)
+function Run:HurtPlayer(amount: number, ignoreCooldown: boolean?, kind: string?): number
 	if self.Dead or self.Ended or self.Invulnerable > 0 then
 		return 0
 	end
@@ -591,6 +615,12 @@ function Run:HurtPlayer(amount: number, ignoreCooldown: boolean?): number
 			return 0
 		end
 		self.HurtTimer = GameConfig.Player.HurtCooldown
+	elseif kind == "Boss" or kind == "Hazard" then
+		-- two telegraphs landing together hurt once (a boss's patterns overlap)
+		if self.Time < (self.BossHurtAt or -1) + 0.3 then
+			return 0
+		end
+		self.BossHurtAt = self.Time
 	end
 	-- Barrier: a charge absorbs the hit and explodes
 	if self.Shield > 0 then
@@ -607,6 +637,12 @@ function Run:HurtPlayer(amount: number, ignoreCooldown: boolean?): number
 		self:Write("Hurt", 0)
 		return 0
 	end
+	-- the build: dodge, guards, glitches, reductions, the plating shield
+	amount = Perks.BeforeHurt(self, amount, kind)
+	if amount <= 0 then
+		self:Write("Hurt", 0)
+		return 0
+	end
 	local dmg = math.max(1, amount - self.Stats.Armor)
 	if self:Buff("GlassMode") then
 		dmg *= 2
@@ -618,7 +654,10 @@ function Run:HurtPlayer(amount: number, ignoreCooldown: boolean?): number
 	if self.HP <= 0 then
 		self.HP = 0
 		self:OnZeroHP()
-	elseif self.HP < self.Result.LowestHP then
+		return dmg
+	end
+	Perks.AfterHurt(self, dmg)
+	if self.HP < self.Result.LowestHP then
 		self.Result.LowestHP = self.HP
 		if self.HP <= math.max(1, self.Stats.MaxHP * 0.02) then
 			self.OneHPAt = self.Time -- survive 5 more seconds for the 1 HP secret
@@ -649,6 +688,7 @@ function Run:Revive(source: string)
 	-- a shockwave pushes the horde back
 	EnemyManager.Shockwave(self, self.PX, self.PZ, 22, 30, 0)
 	self:Write("Fx", 0, self.PX, self.PZ, 0, 22, 0, Protocol.Fx.Revive)
+	Perks.OnRevive(self)
 	self:Event("Revived", { Source = source, Revives = self.Revives })
 	self:SendLoadout()
 end
@@ -670,7 +710,7 @@ function Run:OnKill(e)
 	if self.Mech == "SixtySeven" and self.Kills % 67 == 0 then
 		CombatManager.Free67Blast(self)
 	end
-	Relics.OnKill(self, e)
+	Perks.OnKill(self, e)
 end
 
 ---------------------------------------------------------------------------
@@ -766,7 +806,7 @@ function Run:Step(dt: number)
 	EnemyManager.Step(self, dt)
 	CombatManager.Step(self, dt)
 	Pickups.Step(self, dt)
-	Relics.Step(self, dt)
+	Items.Step(self, dt)
 
 	if self.VictoryAt and self.Time >= self.VictoryAt then
 		self:End("Victory")
@@ -835,7 +875,8 @@ function Run:Flush(): buffer
 	for i, ally in self.Allies do
 		self:Write("Ally", i, ally.X, ally.Z)
 	end
-	MiniBosses.Flush(self) -- mini-boss HP bars (what changed)
+	MiniBosses.Flush(self) -- boss HP bars (what changed)
+	Elites.Flush(self) -- elite HP bars
 	for _, e in self.Enemies do
 		local dx, dz = e.X - e.SentX, e.Z - e.SentZ
 		if dx * dx + dz * dz > 0.0004 then
@@ -895,9 +936,22 @@ function Run:Summary()
 		Fragments = r.Fragments,
 		Flags = table.clone(r.Flags),
 		DamageTaken = math.floor(self.DamageTaken),
-		MiniBosses = r.MiniBosses,
-		Relics = table.clone(self.RelicOrder),
+		BossesBeaten = r.BossesBeaten,
+		ItemsPicked = r.ItemsPicked,
+		BossSlots = table.clone(r.BossSlots),
+		MainBoss = r.MainBoss,
+		Items = table.clone(self.ItemOrder),
+		ItemLevels = table.clone(self.Items),
 		Vaults = r.Vaults,
+		Elites = r.Elites,
+		Synergies = (function()
+			local list = {}
+			for key in self.Synergies do
+				table.insert(list, key)
+			end
+			table.sort(list)
+			return list
+		end)(),
 		Build = self:BuildSummary(),
 	}
 end
@@ -909,7 +963,7 @@ function Run:BuildSummary()
 	end
 	local passives = {}
 	for _, key in self.PassiveOrder do
-		table.insert(passives, { Key = key, Stacks = self.Passives[key] })
+		table.insert(passives, { Key = key, Stacks = self.Passives[key], Level = self.Passives[key] })
 	end
 	return { Weapons = weapons, Passives = passives }
 end

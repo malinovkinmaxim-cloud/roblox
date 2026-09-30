@@ -1,9 +1,13 @@
 --[[
 	LevelUpController - LEVEL UP! (and TREASURE / 67 CHEST): the game is paused by the server,
-	3 (or 4) cards fade in, the player taps one. Rarity shows as the border colour and a
-	tag (7 tiers); an EVOLUTION card is Mythic, glows and shows its recipe. NEW / LV tags and
-	"completes an evolution" hints explain the card. Reroll (out of rerolls: +1 reroll can
-	be bought, never forced) and Skip, keys 1-4 and R. The client only sends the index.
+	3 (or 4) cards fade in, the player taps one. Every card says what it changes:
+	  icon, name, rarity (border colour + word) and category (OFFENSE, PROJECTILES, DEFENSE,
+	  MOVEMENT, XP, an ability, an ITEM), NEW or "LV 2 → 3" (MAX on the last level), level
+	  pips, the short change of this level ("+1 bolt"), a highlighted NEW MECHANIC when the
+	  level unlocks one, and the synergy it moves forward ("BULLET HELL 2/4").
+	An EVOLUTION card is Mythic, glows and shows its recipe; "completes an evolution" hints.
+	Reroll (out of rerolls: +1 reroll can be bought, never forced) and Skip, keys 1-4 and R.
+	The client only sends the index.
 ]]
 
 local Players = game:GetService("Players")
@@ -23,7 +27,7 @@ local LevelUpController = {}
 
 local C = Theme.Colors
 local F = Theme.Fonts
-local CARD_W, CARD_H = 220, 272
+local CARD_W, CARD_H = 220, 296
 
 function LevelUpController:Init(controllers)
 	self.C = controllers
@@ -135,22 +139,68 @@ local function tagFor(card): (string, Color3)
 		return "EVOLUTION", C.Mythic
 	elseif card.New then
 		return "NEW", C.Accent
+	elseif card.Level and card.Current then
+		local max = card.MaxLevel and card.Level >= card.MaxLevel
+		return string.format("LV %d → %s", card.Current, if max then "MAX" else tostring(card.Level)), if max then C.Gold else C.Text
 	elseif card.Level then
 		return "LV " .. card.Level, C.TextDim
 	end
 	return "", C.TextDim
 end
 
+-- the word under the icon: rarity · category
+local CATEGORY = {
+	OFFENSE = "OFFENSE",
+	PROJECTILES = "PROJECTILES",
+	DEFENSE = "DEFENSE",
+	MOVEMENT = "MOVEMENT",
+	XP = "XP",
+	ITEM = "ITEM",
+}
+
 local function iconFor(parent: Instance, card, size: number)
-	local props = { Position = UDim2.new(0.5, 0, 0, 44), AnchorPoint = Vector2.new(0.5, 0) }
+	local props = { Position = UDim2.new(0.5, 0, 0, 40), AnchorPoint = Vector2.new(0.5, 0) }
 	if card.Type == "Weapon" or card.Type == "WeaponLevel" then
 		return Icons.Make(parent, "Weapon", card.Key, size, props)
 	elseif card.Type == "Evolution" then
 		return Icons.Make(parent, "Weapon", string.sub(card.Id, 3), size, props)
 	elseif card.Type == "Passive" then
 		return Icons.Make(parent, "Stat", card.Key, math.floor(size * 0.8), props)
+	elseif card.Type == "ItemLevel" then
+		return Icons.Make(parent, "Item", card.Key, math.floor(size * 0.8), props)
 	end
 	return Icons.Make(parent, "Filler", card.Key or "", math.floor(size * 0.8), props)
+end
+
+-- level pips: filled up to the level this card brings (the new one glows)
+local function pips(parent: Instance, card, color: Color3)
+	if not (card.MaxLevel and card.Level) or card.MaxLevel <= 1 or card.Type == "Evolution" then
+		return
+	end
+	local row = Kit.New("Frame", {
+		Name = "Pips",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -24, 0, 6),
+		Position = UDim2.fromOffset(12, 126),
+		Parent = parent,
+	})
+	Kit.New("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Padding = UDim.new(0, 4),
+		Parent = row,
+	})
+	for i = 1, card.MaxLevel do
+		local pip = Kit.New("Frame", {
+			Size = UDim2.fromOffset(16, 6),
+			BackgroundColor3 = if i < card.Level then color elseif i == card.Level then C.Text else C.SurfaceDark,
+			BackgroundTransparency = if i <= card.Level then 0 else 0.3,
+			BorderSizePixel = 0,
+			LayoutOrder = i,
+			Parent = row,
+		})
+		Kit.Corner(pip, 3)
+	end
 end
 
 local RARE_TIERS = { Rare = true, Epic = true, Legendary = true, Mythic = true, Secret = true }
@@ -191,13 +241,16 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 		local tag = Widgets.Tag(button, tagText, tagColor, UDim2.new(1, -12, 0, 12), UDim2.fromOffset(0, 22), 12)
 		tag.AnchorPoint = Vector2.new(1, 0)
 	end
-	iconFor(button, card, 96)
-	-- rarity word under the icon (colour + word: readable for colour blind players too)
+	iconFor(button, card, 84)
+	pips(button, card, rarity)
+	-- rarity · category under the icon (colour + word: readable for colour blind players too)
+	local rarityWord = string.upper(if card.Type == "Evolution" then "Mythic" else card.Rarity or "Common")
+	local category = card.Category and (CATEGORY[card.Category] or string.upper(card.Category))
 	Kit.Label({
 		Name = "Rarity",
-		Text = string.upper(if card.Type == "Evolution" then "Mythic" else card.Rarity or "Common"),
+		Text = if category then rarityWord .. "  ·  " .. category else rarityWord,
 		Size = UDim2.new(1, -24, 0, 14),
-		Position = UDim2.fromOffset(12, 142),
+		Position = UDim2.fromOffset(12, 138),
 		Font = F.Bold,
 		TextScaled = false,
 		TextSize = 12,
@@ -208,57 +261,68 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 		Name = "CardTitle",
 		Text = card.Title,
 		Size = UDim2.new(1, -24, 0, 26),
-		Position = UDim2.fromOffset(12, 160),
+		Position = UDim2.fromOffset(12, 154),
 		Font = F.Title,
 		MaxTextSize = 21,
 		TextColor3 = if rare then rarity:Lerp(Color3.new(1, 1, 1), 0.3) else C.Text,
 		Parent = button,
 	})
+	-- the bottom lines (from the bottom up): evolution / synergy, the new mechanic
+	local bottom = 10
+	local function footer(name: string, text: string, color: Color3, height: number)
+		Kit.Label({
+			Name = name,
+			Text = text,
+			Size = UDim2.new(1, -24, 0, height),
+			Position = UDim2.new(0, 12, 1, -(bottom + height)),
+			Font = F.Bold,
+			MaxTextSize = 13, -- long names shrink to fit the card
+			TextColor3 = color,
+			TextWrapped = height > 16,
+			Parent = button,
+		})
+		bottom += height + 2
+	end
 	local hint = if card.Type == "Evolution" then card.Evolves elseif card.Evolves then "Completes: " .. card.Evolves else nil
 	if hint then
-		Kit.Label({
-			Name = "Hint",
-			Text = hint,
-			Size = UDim2.new(1, -24, 0, 16),
-			Position = UDim2.new(0, 12, 1, -26),
-			Font = F.Bold,
-			MaxTextSize = 13, -- long evolution names shrink to fit the card
-			TextColor3 = C.Mythic,
-			Parent = button,
-		})
+		footer("Hint", hint, C.Mythic, 16)
+	elseif card.Synergy then
+		footer("Synergy", "⟡ " .. card.Synergy, Color3.fromRGB(0, 225, 210), 16)
 	end
-	-- one line of numbers under the text: the ability's stats, its level, the passive's stack
-	local info = ""
+	local mechanic = card.Type ~= "Evolution" and not card.New and card.Mechanic
+	if mechanic then
+		footer("Mechanic", "NEW MECHANIC: " .. mechanic, C.Gold, 30)
+	end
+	-- the text: what this level changes (a new card: what it is)
+	local desc
+	if card.Type == "Evolution" then
+		desc = (string.gsub(card.Desc or "", "^Evolution%.%s*", ""))
+	elseif card.New or card.Type == "Filler" then
+		desc = card.Desc
+		local kind: string = (card :: any).Type
+		local weapon = kind == "Weapon"
+		if card.Change and card.Change ~= card.Desc and not weapon then
+			desc ..= "  " .. card.Change
+		end
+	else
+		desc = if mechanic then card.Desc else (card.Change or card.Desc)
+	end
 	if card.Type == "Weapon" then
 		local def = WeaponData.ByKey[card.Key]
-		info = if def then Cards.WeaponStats(def) else ""
-	elseif (card.Type == "WeaponLevel" or card.Type == "Passive") and card.Level and card.MaxLevel then
-		info = string.format("%s %d / %d", if card.Type == "Passive" then "Stack" else "Level", card.Level, card.MaxLevel)
+		local stats = if def then Cards.WeaponStats(def) else ""
+		if stats ~= "" then
+			footer("Info", stats, rarity:Lerp(Color3.new(1, 1, 1), 0.45), 16)
+		end
 	end
-	if info ~= "" and not hint then
-		Kit.Label({
-			Name = "Info",
-			Text = info,
-			Size = UDim2.new(1, -24, 0, 16),
-			Position = UDim2.new(0, 12, 1, -26),
-			Font = F.Bold,
-			TextScaled = false,
-			TextSize = 13,
-			TextColor3 = rarity:Lerp(Color3.new(1, 1, 1), 0.45),
-			Parent = button,
-		})
-	end
-	-- (the EVOLUTION tag already says it: the text starts with what it does)
-	local desc = if card.Type == "Evolution" then (string.gsub(card.Desc or "", "^Evolution%.%s*", "")) else card.Desc
 	Kit.Label({
 		Name = "Desc",
-		Text = desc,
-		Size = UDim2.new(1, -32, 0, if hint or info ~= "" then 46 else 64),
-		Position = UDim2.fromOffset(16, 194),
+		Text = desc or "",
+		Size = UDim2.new(1, -32, 0, math.max(30, CARD_H - 186 - bottom)),
+		Position = UDim2.fromOffset(16, 184),
 		Font = F.Medium,
 		TextScaled = false, -- a fixed 15 px, never shrunk
-		TextSize = 15,
-		TextColor3 = C.TextDim,
+		TextSize = if mechanic then 14 else 15,
+		TextColor3 = if card.New or card.Type == "Evolution" then C.TextDim else C.Text,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Parent = button,

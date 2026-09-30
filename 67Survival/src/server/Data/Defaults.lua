@@ -21,6 +21,8 @@ local MonetizationData = require(Shared.MonetizationData)
 local CosmeticData = require(Shared.CosmeticData)
 local DifficultyData = require(Shared.DifficultyData)
 local GameConfig = require(Shared.GameConfig)
+local ItemData = require(Shared.ItemData)
+local SynergyData = require(Shared.SynergyData)
 
 local Defaults = {}
 
@@ -32,6 +34,7 @@ Defaults.StatKeys = {
 	"Collected", "HeroCount", "PartyRuns", "LifetimeFragments", "BestEvolutions",
 	"HighestWin", -- the highest difficulty tier won
 	"Supported", "SupportedRobux", -- SUPPORT purchases (donations): how many, Robux in total
+	"Elites", "LifetimeChips", "MainBoss", -- elites killed, CHIPS earned, THE FINAL ONE beaten
 }
 
 Defaults.SettingKeys = {
@@ -112,6 +115,7 @@ function Defaults.Reconcile(raw: any)
 	out.Version = Defaults.Version
 	out.Coins = int(r.Coins, 0, 0, 1e12)
 	out.Fragments = int(r.Fragments, 0, 0, 1e9)
+	out.Chips = int(r.Chips, 0, 0, 1e9) -- CHIPS: earned in runs, unlock premium items and boss relics
 	out.XP = int(r.XP or r.BrainXP, 0, 0, 1e12) -- BrainXP: version 1 name
 	out.CreatedAt = int(r.CreatedAt, 0, 0)
 	out.LastSeen = int(r.LastSeen, 0, 0)
@@ -140,6 +144,15 @@ function Defaults.Reconcile(raw: any)
 			out.Weapons[def.Key] = rw[def.Key] == true
 		end
 	end
+	-- premium items and boss relics unlocked with CHIPS (they join the loot pool of runs)
+	local lockable = {}
+	for _, def in ItemData.List do
+		if ItemData.NeedsUnlock(def) then
+			lockable[def.Key] = true
+		end
+	end
+	out.ItemUnlocks = keySet(r.ItemUnlocks, lockable)
+
 	out.StartWeapon = str(r.StartWeapon, "")
 	if out.StartWeapon ~= "" and not (out.Weapons[out.StartWeapon] and WeaponData.ByKey[out.StartWeapon]) then
 		out.StartWeapon = ""
@@ -241,6 +254,13 @@ function Defaults.Reconcile(raw: any)
 	for _, e in WaveData.Events do
 		events[e.Key] = true
 	end
+	local items, synergies = {}, {}
+	for _, def in ItemData.List do
+		items[def.Key] = true
+	end
+	for _, def in SynergyData.List do
+		synergies[def.Key] = true
+	end
 	local weapons = {}
 	for _, def in WeaponData.List do
 		if def.Evolution == nil then
@@ -252,6 +272,8 @@ function Defaults.Reconcile(raw: any)
 		Passives = keySet(rseen.Passives, passives),
 		Evolutions = keySet(rseen.Evolutions, evolutions),
 		Events = keySet(rseen.Events, events),
+		Items = keySet(rseen.Items, items),
+		Synergies = keySet(rseen.Synergies, synergies),
 	}
 
 	-- difficulty: the selected tier, the best result per tier (unlocks), first clears paid

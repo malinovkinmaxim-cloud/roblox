@@ -2,12 +2,15 @@
 	HudController - the in-run HUD. Minimal: the arena is the show.
 
 	  top centre   level chip + thin XP bar, timer under it, the ZONE you are in under that
-	               (danger stars, what it pays, its threat meter: fill it to wake its mini-boss)
-	  top left     HP, the run's difficulty under it, your RELICS under that
+	               (danger stars, what it pays), the BOSS TIMELINE under that ("BOSS 2 IN 0:42",
+	               "BOSS 2 OUT: CARTZILLA · HORDE MART LOT")
+	  top left     HP (+ the Plating shield), the run's difficulty, your ITEMS with their level
+	               (I, II, III), your SYNERGIES and SOULS under them
 	  top right    coins (small) + pause; the minimap under them (MinimapController)
-	  right        boss HP under the minimap - only while a boss is alive
-	  centre       a card when you pick up a relic
-	  bottom right DASH (only with the Rocket Skates relic): charges, recharge, tap to dash
+	  right        THE FINAL ONE's HP under the minimap - only while it is out (bosses 1-4 have
+	               their bars over their heads)
+	  centre       "ITEM ACQUIRED" / "ITEM LEVEL UP  I -> II" card with the new mechanic
+	  bottom right DASH (only with the Rocket Skates item): charges, recharge, tap to dash
 	  bottom       small ability icons (level, MAX, EVO) + active buffs above them
 	               + "EVOLUTION AVAILABLE" when an evolution can be picked
 	  pause menu   RESUME / SETTINGS / GIVE UP + your current build
@@ -24,8 +27,9 @@ local WeaponData = require(Shared.WeaponData)
 local UpgradeData = require(Shared.UpgradeData)
 local DifficultyData = require(Shared.DifficultyData)
 local ArenaData = require(Shared.ArenaData)
-local RelicData = require(Shared.RelicData)
-local MiniBossData = require(Shared.MiniBossData)
+local ItemData = require(Shared.ItemData)
+local BossData = require(Shared.BossData)
+local SynergyData = require(Shared.SynergyData)
 local GameConfig = require(Shared.GameConfig)
 local Rarity = require(Shared.Rarity)
 local Format = require(Shared.Util.Format)
@@ -50,6 +54,7 @@ local BUFF_NAMES = {
 	XPStorm = "XP STORM",
 }
 local SLOT = 42
+local ROMAN = { "I", "II", "III", "IV", "V", "VI", "VII" }
 
 function HudController:Init(controllers)
 	self.C = controllers
@@ -116,6 +121,10 @@ function HudController:Init(controllers)
 	self.HPBar = Widgets.Bar(hp, UDim2.new(1, -32, 0, 22), UDim2.fromOffset(32, 0), C.HP)
 	self.HPBar.Label.TextXAlignment = Enum.TextXAlignment.Right
 	self.HPOrigin = self.HPBar.Frame.Position
+	-- PLATING (an upgrade): a shield bar under the HP bar, only when you have it
+	self.PlatingBar = Widgets.Bar(hp, UDim2.new(1, -32, 0, 5), UDim2.fromOffset(32, 24), Color3.fromRGB(140, 220, 255))
+	self.PlatingBar.Label.Visible = false
+	self.PlatingBar.Frame.Visible = false
 
 	-- under the HP: the difficulty of this run (tier numeral + name in the tier's colour)
 	local diff = Kit.New("Frame", {
@@ -325,16 +334,16 @@ function HudController:Init(controllers)
 end
 
 ---------------------------------------------------------------------------
--- 67 TOWN: zone chip, relics, relic card, dash
+-- 67 TOWN: zone chip, boss timeline, items, synergies, item card, dash
 ---------------------------------------------------------------------------
 function HudController:BuildTown(safe: Frame)
 	-- the zone you are in (under the timer)
 	local zone = Kit.Panel({
 		Name = "Zone",
-		Size = UDim2.fromOffset(260, 26),
+		Size = UDim2.fromOffset(260, 24),
 		Position = UDim2.new(0.5, 0, 0, 66),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Radius = 13,
+		Radius = 12,
 		Parent = safe,
 	})
 	self.ZoneStroke = zone:FindFirstChildOfClass("UIStroke") :: UIStroke
@@ -342,7 +351,8 @@ function HudController:BuildTown(safe: Frame)
 		Name = "ZoneName",
 		Text = "",
 		Size = UDim2.new(0.62, -12, 0, 16),
-		Position = UDim2.fromOffset(12, 4),
+		Position = UDim2.new(0, 12, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
 		Font = F.Title,
 		MaxTextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -352,45 +362,70 @@ function HudController:BuildTown(safe: Frame)
 		Name = "ZoneInfo",
 		Text = "",
 		Size = UDim2.new(0.38, -12, 0, 16),
-		Position = UDim2.new(1, -12, 0, 4),
-		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		AnchorPoint = Vector2.new(1, 0.5),
 		Font = F.Bold,
 		MaxTextSize = 12,
 		TextColor3 = C.TextDim,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = zone,
 	})
-	local threat = Kit.New("Frame", {
-		Name = "Threat",
-		Size = UDim2.new(1, -24, 0, 3),
-		Position = UDim2.new(0.5, 0, 1, -4),
-		AnchorPoint = Vector2.new(0.5, 0),
-		BackgroundColor3 = C.SurfaceDark,
-		BackgroundTransparency = 0.2,
-		BorderSizePixel = 0,
-		Parent = zone,
-	})
-	Kit.Corner(threat, 2)
-	self.ThreatFill = Kit.New("Frame", { Name = "Fill", Size = UDim2.fromScale(0, 1), BorderSizePixel = 0, Parent = threat })
-	Kit.Corner(self.ThreatFill, 2)
-	self.ThreatBar = threat
 	self.ZoneChip = zone
 
-	-- your relics (under the difficulty chip)
-	local relics = Kit.New("Frame", {
-		Name = "Relics",
+	-- the boss timeline (under the zone chip): the next boss, or the one that is out
+	self.BossLine = Kit.Label({
+		Name = "BossLine",
+		Text = "",
+		Size = UDim2.fromOffset(360, 18),
+		Position = UDim2.new(0.5, 0, 0, 94),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Font = F.Bold,
+		MaxTextSize = 13,
+		TextColor3 = C.TextDim,
+		StrokeThickness = 1.5,
+		StrokeTransparency = 0.45,
+		Parent = safe,
+	})
+
+	-- your items (under the difficulty chip), your synergies under them
+	local items = Kit.New("Frame", {
+		Name = "Items",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(320, 26),
+		Size = UDim2.fromOffset(330, 28),
 		Position = UDim2.fromOffset(0, 58),
 		Parent = safe,
 	})
-	Kit.New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = relics })
-	self.RelicRow = relics
+	Kit.New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = items })
+	self.ItemRow = items
+	local synergies = Kit.New("Frame", {
+		Name = "Synergies",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(330, 18),
+		Position = UDim2.fromOffset(0, 90),
+		Parent = safe,
+	})
+	Kit.New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = synergies })
+	self.SynergyRow = synergies
+	-- a short word from the build ("PANIC BUTTON!", "7-7-7 JACKPOT!") under the synergies
+	self.PerkLabel = Kit.Label({
+		Name = "Perk",
+		Text = "",
+		Size = UDim2.fromOffset(260, 18),
+		Position = UDim2.fromOffset(0, 112),
+		Font = F.Title,
+		MaxTextSize = 14,
+		TextColor3 = C.Gold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		StrokeThickness = 1.5,
+		StrokeTransparency = 0.35,
+		Visible = false,
+		Parent = safe,
+	})
 
-	-- the card of a relic you just picked up
+	-- ITEM ACQUIRED: the card of an item you just picked up (or levelled up)
 	local card = Kit.Panel({
-		Name = "RelicCard",
-		Size = UDim2.fromOffset(340, 80),
+		Name = "ItemCard",
+		Size = UDim2.fromOffset(380, 104),
 		Position = UDim2.new(0.5, 0, 1, -(SLOT + 104)),
 		AnchorPoint = Vector2.new(0.5, 1),
 		BackgroundTransparency = Theme.GlassStrong,
@@ -398,33 +433,33 @@ function HudController:BuildTown(safe: Frame)
 		Visible = false,
 		Parent = safe,
 	})
-	self.RelicCardStroke = card:FindFirstChildOfClass("UIStroke") :: UIStroke
-	self.RelicCardIcon = Kit.New("Frame", { Name = "IconHolder", BackgroundTransparency = 1, Size = UDim2.fromOffset(46, 46), Position = UDim2.fromOffset(12, 12), Parent = card })
-	self.RelicCardTag = Kit.Label({
+	self.ItemCardStroke = card:FindFirstChildOfClass("UIStroke") :: UIStroke
+	self.ItemCardIcon = Kit.New("Frame", { Name = "IconHolder", BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 52), Position = UDim2.fromOffset(12, 14), Parent = card })
+	self.ItemCardTag = Kit.Label({
 		Name = "Tag",
 		Text = "",
-		Size = UDim2.new(1, -80, 0, 14),
-		Position = UDim2.fromOffset(68, 8),
+		Size = UDim2.new(1, -84, 0, 14),
+		Position = UDim2.fromOffset(74, 8),
 		Font = F.Bold,
 		MaxTextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = card,
 	})
-	self.RelicCardName = Kit.Label({
-		Name = "RelicName",
+	self.ItemCardName = Kit.Label({
+		Name = "ItemName",
 		Text = "",
-		Size = UDim2.new(1, -80, 0, 20),
-		Position = UDim2.fromOffset(68, 22),
+		Size = UDim2.new(1, -84, 0, 20),
+		Position = UDim2.fromOffset(74, 22),
 		Font = F.Title,
 		MaxTextSize = 18,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = card,
 	})
-	self.RelicCardDesc = Kit.Label({
+	self.ItemCardDesc = Kit.Label({
 		Name = "Desc",
 		Text = "",
-		Size = UDim2.new(1, -80, 0, 30),
-		Position = UDim2.fromOffset(68, 44),
+		Size = UDim2.new(1, -84, 0, 30),
+		Position = UDim2.fromOffset(74, 44),
 		Font = F.Medium,
 		TextScaled = false,
 		TextSize = 13,
@@ -434,7 +469,20 @@ function HudController:BuildTown(safe: Frame)
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Parent = card,
 	})
-	self.RelicCard = card
+	self.ItemCardNew = Kit.Label({
+		Name = "NewMechanic",
+		Text = "",
+		Size = UDim2.new(1, -24, 0, 18),
+		Position = UDim2.new(0, 12, 1, -8),
+		AnchorPoint = Vector2.new(0, 1),
+		Font = F.Bold,
+		MaxTextSize = 13,
+		TextColor3 = C.Mythic,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Visible = false,
+		Parent = card,
+	})
+	self.ItemCard = card
 
 	-- DASH (Rocket Skates): a round button with its charges and recharge
 	local dash = Kit.New("TextButton", {
@@ -470,7 +518,7 @@ function HudController:BuildTown(safe: Frame)
 	self.DashButton = dash
 end
 
--- the zone chip: name + stars, what it pays, its threat meter
+-- the zone chip: name + stars, what it pays, a boss in it
 function HudController:UpdateZone(now: number)
 	local run = self.C.RunClient
 	local x, z = run:LocalXZ()
@@ -485,8 +533,6 @@ function HudController:UpdateZone(now: number)
 		self.ZoneName.Text = zone.Name .. stars
 		self.ZoneName.TextColor3 = zone.Color
 		self.ZoneStroke.Color = zone.Color
-		self.ThreatFill.BackgroundColor3 = zone.Color
-		self.ThreatBar.Visible = zone.Threat ~= nil
 	end
 	-- what the zone pays right now (the square pays less after a while; the 67 RUSH pays more)
 	local xp = zone.XP
@@ -494,11 +540,15 @@ function HudController:UpdateZone(now: number)
 		xp = zone.Decay.XP
 	end
 	local rush = run.Map.Hot == zone.Key
-	local mini = MiniBossData.ByZone[zone.Key]
-	local awake = mini ~= nil and run.Encounters[mini.Key] ~= nil
+	local here = nil
+	for _, enc in run.Encounters do
+		if enc.Zone == zone.Key and not enc.Main then
+			here = enc
+		end
+	end
 	local info
-	if awake then
-		info = "⚠ MINI-BOSS OUT"
+	if here then
+		info = "⚠ BOSS " .. tostring(here.Slot or "") .. " HERE"
 	elseif rush then
 		info = "RUSH  XP x" .. tostring(math.floor(xp * GameConfig.Map.HotXP * 100 + 0.5) / 100)
 	else
@@ -507,13 +557,54 @@ function HudController:UpdateZone(now: number)
 	if last.ZoneInfo ~= info then
 		last.ZoneInfo = info
 		self.ZoneInfo.Text = info
-		self.ZoneInfo.TextColor3 = if awake then Color3.fromRGB(255, 130, 90) elseif rush then C.Gold else C.TextDim
+		self.ZoneInfo.TextColor3 = if here then Color3.fromRGB(255, 130, 90) elseif rush then C.Gold else C.TextDim
 	end
-	if zone.Threat then
-		local pct = if awake then 100 else run.Map.Threat[zone.Index] or 0
-		self.ThreatFill.Size = UDim2.fromScale(pct / 100, 1)
-		self.ThreatFill.BackgroundColor3 = if awake then Color3.fromRGB(255, 90, 70):Lerp(C.Text, (math.sin(now * 6) + 1) * 0.15) elseif pct >= 100 then Color3.fromRGB(255, 130, 90) else zone.Color
+	self:UpdateBossLine(now)
+end
+
+-- the boss timeline: "BOSS 2 IN 0:42 · HORDE MART LOT ★★" / "BOSS 2 OUT: CARTZILLA · ..."
+function HudController:UpdateBossLine(now: number)
+	local run = self.C.RunClient
+	local t = run:Now()
+	local text, color, pulse = "", C.TextDim, false
+	local out = nil
+	for _, enc in run.Encounters do
+		if not out or (enc.Main and not out.Main) then
+			out = enc
+		end
 	end
+	if out then
+		if out.Main then
+			text = if out.Stage == "Warn" then "THE FINAL ONE IS COMING · 67 ARENA" else "THE FINAL ONE · 67 ARENA (CENTRE)"
+			color, pulse = C.Danger, true
+		else
+			local zone = ArenaData.ByKey[out.Zone]
+			local what = if out.Stage == "Warn" then "BOSS " .. out.Slot .. " COMING" else "BOSS " .. out.Slot .. " OUT: " .. out.Title
+			text = what .. "  ·  " .. (if zone then zone.Name .. " " .. string.rep("★", zone.Stars) else "")
+			color, pulse = if zone then zone.Color else C.Danger, out.Stage == "Warn"
+		end
+	else
+		local nextSlot = nil
+		for _, slot in BossData.Slots do
+			if slot.At - BossData.WarnLead > t then
+				nextSlot = slot
+				break
+			end
+		end
+		if nextSlot then
+			local zone = ArenaData.ByKey[nextSlot.Zone]
+			text = string.format("BOSS %d IN %s  ·  %s %s", nextSlot.Index, Format.Time(math.max(0, nextSlot.At - t)), zone.Name, string.rep("★", zone.Stars))
+			color = if nextSlot.At - t < 30 then zone.Color else C.TextDim
+		elseif t < BossData.Main.At then
+			text = "THE FINAL ONE IN " .. Format.Time(math.max(0, BossData.Main.At - t)) .. "  ·  67 ARENA"
+			color = if BossData.Main.At - t < 60 then C.Danger else C.TextDim
+		end
+	end
+	if self.Last.BossLine ~= text then
+		self.Last.BossLine = text
+		self.BossLine.Text = text
+	end
+	self.BossLine.TextColor3 = if pulse then color:Lerp(C.Text, (math.sin(now * 6) + 1) * 0.25) else color
 end
 
 -- walking into a zone: the zone chip pops; the first time, a toast with its tagline (and the
@@ -526,19 +617,23 @@ function HudController:ZoneEntered(zone, first: boolean)
 	end
 end
 
-function HudController:SetRelics(relics: { any })
-	Widgets.Clear(self.RelicRow)
-	for i, r in relics do
-		local tile = Icons.Make(self.RelicRow, "Relic", r.Key, 24, { LayoutOrder = i })
-		if r.Stacks and r.Stacks > 1 then
+-- your items: their icon and level (I, II, III); the souls of the Soul Collector
+function HudController:SetItems(items: { any })
+	Widgets.Clear(self.ItemRow)
+	for i, it in items do
+		local def = ItemData.ByKey[it.Key]
+		if def then
+			local tile = Icons.Make(self.ItemRow, "Item", it.Key, 26, { LayoutOrder = i })
+			local maxed = it.Level >= def.MaxLevel
 			Kit.Label({
-				Name = "Stacks",
-				Text = "x" .. r.Stacks,
-				Size = UDim2.fromOffset(18, 11),
-				Position = UDim2.new(1, 2, 1, 1),
+				Name = "Level",
+				Text = if maxed then "MAX" else ROMAN[it.Level] or tostring(it.Level),
+				Size = UDim2.fromOffset(26, 11),
+				Position = UDim2.new(1, 3, 1, 2),
 				AnchorPoint = Vector2.new(1, 1),
 				Font = F.Title,
 				MaxTextSize = 10,
+				TextColor3 = if maxed then C.Gold else C.Text,
 				TextXAlignment = Enum.TextXAlignment.Right,
 				StrokeThickness = 1,
 				StrokeTransparency = 0.2,
@@ -547,11 +642,50 @@ function HudController:SetRelics(relics: { any })
 			})
 		end
 	end
+	local souls = self.C.RunClient.Souls
+	if souls and souls.Max and souls.Max > 0 then
+		local pill = Kit.Panel({ Name = "Souls", Size = UDim2.fromOffset(66, 26), LayoutOrder = 99, Radius = 13, Parent = self.ItemRow })
+		local stroke = pill:FindFirstChildOfClass("UIStroke") :: UIStroke
+		stroke.Color = Color3.fromRGB(170, 220, 255)
+		Kit.Label({ Text = string.format("◆ %d/%d", souls.Count or 0, souls.Max), Size = UDim2.new(1, -8, 1, -8), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Font = F.Bold, MaxTextSize = 12, TextColor3 = Color3.fromRGB(170, 220, 255), Parent = pill })
+	end
 end
 
--- you picked up a relic: its card for a few seconds
-function HudController:RelicGained(p)
-	local def = RelicData.ByKey[p.Key]
+-- your synergies: small pills with their names
+function HudController:SetSynergies(keys: { string })
+	Widgets.Clear(self.SynergyRow)
+	for i, key in keys do
+		local syn = SynergyData.ByKey[key]
+		if syn then
+			local pill = Kit.New("Frame", {
+				Name = key,
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, 18),
+				BackgroundColor3 = C.Surface,
+				BackgroundTransparency = Theme.Glass,
+				LayoutOrder = i,
+				Parent = self.SynergyRow,
+			})
+			Kit.Corner(pill, 9)
+			Kit.Stroke(pill, 1.5, C.Mythic, 0.25)
+			Kit.Padding(pill, 8, 0)
+			Kit.New("TextLabel", {
+				Text = syn.Name,
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromScale(0, 1),
+				BackgroundTransparency = 1,
+				Font = F.Bold,
+				TextSize = 11,
+				TextColor3 = C.Mythic,
+				Parent = pill,
+			})
+		end
+	end
+end
+
+-- ITEM ACQUIRED / ITEM LEVEL UP (old -> new level) and the mechanic it unlocked
+function HudController:ItemGained(p)
+	local def = ItemData.ByKey[p.Key]
 	if not def then
 		return
 	end
@@ -560,18 +694,56 @@ function HudController:RelicGained(p)
 		return
 	end
 	local color = Rarity.Colors[def.Rarity] or C.Text
-	Widgets.Clear(self.RelicCardIcon)
-	Icons.Make(self.RelicCardIcon, "Relic", def.Key, 46)
-	self.RelicCardTag.Text = string.upper(def.Rarity) .. " RELIC" .. (if (p.Stacks or 1) > 1 then "  ·  x" .. p.Stacks else "")
-	self.RelicCardTag.TextColor3 = color
-	self.RelicCardName.Text = def.Name
-	self.RelicCardDesc.Text = def.Desc
-	self.RelicCardStroke.Color = color
-	self.RelicCardStroke.Transparency = 0.1
-	self.RelicCard.Visible = true
-	Kit.Appear(self.RelicCard)
-	self.RelicCardUntil = os.clock() + 3.6
+	local level = p.Level or 1
+	local old = p.Old or (level - 1)
+	Widgets.Clear(self.ItemCardIcon)
+	Icons.Make(self.ItemCardIcon, "Item", def.Key, 52)
+	local tag = string.upper(def.Rarity) .. (if def.Type == "BossRelic" then " BOSS RELIC" elseif def.Type == "Premium" then " PREMIUM ITEM" else " ITEM")
+	if old <= 0 then
+		self.ItemCardTag.Text = "ITEM ACQUIRED  ·  " .. tag
+	else
+		self.ItemCardTag.Text = string.format("ITEM LEVEL UP  %s → %s  ·  %s", ROMAN[old] or tostring(old), ROMAN[level] or tostring(level), tag)
+	end
+	self.ItemCardTag.TextColor3 = color
+	self.ItemCardName.Text = def.Name .. "  " .. (ROMAN[level] or tostring(level)) .. (if level >= def.MaxLevel then "  (MAX)" else "")
+	local at = ItemData.At(def.Key, level)
+	self.ItemCardDesc.Text = if old <= 0 then def.Desc .. (if at then "  " .. at.Desc else "") else (if at then at.Desc else def.Desc)
+	self.ItemCardNew.Text = if p.New then "NEW: " .. p.New else ""
+	self.ItemCardNew.Visible = p.New ~= nil
+	self.ItemCardStroke.Color = color
+	self.ItemCardStroke.Transparency = 0.1
+	self.ItemCard.Visible = true
+	Kit.Appear(self.ItemCard)
+	self.ItemCardUntil = os.clock() + (if p.New then 4.6 else 3.6)
 	self.C.EffectsController:Flash(color, 0.12)
+end
+
+function HudController:SynergyOn(_p)
+	self:SetSynergies(self.C.RunClient.Synergies)
+	Kit.Pop(self.SynergyRow, 0.2)
+end
+
+-- a short word from the build under the synergies
+function HudController:PerkPop(p)
+	self.PerkLabel.Text = p.Text or ""
+	self.PerkLabel.Visible = true
+	Kit.Pop(self.PerkLabel, 0.2)
+	self.PerkUntil = os.clock() + math.max(1.6, math.min(p.Duration or 0, 4))
+end
+
+function HudController:SetSouls(_souls, lost: boolean?)
+	self:SetItems(self.C.RunClient.Items)
+	if lost then
+		self.C.BannerController:Toast("THE SOULS SAVED YOU", "Reward")
+	end
+end
+
+function HudController:SetPlating(plating)
+	local bar = self.PlatingBar
+	bar.Frame.Visible = plating ~= nil
+	if plating then
+		bar:Set(plating.HP / math.max(1, plating.Max))
+	end
 end
 
 function HudController:SetDash(dash)
@@ -667,9 +839,12 @@ function HudController:Show()
 	self.FragmentToast.Position = UDim2.new(1, -(mapSize + 12), 0, Minimap.Top + 2)
 	-- the dash button sits above the abilities (the stick keeps the left side on phones)
 	self.DashButton.Position = UDim2.new(1, 0, 1, -(SLOT + if touch then 76 else 56))
-	self.RelicCard.Visible = false
+	self.ItemCard.Visible = false
+	self.PerkLabel.Visible = false
 	self:SetDash(nil)
-	Widgets.Clear(self.RelicRow)
+	self:SetPlating(nil)
+	Widgets.Clear(self.ItemRow)
+	Widgets.Clear(self.SynergyRow)
 	table.clear(self.Last)
 end
 
@@ -756,7 +931,8 @@ function HudController:SetLoadout(loadout)
 		weaponSlot(self.WeaponRow, i, nil, 0, 1, false)
 	end
 	self.EvoPill.Visible = next(ready) ~= nil
-	self:SetRelics(loadout.Relics or {})
+	self:SetItems(loadout.Items or {})
+	self:SetSynergies(loadout.Synergies or {})
 	-- the full build (weapons + passives + rares) is shown in the pause menu only
 	Widgets.Clear(self.BuildGrid)
 	local order = 0
@@ -770,9 +946,9 @@ function HudController:SetLoadout(loadout)
 			Icons.Make(self.BuildGrid, "Stat", p.Key, 32, { LayoutOrder = order })
 		end
 	end
-	for _, r in loadout.Relics or {} do
+	for _, it in loadout.Items or {} do
 		order += 1
-		Icons.Make(self.BuildGrid, "Relic", r.Key, 32, { LayoutOrder = order })
+		Icons.Make(self.BuildGrid, "Item", it.Key, 32, { LayoutOrder = order })
 	end
 	Kit.Pop(self.WeaponRow, 0.05)
 end
@@ -909,9 +1085,13 @@ function HudController:Update()
 	end
 	-- 67 TOWN
 	self:UpdateZone(now)
-	if self.RelicCardUntil and now >= self.RelicCardUntil then
-		self.RelicCardUntil = nil
-		self.RelicCard.Visible = false
+	if self.ItemCardUntil and now >= self.ItemCardUntil then
+		self.ItemCardUntil = nil
+		self.ItemCard.Visible = false
+	end
+	if self.PerkUntil and now >= self.PerkUntil then
+		self.PerkUntil = nil
+		self.PerkLabel.Visible = false
 	end
 	local dash = run.Dash
 	if dash and self.DashButton.Visible then

@@ -34,6 +34,7 @@ Net.ClientToServer = {
 	"UnlockHero", -- (key) fragments
 	"SelectHero", -- (key)
 	"UnlockWeapon", -- (key) fragments
+	"UnlockItem", -- (itemKey) premium item / boss relic for CHIPS
 	"SetStartWeapon", -- (key | "")
 	"SelectLoadout", -- (index)
 	"BuyCosmetic", -- (id)

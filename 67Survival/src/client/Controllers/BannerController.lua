@@ -6,7 +6,11 @@
 	  Event67                   the 67 EVENT sequence: screen dims, "6"... "7"... camera
 	                            punch, "67", then the event's name (67 LUCK, 67 MODE...)
 	  Secret                    golden banner
-	  MiniBoss                  "⚠ MINI-BOSS" -> "<NAME> APPEARED" + the zone (67 TOWN)
+	  MiniBoss                  a boss of the timeline is announced: "⚠ BOSS 2" -> "CARTZILLA
+	                            IN 10" + the zone + what it tests; THE FINAL ONE: "WARNING" ->
+	                            "THE FINAL ONE · THE 67 ARENA"
+	  Synergy                   "SYNERGY: BULLET HELL" + what it does
+	  Elite                     a toast: "ELITE HUSK · SWIFT, VOLATILE"
 	  Toasts (Notify remote)    small stacked messages: achievements, unlocks, rewards, errors
 	  Invite (Party remote)     a party invite with JOIN / NO (expires by itself)
 ]]
@@ -32,7 +36,7 @@ function BannerController:Init(controllers)
 		Name = "Banner",
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		Size = UDim2.new(1, 0, 0, 100),
-		Position = UDim2.new(0.5, 0, 0.3, 0),
+		Position = UDim2.new(0.5, 0, 0.34, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BorderSizePixel = 0,
 		Visible = false,
@@ -123,7 +127,7 @@ function BannerController:PlaceToasts()
 	self.ToastWidth = if inRun then 400 else 330 -- narrower in the hub: clear of the logo
 	if inRun then
 		-- (over the results panel: at the very top, above its title)
-		self.Toasts.Position = UDim2.new(0.5, 0, 0, if results then 6 else 116) -- under the zone chip
+		self.Toasts.Position = UDim2.new(0.5, 0, 0, if results then 6 else 134) -- under the zone chip and the boss line
 		self.Toasts.AnchorPoint = Vector2.new(0.5, 0)
 		self.ToastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	else
@@ -292,13 +296,38 @@ function BannerController:Event67(p)
 	end)
 end
 
--- "⚠ MINI-BOSS APPEARED": a short flash of the warning, then who and where (and how to beat it)
+-- a boss of the timeline is announced: a short flash of the warning, then who, where, what it
+-- tests (and a few seconds later it spawns). THE FINAL ONE gets the full WARNING.
 function BannerController:MiniBoss(p)
+	local delay = math.max(0, math.floor((p.Delay or 0) + 0.5))
+	if p.Main then
+		self:BossWarning(p.Title, p.Delay or 10, true)
+		task.delay(3.6, function()
+			self:Show(p.Title .. " IN " .. delay, "THE 67 ARENA · the centre of the map · tests " .. tostring(p.Tests or "everything"), "Boss")
+		end)
+		return
+	end
 	self.C.SoundController:Play("MiniBoss")
-	self.C.EffectsController:Flash(Color3.fromRGB(255, 110, 60), 0.18)
-	self:GiantText("⚠ MINI-BOSS", Color3.fromRGB(255, 120, 70), 0.8)
+	self.C.EffectsController:Flash(Color3.fromRGB(255, 110, 60), 0.22)
+	self.C.CameraController:Shake(0.8)
+	local crown = if p.Crowned then "👑 " else ""
+	self:GiantText("⚠ BOSS " .. tostring(p.Slot or ""), Color3.fromRGB(255, 120, 70), 0.9)
 	local where = if p.ZoneName then p.ZoneName else "somewhere"
-	self:Show(p.Title .. " APPEARED", where .. " · follow the ⚠ arrow", "MiniBoss")
+	local title = crown .. p.Title .. (if delay > 0 then " IN " .. delay else " APPEARED")
+	self:Show(title, where .. " · follow the arrow · tests " .. tostring(p.Tests or "you"), "MiniBoss")
+end
+
+-- a synergy switched on
+function BannerController:Synergy(p)
+	self.C.EffectsController:Flash(C.Mythic, 0.25)
+	self:Show("SYNERGY: " .. tostring(p.Name), p.Desc, "Evolution")
+end
+
+-- an elite appeared: a toast (the arrow and the minimap show where)
+function BannerController:Elite(p)
+	self.C.SoundController:Play("Rare", 0.8, 0.6)
+	local affixes = table.concat(p.Affixes or {}, ", ")
+	self:Toast(tostring(p.Name), "Error", if affixes ~= "" then affixes .. " · rare loot" else "rare loot")
 end
 
 function BannerController:Secret(p)

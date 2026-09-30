@@ -274,6 +274,8 @@ function EffectsController:DamageNumber(e, damage: number, flags: number)
 	end
 	local crit = bit32.band(flags, 1) ~= 0
 	local six7 = bit32.band(flags, 2) ~= 0
+	local weak = bit32.band(flags, 16) ~= 0 -- a boss's open weak point
+	local big = bit32.band(flags, 32) ~= 0 -- a special strike (triple, crowned, 67 FRAGMENT)
 	-- when the screen is full, small hits are skipped (big ones still show)
 	if #self.NumberFree == 0 and damage < 50 and not crit then
 		return
@@ -282,12 +284,17 @@ function EffectsController:DamageNumber(e, damage: number, flags: number)
 	local pos = run:World(e.RX or e.X1, e.RZ or e.Z1, (e.Item and e.Item.Info.Height or 2) * 2 + 0.5)
 	local color = rgb(255, 255, 255)
 	local size = 1
-	if crit and six7 then
+	if big then
+		color, size = rgb(255, 90, 60), 1.9
+	elseif crit and six7 then
 		color, size = rgb(255, 215, 40), 1.6
 	elseif crit then
 		color, size = rgb(255, 240, 80), 1.4
 	elseif six7 then
 		color = rgb(255, 150, 230)
+	end
+	if weak then
+		color, size = rgb(255, 150, 40), size * 1.25
 	end
 	if damage >= 1000 then
 		size *= 1.3
@@ -476,6 +483,19 @@ function EffectsController:BossArrive(e)
 	self.C.SoundController:Play("BossSpawn")
 	self:Ring(pos - Vector3.new(0, 2.5, 0), 40, rgb(255, 40, 60), 0.9)
 	self:Emit("Smoke", pos, rgb(60, 50, 70), 30)
+end
+
+-- a boss's WEAK POINT opened: say it over its head
+function EffectsController:Exposed(p)
+	local run = self.C.RunClient
+	local e = run.Enemies[p.Id]
+	if not e then
+		return
+	end
+	local pos = run:World(e.RX or e.X1, e.RZ or e.Z1, (e.Item and e.Item.Info.Height or 4) * 2 + 3)
+	self:WorldText(pos, (p.Text or "WEAK POINT") .. "!", rgb(255, 170, 40), 1.8, 1.2)
+	self:Ring(run:World(e.RX or e.X1, e.RZ or e.Z1, 0.2), (e.Def.Radius or 4) * 2.2, rgb(255, 170, 40), 0.5)
+	self.C.SoundController:Play("Rare", 1.3, 0.6)
 end
 
 function EffectsController:BossDefeated(p)

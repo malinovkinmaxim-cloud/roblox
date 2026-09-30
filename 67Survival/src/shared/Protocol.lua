@@ -54,14 +54,15 @@ local RECORDS = {
 	{ "ZoneEnd", { "u16" } }, -- zone gone
 	{ "Clone", { "q", "q", "s" } }, -- decoy clone: x, z, duration
 	{ "Burn", { "u16", "s" } }, -- enemy id starts burning for n seconds (visual)
-	-- 67 TOWN: mini-bosses, relic loot, zones (Sim/ArenaDirector, Sim/MiniBosses, Sim/Relics)
-	{ "MiniHP", { "u16", "u16", "u8" } }, -- mini-boss id, hp fraction (0..65535), flags (Protocol.MiniFlags)
-	{ "LootSpawn", { "u16", "u8", "q", "q" } }, -- relic loot id, relic id (shared/RelicData), x, z
+	-- 67 TOWN: bosses, elites, item loot, vaults (Sim/MiniBosses, Sim/Elites, Sim/Items)
+	{ "MiniHP", { "u16", "u16", "u8" } }, -- boss / elite id, hp fraction (0..65535), flags (Protocol.MiniFlags)
+	{ "LootSpawn", { "u16", "u8", "q", "q" } }, -- loot id, item id (shared/ItemData; 255 = a SOUL), x, z
 	{ "LootTake", { "u16" } }, -- picked up
 	{ "LootGone", { "u16" } }, -- removed without a pickup
-	{ "Threat", { "u8", "u8" } }, -- zone index, threat percent (0..100)
 	{ "Vault", { "u8", "u8", "u8" } }, -- vault index, state (Protocol.VaultState), capture percent
 	{ "Dash", { "u8", "u8", "s" } }, -- dash charges, max charges, seconds to the next charge
+	{ "Plating", { "u16", "u16" } }, -- plating shield: current, max
+	{ "Shadow", { "q", "q", "u8" } }, -- SECOND SHADOW: x, z, shown (0/1)
 }
 
 Protocol.Records = {} :: { [string]: { Id: number, Fields: { string } } }
@@ -78,7 +79,7 @@ Protocol.Flags = {
 	Boss = 8,
 	Elite = 16,
 	Giant = 32, -- 67 MODE: GIANT
-	Champion = 64, -- a mini-boss of 67 TOWN
+	Champion = 64, -- a boss of 67 TOWN with a name plate
 	Paused = 1, -- State flags
 	Dead = 2,
 	Event67 = 4, -- a 67 event is running
@@ -95,14 +96,18 @@ Protocol.EState = {
 	Phased = 4, -- Ghost: faded out, can't hurt or be hurt
 	Dormant = 5, -- Mimic: still pretending to be a loot box
 	Lit = 6, -- Bomber: fuse is burning
+	Stunned = 7, -- stunned by an ability or an item (stars)
 }
 
--- mini-boss flags (MiniHP record)
+-- boss / elite flags (MiniHP record)
 Protocol.MiniFlags = {
 	Shielded = 1, -- can't be hurt (JACKPOT JIMMY's tilt)
 	Stunned = 2, -- JACKPOT! (takes more damage)
-	Enraged = 4,
+	Enraged = 4, -- phase 2+
 	Home = 8, -- walking home to heal
+	Exposed = 16, -- its WEAK POINT is open: hit it now
+	Crowned = 32, -- 67 BOSS: tougher, double loot
+	Marked = 64, -- a DEATH MARK is on it
 }
 
 -- 67 VAULT states (Vault record)
@@ -118,6 +123,8 @@ Protocol.HitFlags = {
 	Six = 2, -- the 67% passive
 	Burn = 4,
 	Execute = 8,
+	Weak = 16, -- hit a boss's open WEAK POINT
+	Big = 32, -- a special strike (triple, crowned, 67 FRAGMENT)
 }
 
 -- pickup kinds (ItemSpawn kind = index)
@@ -157,9 +164,43 @@ Protocol.Fx = {
 	RelicTake = 34, -- a relic picked up (p2 = relic id)
 	TwinRevive = 35, -- SIX or SEVEN came back
 	Alarm = 36, -- TICK TOCK's alarm: it escapes
-	Zap = 37, -- a Static Sock zap from (x, z) along angle for p1 studs
+	Zap = 37, -- a zap from (x, z) along angle for p1 studs
 	TimeStop = 38, -- the Pocket Watch (p1 = radius)
+	-- the build (Sim/Perks.lua): p1 = radius unless noted
+	Synergy = 39, -- a synergy switched on
+	Crowned = 40, -- a crowned / 67 FRAGMENT strike
+	Stomp = 41, -- Giant's Toe
+	Strike = 42, -- a lightning strike (STORM FRONT)
+	MarkBlast = 43, -- a DEATH MARK exploded
+	Nova = 44, -- a blast around you (shockwaves, panic, marathon...)
+	Pact = 45, -- Twin Pact passes a kill on (angle, p1 = length)
+	Shatter = 46, -- DEEP FREEZE
+	Dodge = 47,
+	Guard = 48, -- the Fang's guard blocked a hit
+	Panic = 49,
+	Fracture = 50, -- TIME FRACTURE (p2 = duration)
+	Ram = 51, -- Cart Wheel dash (angle, p1 = length, p2 = width)
+	Pulse = 52, -- Magnetic Bolt pulse
+	Reel = 53, -- Lucky Lever: no jackpot
+	Flop = 54, -- Quack Core belly-flop
+	Servo = 55, -- Servo Laser (angle, p1 = length, p2 = width)
+	Troops = 56, -- Overlord's Banner
+	Marked = 57, -- a DEATH MARK was placed
+	Whoopee = 58,
+	ShadowIn = 59, -- the SECOND SHADOW appears
+	Soul = 60, -- a soul taken
+	Mirror = 61, -- the Void Mirror reflected a shot
+	-- bosses and elites
+	Phase = 62, -- a boss entered its next phase
+	Exposed = 63, -- a boss's weak point opened
+	Seal = 64, -- the 67 ARENA was sealed (p1 = radius)
+	EliteSpawn = 65, -- an elite appeared (p1 = radius)
+	EliteBlast = 66, -- a VOLATILE elite blew up
+	Pull = 67, -- THE FINAL ONE pulls you into its arena
 }
+
+-- Zone record "weapon id" for the build's own pools (Sim/Perks.lua)
+Protocol.ZoneStyle = { Puddle = 250, Void = 251, Cloud = 252, Spill = 253, Gravity = 254 }
 
 --[[
 	Telegraph shapes (Telegraph record):

@@ -1,18 +1,25 @@
 --[[
-	MiniBosses - the MINI-BOSSES of 67 TOWN: their encounters (warn -> fight -> defeated / left),
-	their lair behaviour and their fights. Who and when: shared/MiniBossData.lua and the run
-	director (Sim/ArenaDirector.lua).
+	MiniBosses - the BOSS ENCOUNTERS of a run. One system for every boss (who and when:
+	shared/BossData.lua, the timeline: Sim/BossDirector.lua):
+	  boss 1-4      in the lair of their zone ("mini-bosses" in the code)
+	  THE FINAL ONE in the 67 ARENA in the centre of the map
 
-	An ENCOUNTER is one mini-boss event (the twins are one encounter with two bodies):
-	  Warn   the lair lights up, "MINI-BOSS APPEARED" (WarnTime seconds)
-	  Fight  the bodies are in the world; they guard their lair
-	  done   Defeated (relics, XP, coins) / Left (never fought) / Escaped (TICK TOCK's alarm)
+	An ENCOUNTER is one boss (the twins are one encounter with two bodies):
+	  Warn    announced BossData.WarnLead seconds early: the lair lights up, a marker on the
+	          minimap, an arrow, "BOSS 2 · CARTZILLA in 10"
+	  Fight   the bodies are in the world. Lair bosses guard their lair: they come for you when
+	          you are close (Aggro), never stray further than Leash, walk home and heal when you
+	          run away (Reset). THE FINAL ONE waits in the arena; walking in SEALS it (nobody
+	          leaves, the horde stays out); if you never come it pulls you in (Main.PullAfter).
+	  done    Defeated (items on the map, its boss relic if unlocked, XP, coins) / Left (it was
+	          never fought and the next boss was announced) / Escaped (TICK TOCK's alarm)
 
-	Lair behaviour: a mini-boss comes for you when you are close (Aggro), never strays further
-	than Leash from its lair, walks home and heals when you run away (Reset).
+	PHASES (BossData Phases): HP thresholds, each announced, faster attacks (e.Rate), more
+	patterns. WEAK POINTS (BossData WeakPoint): after one of its attacks a boss is EXPOSED for a
+	moment and takes more damage (Sim/Perks.ExposedMult). Every attack is telegraphed on the
+	ground (Bosses.Telegraph) so it can be dodged.
 
-	Every attack is telegraphed on the ground (Bosses.Telegraph) so it can be dodged.
-	Called by EnemyManager (Behavior "Champion") and ArenaDirector, which pass EnemyManager in.
+	Called by EnemyManager (Behavior "Champion" / "Boss" with an encounter) and BossDirector.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,11 +28,12 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local GameConfig = require(Shared.GameConfig)
 local Protocol = require(Shared.Protocol)
 local ArenaData = require(Shared.ArenaData)
-local MiniBossData = require(Shared.MiniBossData)
+local BossData = require(Shared.BossData)
+local ItemData = require(Shared.ItemData)
 
 local Bosses = require(script.Parent.Bosses)
 local Pickups = require(script.Parent.Pickups)
-local Relics = require(script.Parent.Relics)
+local Items = require(script.Parent.Items)
 
 local MiniBosses = {}
 
@@ -35,8 +43,8 @@ local GFX = Protocol.Fx
 local ES = Protocol.EState
 local SHAPE = Protocol.Shapes
 local MF = Protocol.MiniFlags
-local LAIR = MiniBossData.Lair
-local DIRECTOR = MiniBossData.Director
+local LAIR = BossData.Lair
+local MAIN = BossData.Main
 local PLAYER_R = GameConfig.Player.Radius
 local telegraph = Bosses.Telegraph
 
@@ -55,7 +63,9 @@ end
 -- encounters
 ---------------------------------------------------------------------------
 export type Encounter = {
-	Def: any,
+	Def: any, -- BossData entry
+	Slot: number, -- 1..4, 5 = THE FINAL ONE
+	Main: boolean,
 	X: number,
 	Z: number,
 	Zone: string,
@@ -63,21 +73,23 @@ export type Encounter = {
 	Stage: string,
 	At: number,
 	Bodies: { any },
-	Reason: string,
 	SpawnedAt: number,
 	LastEngaged: number,
+	Engaged: boolean,
 	AlarmAt: number?,
 	Revive: any?,
 	LastX: number,
 	LastZ: number,
 	Done: boolean?,
+	Crowned: boolean?,
+	Fragments: number,
 }
 
 function MiniBosses.Active(run): { Encounter }
 	return run.Map.Encounters
 end
 
--- is this mini-boss (by MiniBossData key) out right now?
+-- is this boss (BossData key) out right now?
 function MiniBosses.IsOut(run, key: string): boolean
 	for _, enc in run.Map.Encounters do
 		if enc.Def.Key == key then
@@ -87,37 +99,56 @@ function MiniBosses.IsOut(run, key: string): boolean
 	return false
 end
 
--- "MINI-BOSS APPEARED": the encounter starts with a warning at its lair / spot
-function MiniBosses.Summon(run, def, x: number, z: number, lair, reason: string): Encounter
+-- a boss is being fought right now (the horde thins out, 67 events wait)
+function MiniBosses.Fighting(run): boolean
+	for _, enc in run.Map.Encounters do
+		if enc.Stage == "Fight" and run.Time - enc.LastEngaged < 3 then
+			return true
+		end
+	end
+	return false
+end
+
+-- "BOSS 1 · THE BIG QUACK": the encounter is announced at its lair / the arena
+function MiniBosses.Announce(run, def, slot: number, x: number, z: number, lair, spawnAt: number, crowned: boolean?): Encounter
+	local main = slot == 5
 	local zone = ArenaData.ZoneAt(x, z)
 	local enc: Encounter = {
 		Def = def,
+		Slot = slot,
+		Main = main,
 		X = x,
 		Z = z,
 		Zone = zone.Key,
 		Lair = lair,
 		Stage = "Warn",
-		At = run.Time + DIRECTOR.WarnTime,
+		At = spawnAt,
 		Bodies = {},
-		Reason = reason,
 		SpawnedAt = run.Time,
 		LastEngaged = run.Time,
+		Engaged = false,
 		LastX = x,
 		LastZ = z,
+		Crowned = crowned == true,
+		Fragments = 0,
 	}
 	table.insert(run.Map.Encounters, enc)
 	run:Write("Fx", 0, x, z, 0, if lair then lair.R else 12, 0, GFX.MiniSpawn)
+	local slotDef = BossData.Slots[slot]
 	run:Event("MiniBoss", {
 		Phase = "Warn",
 		Key = def.Key,
 		Title = def.Title,
+		Slot = slot,
+		Main = main,
 		Zone = zone.Key,
-		ZoneName = zone.Name,
+		ZoneName = if main then "THE 67 ARENA" else zone.Name,
 		X = x,
 		Z = z,
-		Delay = DIRECTOR.WarnTime,
+		Delay = max(0, spawnAt - run.Time),
 		Hint = def.Hint,
-		Reason = reason,
+		Tests = if main then MAIN.Tests else slotDef and slotDef.Tests,
+		Crowned = enc.Crowned,
 	})
 	return enc
 end
@@ -132,14 +163,30 @@ local function bodyIds(enc: Encounter): { number }
 	return ids
 end
 
+-- HP of one body: the design value at its slot, the tier's BossHP, a strong build meets more
+function MiniBosses.BodyHP(run, def, slot: number, crowned: boolean?): number
+	local expected = if slot == 5 then MAIN.Level else BossData.Slots[slot].Level
+	local level = 1 + max(0, run.Level - expected) * (if slot == 5 then 0.03 else 0.02)
+	local diff = if run.Diff then run.Diff.BossHP else 1
+	return def.HP * diff * level * (if crowned then 1.3 else 1)
+end
+
+-- the damage multiplier of a boss (shared/BossData.lua Slots / Main Damage)
+local function bossDamage(enc: Encounter): number
+	return (if enc.Main then MAIN.Damage else BossData.Slots[enc.Slot].Damage) * (if enc.Crowned then 1.15 else 1)
+end
+
 local function spawnBodies(run, enc: Encounter, EM)
-	for i, key in enc.Def.Bodies do
+	local def = enc.Def
+	local hp = MiniBosses.BodyHP(run, def, enc.Slot, enc.Crowned)
+	local damage = bossDamage(enc)
+	for i, key in def.Bodies do
 		local x, z = enc.X, enc.Z
 		local pads = enc.Lair and enc.Lair.Pads
 		if pads and pads[i] then
 			x, z = pads[i][1], pads[i][2]
 		end
-		local e = EM.Spawn(run, key, x, z, { Force = true, Encounter = enc, HomeX = x, HomeZ = z })
+		local e = EM.Spawn(run, key, x, z, { Force = true, Encounter = enc, HomeX = x, HomeZ = z, BossHP = hp, BossDamage = damage })
 		if e then
 			table.insert(enc.Bodies, e)
 			run:Write("Fx", 0, x, z, 0, e.Radius * 3, 0, GFX.MiniSpawn)
@@ -148,21 +195,19 @@ local function spawnBodies(run, enc: Encounter, EM)
 	enc.Stage = "Fight"
 	enc.SpawnedAt = run.Time
 	enc.LastEngaged = run.Time
-	local timer = nil
-	if enc.Def.Key == "TickTock" and enc.Bodies[1] then
-		timer = enc.Bodies[1].Def.Params.Timer
-		enc.AlarmAt = run.Time + timer
-	end
 	run:Event("MiniBoss", {
 		Phase = "Spawn",
-		Key = enc.Def.Key,
-		Title = enc.Def.Title,
+		Key = def.Key,
+		Title = def.Title,
+		Slot = enc.Slot,
+		Main = enc.Main,
 		Zone = enc.Zone,
 		Ids = bodyIds(enc),
 		X = enc.X,
 		Z = enc.Z,
-		Timer = timer,
-		Hint = enc.Def.Hint,
+		Timer = def.Timer,
+		Hint = def.Hint,
+		Crowned = enc.Crowned,
 	})
 end
 
@@ -194,34 +239,57 @@ local function despawnAll(run, enc: Encounter, EM)
 	end
 end
 
--- the rarity tier of an encounter's loot: its own, or the zone's when that is better
-local function lootTier(enc: Encounter): number
-	return max(enc.Def.Tier, ArenaData.ByKey[enc.Zone].LootTier)
-end
-
-local function reward(run, enc: Encounter)
+-- the loot of a beaten boss: items on the map (better for every slot), its relic, XP, coins
+local function reward(run, enc: Encounter, EM)
 	local def = enc.Def
 	local x, z = enc.LastX, enc.LastZ
 	local rng = run.Rng
-	-- relics: the reason to hunt them
-	for i = 1, def.Relics do
-		local key = Relics.Roll(run, lootTier(enc))
-		if key then
-			local a = (i - 1) * 2.4 + 0.6
-			local r = if def.Relics > 1 then 3.5 else 0
-			Relics.Drop(run, key, x + cos(a) * r, z + sin(a) * r)
+	if not enc.Main then
+		-- items (a crowned boss drops twice as many)
+		local source = "Boss" .. enc.Slot
+		local count = if enc.Crowned then 2 else nil
+		if count then
+			Items.DropFrom(run, source, x, z, (if enc.Slot == 4 then 2 else 1) * count)
+		else
+			Items.DropFrom(run, source, x, z)
+		end
+		-- its boss relic (unlocked with CHIPS), a hint when it is still locked
+		if not Items.DropRelic(run, def.Key, x - 4, z) then
+			local relic = ItemData.ByBoss[def.Key]
+			if relic and not run.ItemUnlocks[relic.Key] then
+				run:Event("LockedRelic", { Key = relic.Key, Name = relic.Name, Boss = def.Title, Price = relic.Price })
+			end
 		end
 	end
 	-- a burst of XP (grows with the run: XP needs grow too)
-	local xp = def.XP * (1 + run.Time / 120)
-	for k = 1, 6 do
-		local a = k * (TAU / 6) + rng:NextNumber(-0.3, 0.3)
-		local r = rng:NextNumber(4, 7)
-		Pickups.SpawnGem(run, x + cos(a) * r, z + sin(a) * r, xp / 6)
+	local trophy = run.UP and run.UP.TrophyHunter
+	local xp = def.XP * (1 + run.Time / 120) * (1 + (if trophy then trophy.XP else 0))
+	if xp > 0 then
+		for k = 1, 8 do
+			local a = k * (TAU / 8) + rng:NextNumber(-0.3, 0.3)
+			local r = rng:NextNumber(4, 7)
+			Pickups.SpawnGem(run, x + cos(a) * r, z + sin(a) * r, xp / 8)
+		end
+	end
+	if trophy and trophy.Level then
+		run.PendingChests += 1
 	end
 	run:AddCoins(def.Coins)
-	if rng:NextNumber() < 0.6 then
+	if not enc.Main then -- a boss always leaves a snack: the fight costs HP
 		Pickups.SpawnItem(run, "Snack", x + rng:NextNumber(-3, 3), z + rng:NextNumber(-3, 3))
+	end
+	for k = 1, GameConfig.Rewards.FragmentsPerBoss + (run.LiveEvent.BossFragments or 0) do
+		local a = k * 2.4
+		Pickups.SpawnItem(run, "Fragment", x + cos(a) * 3, z + sin(a) * 3)
+	end
+	-- a boss kill clears some pressure
+	local n = 0
+	for _, other in table.clone(run.Enemies) do
+		local dx, dz = other.X - x, other.Z - z
+		if not other.IsBoss and other.Key ~= "Crate" and dx * dx + dz * dz < 30 * 30 and n < 40 then
+			n += 1
+			EM.Damage(run, other, other.HP + 1, 0, dx, dz, 8)
+		end
 	end
 end
 
@@ -233,31 +301,88 @@ local function finish(run, enc: Encounter, outcome: string, EM)
 	enc.Done = true
 	remove(run, enc)
 	local def = enc.Def
-	run.Map.Rest[def.Key] = run.Time + def.Cooldown
+	if run.Map.ArenaSealed and enc.Main then
+		run.Map.ArenaSealed = nil
+		run:Event("Arena", { Sealed = false })
+	end
+	if enc.Main then
+		run.Map.MainOut = nil
+	end
 	if outcome == "Defeated" then
-		reward(run, enc)
-		run.Result.MiniBosses = (run.Result.MiniBosses or 0) + 1
-		local sub = "Loot dropped. Grab the relic!"
-		if def.Key == "TickTock" then
+		reward(run, enc, EM)
+		run.Result.BossesBeaten = (run.Result.BossesBeaten or 0) + 1
+		run.Result.BossSlots = run.Result.BossSlots or {}
+		table.insert(run.Result.BossSlots, enc.Slot)
+		table.insert(run.Result.Bosses, if #def.Bodies == 1 then def.Bodies[1] else def.Key)
+		local sub = "Loot dropped: grab it!"
+		if def.Key == "TickTock" and enc.AlarmAt then
 			local bonus = enc.Bodies[1] and enc.Bodies[1].Def.Params.OnTimeCoins or 0
 			run:AddCoins(bonus)
 			run.Result.Flags.OnTime = true
-			sub = "Right on time! +" .. bonus .. " coins. Grab the relic!"
+			sub = "Right on time! +" .. bonus .. " coins. Grab the loot!"
 		end
-		run:Event("MiniBoss", { Phase = "Defeated", Key = def.Key, Title = def.Title, X = enc.LastX, Z = enc.LastZ })
-		run:Banner(def.Title .. " DEFEATED", sub, "Reward")
+		run:Event("MiniBoss", { Phase = "Defeated", Key = def.Key, Title = def.Title, Slot = enc.Slot, Main = enc.Main, X = enc.LastX, Z = enc.LastZ })
+		run:Event("BossDefeated", { Key = def.Key, Title = def.Title, Final = enc.Main, Slot = enc.Slot })
+		if enc.Main then
+			run.Result.MainBoss = true
+			run.VictoryAt = run.Time + 3.5
+			run.Invulnerable = max(run.Invulnerable, 10) -- nothing can take this win away
+			run:Write("Fx", 0, enc.LastX, enc.LastZ, 0, 40, 0, GFX.Blast67)
+			run:Banner("VICTORY", def.Title .. " has been defeated", "Victory")
+		else
+			run:Banner(def.Title .. " DEFEATED", sub, "Reward")
+		end
 	else
 		despawnAll(run, enc, EM)
-		run:Event("MiniBoss", { Phase = outcome, Key = def.Key, Title = def.Title })
+		run:Event("MiniBoss", { Phase = outcome, Key = def.Key, Title = def.Title, Slot = enc.Slot })
 		if outcome == "Escaped" then
 			run:Banner("THE ALARM RANG", def.Title .. " escaped with its loot.", "Info")
 		else
-			run:Banner(def.Title .. " LEFT", "It got bored of waiting.", "Info")
+			run:Banner(def.Title .. " LEFT", "Nobody came. No loot this time.", "Info")
+		end
+	end
+end
+MiniBosses.Finish = finish
+
+-- the next boss is announced: bosses nobody is fighting leave (with their loot)
+function MiniBosses.LeaveIdle(run, EM)
+	for _, enc in table.clone(run.Map.Encounters) do
+		if not enc.Main and (enc.Stage == "Warn" or run.Time - enc.LastEngaged > 8) then
+			finish(run, enc, "Left", EM)
 		end
 	end
 end
 
--- warn -> spawn, twins reviving, TICK TOCK's alarm, left alone too long
+-- 67 BOSS event: the boss that is out gets a golden crown (tougher, double loot)
+function MiniBosses.Crown(run, enc: Encounter)
+	if enc.Crowned or enc.Main then
+		return
+	end
+	enc.Crowned = true
+	for _, e in enc.Bodies do
+		if e.Alive then
+			e.MaxHP *= 1.3
+			e.HP *= 1.3
+			e.SentHP = -1
+		end
+	end
+	run:Event("MiniBoss", { Phase = "Crowned", Key = enc.Def.Key, Title = enc.Def.Title, Ids = bodyIds(enc) })
+end
+
+-- THE FINAL ONE pulls you into its arena (you never came)
+local function pull(run, enc: Encounter)
+	local a = atan2(run.PZ - enc.Z, run.PX - enc.X)
+	local r = MAIN.ArenaR - 8
+	local x, z = enc.X + cos(a) * r, enc.Z + sin(a) * r
+	run:Write("Fx", 0, run.PX, run.PZ, 0, 6, 0, GFX.Pull)
+	run.PX, run.PZ = x, z
+	run.TeleportTo = { X = x, Z = z }
+	run.Invulnerable = max(run.Invulnerable, 1.5)
+	run:Write("Fx", 0, x, z, 0, 6, 0, GFX.Pull)
+	run:Banner("COME HERE", enc.Def.Title .. " pulled you into the arena", "Boss")
+end
+
+-- warn -> spawn, twins reviving, TICK TOCK's alarm, the arena pull
 function MiniBosses.StepEncounters(run, EM)
 	local now = run.Time
 	for _, enc in table.clone(run.Map.Encounters) do
@@ -270,7 +395,8 @@ function MiniBosses.StepEncounters(run, EM)
 			if revive and now >= revive.At then
 				enc.Revive = nil
 				if anyAlive(enc) then
-					local e = EM.Spawn(run, revive.Key, revive.X, revive.Z, { Force = true, Encounter = enc, HomeX = revive.HomeX, HomeZ = revive.HomeZ })
+					local hp = MiniBosses.BodyHP(run, enc.Def, enc.Slot, enc.Crowned)
+					local e = EM.Spawn(run, revive.Key, revive.X, revive.Z, { Force = true, Encounter = enc, HomeX = revive.HomeX, HomeZ = revive.HomeZ, BossHP = hp, BossDamage = bossDamage(enc) })
 					if e then
 						-- back at half health (the bar shows the half that is missing)
 						e.HP = e.MaxHP * 0.5
@@ -297,11 +423,21 @@ function MiniBosses.StepEncounters(run, EM)
 					end
 				end
 				finish(run, enc, "Escaped", EM)
-			elseif now - enc.LastEngaged > LAIR.LeaveAfter then
-				finish(run, enc, "Left", EM)
+			elseif enc.Main and not run.Map.ArenaSealed and now - enc.SpawnedAt >= MAIN.PullAfter and not MiniBosses.FightingOther(run, enc) then
+				pull(run, enc)
 			end
 		end
 	end
+end
+
+-- another boss than this one is being fought
+function MiniBosses.FightingOther(run, enc: Encounter): boolean
+	for _, other in run.Map.Encounters do
+		if other ~= enc and other.Stage == "Fight" and run.Time - other.LastEngaged < 3 then
+			return true
+		end
+	end
+	return false
 end
 
 -- a body died (EnemyManager.Kill)
@@ -324,6 +460,7 @@ function MiniBosses.OnKilled(run, e, EM)
 				local delay = e.Def.Params.ReviveTime
 				enc.Revive = { Key = e.Key, X = e.X, Z = e.Z, HomeX = e.HomeX, HomeZ = e.HomeZ, At = run.Time + delay }
 				run:Event("MiniBoss", { Phase = "Bond", Key = enc.Def.Key, Id = other.Id, Body = e.Key, Delay = delay })
+				MiniBosses.Expose(run, other, "Bond") -- alone: its weak point
 				return
 			end
 		end
@@ -333,7 +470,7 @@ function MiniBosses.OnKilled(run, e, EM)
 	end
 end
 
--- HP bars over the mini-bosses (only what changed)
+-- HP bars over the bosses (only what changed)
 function MiniBosses.Flush(run)
 	local now = run.Time
 	for _, enc in run.Map.Encounters do
@@ -347,11 +484,20 @@ function MiniBosses.Flush(run)
 				if e.StunnedUntil and e.StunnedUntil > now then
 					flags += MF.Stunned
 				end
-				if e.Enraged then
+				if e.Phase and e.Phase >= 2 then
 					flags += MF.Enraged
 				end
 				if e.GoingHome then
 					flags += MF.Home
+				end
+				if e.ExposedUntil and e.ExposedUntil > now then
+					flags += MF.Exposed
+				end
+				if enc.Crowned then
+					flags += MF.Crowned
+				end
+				if e.DeathMark then
+					flags += MF.Marked
 				end
 				if frac ~= e.SentHP or flags ~= e.SentFlags then
 					e.SentHP, e.SentFlags = frac, flags
@@ -363,20 +509,95 @@ function MiniBosses.Flush(run)
 end
 
 ---------------------------------------------------------------------------
+-- phases and weak points
+---------------------------------------------------------------------------
+-- the boss is EXPOSED after this attack (when it is the one of its weak point)
+function MiniBosses.Expose(run, e, reason: string)
+	local enc = e.Encounter
+	local def = if enc then enc.Def else BossData.ByBody[e.Key]
+	local wp = def and def.WeakPoint
+	if not wp or wp.After ~= reason or not e.Alive then
+		return
+	end
+	local time = wp.Time
+	local belt = run.IP and run.IP.ChampionBelt
+	if belt and belt.Exposed then
+		time *= 1 + belt.Exposed
+	end
+	if run.Synergies and run.Synergies.BossHunter then
+		time += 1
+	end
+	e.ExposedUntil = run.Time + time
+	e.SentFlags = -1
+	run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 1.6, time, GFX.Exposed)
+	run:Event("MiniBoss", { Phase = "Exposed", Key = def.Key, Id = e.Id, Text = wp.Text, Time = time })
+end
+
+-- THE FINAL ONE: what happens when it enters a phase (the 67 FRAGMENT breaks off)
+local function mainPhase(run, e, index: number)
+	local enc = e.Encounter
+	local relic = ItemData.ByBoss[MAIN.Key]
+	if relic and run.ItemUnlocks[relic.Key] and enc and enc.Fragments < relic.MaxLevel then
+		local have = (run.Items[relic.Key] or 0) + enc.Fragments
+		if have < relic.MaxLevel then
+			enc.Fragments += 1
+			local a = run.Rng:NextNumber(0, TAU)
+			local r = MAIN.ArenaR * 0.55
+			Items.Drop(run, relic.Key, enc.X + cos(a) * r, enc.Z + sin(a) * r)
+			run:Banner("THE 67 FRAGMENT BROKE OFF", "It's in the arena. Grab it if you dare.", "Boss")
+		end
+	end
+	local _ = index
+end
+
+function MiniBosses.StepPhase(run, e)
+	local enc = e.Encounter
+	local def = if enc then enc.Def else BossData.ByBody[e.Key]
+	local phases = def and def.Phases
+	if not phases then
+		return
+	end
+	e.Phase = e.Phase or 1 -- a boss body spawned on its own (debug) starts in phase 1
+	local frac = e.HP / max(1, e.MaxHP)
+	while e.Phase <= #phases and frac < phases[e.Phase].At do
+		local ph = phases[e.Phase]
+		e.Phase += 1
+		e.Enraged = true
+		e.Speed *= ph.Speed or 1
+		e.Rate = ph.Rate or e.Rate
+		e.SentFlags = -1
+		if e.Patterns then
+			Bosses.AddPhase(run, e, e.Phase)
+		end
+		run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2.2, 0, GFX.Phase)
+		run:Event("MiniBoss", { Phase = "Phase", Key = def.Key, Id = e.Id, Index = e.Phase, Name = ph.Name, Text = ph.Text, Main = enc and enc.Main })
+		run:Banner(def.Title .. " · " .. ph.Name, ph.Text, if enc and enc.Main then "Boss" else "MiniBoss")
+		if enc and enc.Main then
+			mainPhase(run, e, e.Phase)
+		end
+	end
+end
+
+---------------------------------------------------------------------------
 -- the fights
 ---------------------------------------------------------------------------
 function MiniBosses.Init(run, e, opts)
 	e.Encounter = opts.Encounter
 	e.HomeX = opts.HomeX or e.X
 	e.HomeZ = opts.HomeZ or e.Z
-	e.Timers = {}
-	e.Busy = 0
+	e.Timers = e.Timers or {}
+	e.Busy = e.Busy or 0
 	e.SentHP = -1
 	e.SentFlags = -1
 	e.HandT = 0
 	e.HandA = run.Rng:NextNumber(0, TAU)
 	e.HourA = e.HandA + math.pi
 	e.Ticks = 0
+	e.Phase = 1
+	e.Rate = 1
+	if run.Mods and run.Mods.BossRage then
+		e.Rate = 1.15 -- BOSS RAGE: every boss fights a little faster from the start
+	end
 end
 
 -- a point towards (x, z), but not further than `reach` from the lair
@@ -434,6 +655,7 @@ function AI.BigQuack(run, e, dx, dz, d, dt, EM)
 			state(run, e, ES.Normal)
 			ring(run, e, p.DropCount, p.DropSpeed, p.DropDamage * e.DmgScale, run.Rng:NextNumber(0, TAU), EM)
 			telegraph(run, e, SHAPE.Puddle, e.X, e.Z, 0, p.PuddleRadius, p.PuddleTime, 0.05, 0, nil, p.PuddleSlow)
+			MiniBosses.Expose(run, e, "Flop")
 			if e.Enraged then
 				local a = run.Rng:NextNumber(0, TAU)
 				telegraph(run, e, SHAPE.Puddle, e.X + cos(a) * 11, e.Z + sin(a) * 11, 0, p.PuddleRadius * 0.8, p.PuddleTime, 0.05, 0, nil, p.PuddleSlow)
@@ -444,9 +666,9 @@ function AI.BigQuack(run, e, dx, dz, d, dt, EM)
 	if not e.Engaged then
 		return 0, 0, 0
 	end
-	local rate = if e.Enraged then 1.45 else 1
+	local rate = e.Rate
 	e.Timers.Flop = timer(e, "Flop", p.FlopEvery * 0.35) - dt * rate
-	e.Timers.Duck = timer(e, "Duck", p.DucklingEvery * 0.6) - dt
+	e.Timers.Duck = timer(e, "Duck", p.DucklingEvery * 0.6) - dt * rate
 	if e.Timers.Flop <= 0 then
 		e.Timers.Flop = p.FlopEvery
 		local tx, tz = nearHome(e, run.PX, run.PZ, LAIR.Leash + 8)
@@ -499,6 +721,8 @@ function AI.Cartzilla(run, e, dx, dz, d, dt, _EM)
 			e.DashesLeft -= 1
 			if e.DashesLeft > 0 then
 				e.NextDashAt = now + 0.35
+			else
+				MiniBosses.Expose(run, e, "Charge") -- dizzy after the chain
 			end
 		end
 		return e.DirX, e.DirZ, p.DashSpeed / e.Speed
@@ -524,8 +748,8 @@ function AI.Cartzilla(run, e, dx, dz, d, dt, _EM)
 	if not e.Engaged then
 		return 0, 0, 0
 	end
-	e.Timers.Charge = timer(e, "Charge", p.ChargeEvery * 0.3) - dt
-	e.Timers.Price = timer(e, "Price", p.PriceEvery * 0.7) - dt
+	e.Timers.Charge = timer(e, "Charge", p.ChargeEvery * 0.3) - dt * e.Rate
+	e.Timers.Price = timer(e, "Price", p.PriceEvery * 0.7) - dt * e.Rate
 	if e.Timers.Charge <= 0 then
 		e.Timers.Charge = p.ChargeEvery
 		e.DashesLeft = p.Dashes + (if e.Enraged then 1 else 0)
@@ -586,6 +810,7 @@ local function resolveSpin(run, e, p, result: string, EM)
 		e.StunnedUntil = run.Time + p.StunTime
 		run:Write("Fx", 0, e.X, e.Z, 0, 10, 0, GFX.Jackpot)
 		run:Event("MiniBoss", { Phase = "Jackpot", Key = "JackpotJimmy", Id = e.Id, Time = p.StunTime })
+		MiniBosses.Expose(run, e, "Jackpot")
 	end
 end
 
@@ -614,7 +839,7 @@ end
 function AI.JackpotJimmy(run, e, dx, dz, d, dt, EM)
 	local p = e.Def.Params
 	local now = run.Time
-	if not e.Tilted and e.HP < e.MaxHP * p.ShieldAt then
+	if not e.Tilted and e.Phase >= 2 then
 		tilt(run, e, p, EM)
 	end
 	if e.Shielded then
@@ -645,7 +870,7 @@ function AI.JackpotJimmy(run, e, dx, dz, d, dt, EM)
 	if not e.Engaged then
 		return 0, 0, 0
 	end
-	e.Timers.Spin = timer(e, "Spin", p.SpinEvery * 0.35) - dt * (if e.Shielded then 1.3 else 1)
+	e.Timers.Spin = timer(e, "Spin", p.SpinEvery * 0.35) - dt * (if e.Shielded then 1.3 else 1) * e.Rate
 	if e.Timers.Spin <= 0 and not e.SpinAt then
 		e.Timers.Spin = p.SpinEvery
 		e.SpinResult = spinResult(run, p, e.Shielded == true)
@@ -665,7 +890,7 @@ function AI.Six(run, e, dx, dz, d, dt, EM)
 	if not e.Engaged then
 		return 0, 0, 0
 	end
-	e.Timers.Fan = timer(e, "Fan", p.FanEvery * 0.5) - dt
+	e.Timers.Fan = timer(e, "Fan", p.FanEvery * 0.5) - dt * e.Rate
 	if e.Timers.Fan <= 0 then
 		e.Timers.Fan = p.FanEvery
 		local base = atan2(dz, dx)
@@ -696,7 +921,7 @@ function AI.Seven(run, e, dx, dz, d, dt, _EM)
 	if not e.Engaged then
 		return 0, 0, 0
 	end
-	e.Timers.Mine = timer(e, "Mine", p.MineEvery * 0.4) - dt
+	e.Timers.Mine = timer(e, "Mine", p.MineEvery * 0.4) - dt * e.Rate
 	if e.Timers.Mine <= 0 then
 		e.Timers.Mine = p.MineEvery
 		local fx, fz = run.FX, run.FZ
@@ -720,7 +945,7 @@ end
 function AI.TickTock(run, e, dx, dz, d, dt, _EM)
 	local p = e.Def.Params
 	if d < p.HandLength + 16 then
-		e.HandT -= dt
+		e.HandT -= dt * e.Rate
 		if e.HandT <= 0 then
 			e.HandT = p.HandEvery
 			e.Ticks += 1
@@ -737,10 +962,12 @@ function AI.TickTock(run, e, dx, dz, d, dt, _EM)
 	if not e.Engaged then
 		return 0, 0, 0
 	end
-	e.Timers.Tock = timer(e, "Tock", p.TockEvery * 0.5) - dt
+	e.Timers.Tock = timer(e, "Tock", p.TockEvery * 0.5) - dt * e.Rate
 	if e.Timers.Tock <= 0 then
 		e.Timers.Tock = p.TockEvery
-		telegraph(run, e, SHAPE.Circle, run.PX, run.PZ, 0, p.TockRadius, 0, windup(run, p.TockDelay), p.TockDamage * e.DmgScale, "Slam")
+		local delay = windup(run, p.TockDelay)
+		telegraph(run, e, SHAPE.Circle, run.PX, run.PZ, 0, p.TockRadius, 0, delay, p.TockDamage * e.DmgScale, "Slam")
+		e.PendingExpose = { Reason = "Tock", At = run.Time + delay }
 	end
 	if d < e.Radius + PLAYER_R + 0.5 then
 		return 0, 0, 0
@@ -748,60 +975,78 @@ function AI.TickTock(run, e, dx, dz, d, dt, _EM)
 	return dx / d, dz / d, 0.6
 end
 
+
 MiniBosses.AI = AI
 
--- movement intent for EnemyManager (Behavior "Champion"): dirX, dirZ, speed multiplier
+-- the lair / arena rules around a boss's own fight: movement intent (dirX, dirZ, speed mult)
 function MiniBosses.Step(run, e, dx: number, dz: number, d: number, dt: number, EM): (number, number, number)
-	local p = e.Def.Params
-	-- rage (the attacks come faster)
-	if p.EnrageAt and not e.Enraged and e.HP < e.MaxHP * p.EnrageAt then
-		e.Enraged = true
-		e.Speed *= 1.2
-		run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2, 0, GFX.Enrage)
-		run:Banner(p.Title .. " IS ANGRY", "It's getting serious", "MiniBoss")
-	end
-	-- you ran away: walk home and heal (nothing mid-leap / mid-charge)
-	local hx, hz = e.HomeX, e.HomeZ
-	local pdx, pdz = run.PX - hx, run.PZ - hz
-	local busy = e.Air or e.Dashing or e.DashAt or e.NextDashAt or e.FlopT
-	-- a big boss is coming / here: mini-bosses step back to their lair and wait (no pile-ups)
-	local stage = run.Boss ~= nil or run.Wave.PendingBoss ~= nil
-	if stage and not busy then
-		e.Engaged = false
-		if e.Encounter then
-			e.Encounter.LastEngaged = run.Time -- waiting is not being ignored
-		end
-		local ox, oz = hx - e.X, hz - e.Z
-		local home = sqrt(ox * ox + oz * oz)
-		if home > 2 then
-			return ox / home, oz / home, 1
-		end
-		return 0, 0, 0
-	end
-	if not busy and pdx * pdx + pdz * pdz > LAIR.Reset * LAIR.Reset then
-		e.Engaged = false
-		local ox, oz = hx - e.X, hz - e.Z
-		local home = sqrt(ox * ox + oz * oz)
-		e.GoingHome = true
-		if home > 2 then
-			return ox / home, oz / home, 1.2
-		end
-		e.HP = min(e.MaxHP, e.HP + e.MaxHP * LAIR.Regen * dt)
-		return 0, 0, 0
-	end
-	e.GoingHome = false
-	e.Engaged = d <= LAIR.Aggro
+	local now = run.Time
 	local enc = e.Encounter
-	if e.Engaged and enc then
-		enc.LastEngaged = run.Time
+	MiniBosses.StepPhase(run, e)
+	if e.PendingExpose and now >= e.PendingExpose.At then
+		MiniBosses.Expose(run, e, e.PendingExpose.Reason)
+		e.PendingExpose = nil
 	end
-	local ai = AI[e.Key]
+	local busy = e.Air or e.Dashing or e.DashAt or e.NextDashAt or e.FlopT or e.LeapToX
+	local classic = AI[e.Key] == nil
+	if enc and enc.Main then
+		-- THE FINAL ONE: waits until you step into the arena, then the arena is sealed
+		local pdx, pdz = run.PX - enc.X, run.PZ - enc.Z
+		local inside = pdx * pdx + pdz * pdz <= (MAIN.ArenaR - 1) ^ 2
+		if not run.Map.ArenaSealed then
+			if not inside then
+				e.Engaged = false
+				return 0, 0, 0
+			end
+			run.Map.ArenaSealed = { X = enc.X, Z = enc.Z, R = MAIN.ArenaR }
+			run:Write("Fx", 0, enc.X, enc.Z, 0, MAIN.ArenaR, 0, GFX.Seal)
+			run:Event("Arena", { Sealed = true, X = enc.X, Z = enc.Z, R = MAIN.ArenaR })
+			run:Banner("THE ARENA IS SEALED", "Only one of you walks out.", "Boss")
+		end
+		e.Engaged = true
+		enc.Engaged = true
+		enc.LastEngaged = now
+	else
+		-- lair bosses: you ran away -> walk home and heal (nothing mid-leap / mid-charge)
+		local hx, hz = e.HomeX, e.HomeZ
+		local pdx, pdz = run.PX - hx, run.PZ - hz
+		if not busy and pdx * pdx + pdz * pdz > LAIR.Reset * LAIR.Reset then
+			e.Engaged = false
+			local ox, oz = hx - e.X, hz - e.Z
+			local home = sqrt(ox * ox + oz * oz)
+			e.GoingHome = true
+			if home > 2 then
+				return ox / home, oz / home, 1.2
+			end
+			e.HP = min(e.MaxHP, e.HP + e.MaxHP * LAIR.Regen * dt)
+			return 0, 0, 0
+		end
+		e.GoingHome = false
+		e.Engaged = d <= LAIR.Aggro
+		if e.Engaged and enc then
+			enc.LastEngaged = now
+			if not enc.Engaged then
+				enc.Engaged = true
+				-- TICK TOCK: 67 seconds from the moment the fight starts
+				if enc.Def.Timer then
+					enc.AlarmAt = now + enc.Def.Timer
+					run:Event("MiniBoss", { Phase = "Timer", Key = enc.Def.Key, Id = e.Id, Timer = enc.Def.Timer })
+				end
+			end
+		end
+	end
 	local mx, mz, mult = 0, 0, 0
-	if ai then
-		mx, mz, mult = ai(run, e, dx, dz, d, dt, EM)
+	if classic then
+		-- a classic boss (Sim/Bosses): it only attacks once the fight is on
+		if e.Engaged or busy then
+			mx, mz, mult = Bosses.Step(run, e, dx, dz, d, dt, EM)
+		end
+	else
+		mx, mz, mult = AI[e.Key](run, e, dx, dz, d, dt, EM)
 	end
 	-- the leash: never too far from the lair (charges and leaps may overshoot, then come back)
-	if not busy and not e.Air and not e.Dashing then
+	if not (enc and enc.Main) and not busy and not e.Air and not e.Dashing then
+		local hx, hz = e.HomeX, e.HomeZ
 		local ox, oz = hx - e.X, hz - e.Z
 		local home = sqrt(ox * ox + oz * oz)
 		if home > LAIR.Leash then

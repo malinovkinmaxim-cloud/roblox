@@ -1,6 +1,7 @@
 --[[
-	EnemyData - the horde (15 enemy types), rare specials, the 8 bosses and the MINI-BOSSES
-	of 67 TOWN (Champion = true, with their minions; shared/MiniBossData.lua).
+	EnemyData - the horde (15 enemy types), rare specials, ELITE affixes and the bodies of every
+	boss (who and when: shared/BossData.lua). Lair bosses have Champion = true (their fights:
+	Sim/MiniBosses.lua), classic bosses and THE FINAL ONE use Behavior "Boss" (Sim/Bosses.lua).
 
 	Stats are the values at minute 0; WaveManager scales HP / damage with run time.
 	  HP, Speed (studs/s), Damage (contact, per hit), XP (gem value), Radius (collision, studs)
@@ -33,7 +34,7 @@ export type EnemyDef = {
 	ItemChance: number,
 	Boss: boolean?,
 	MiniBoss: boolean?,
-	Champion: boolean?, -- a MINI-BOSS of 67 TOWN (shared/MiniBossData.lua): lairs, relic loot
+	Champion: boolean?, -- a lair boss of 67 TOWN with its own fight (Sim/MiniBosses.lua)
 	Rare: boolean?,
 	Secret: boolean?,
 	NoContact: boolean?,
@@ -229,7 +230,7 @@ local LIST: { EnemyDef } = ({
 	enemy({
 		Key = "TheGiant",
 		Name = "THE GIANT",
-		Desc = "Boss. Slams the ground, sends out shockwaves, calls husks.",
+		Desc = "Boss 1 of Goober Gardens (sometimes). Slams the ground, sends out shockwaves, calls husks.",
 		HP = 2600, Speed = 7.5, Damage = 16, XP = 150, Radius = 5,
 		Model = "Giant", Color = rgb(190, 150, 120), Accent = rgb(90, 70, 60),
 		Behavior = "Boss", Mass = 40, CoinChance = 1, ItemChance = 0, MiniBoss = true,
@@ -245,7 +246,7 @@ local LIST: { EnemyDef } = ({
 	enemy({
 		Key = "TheGoober",
 		Name = "THE GOOBER",
-		Desc = "Boss. The biggest blob. Bounces onto you and rains goobers.",
+		Desc = "Boss 1 of Goober Gardens (sometimes). The biggest blob. Bounces onto you and rains goobers.",
 		HP = 2600, Speed = 9, Damage = 16, XP = 150, Radius = 5,
 		Model = "GooberBoss", Color = rgb(120, 220, 90), Accent = rgb(255, 110, 190),
 		Behavior = "Boss", Mass = 40, CoinChance = 1, ItemChance = 0, MiniBoss = true,
@@ -261,7 +262,7 @@ local LIST: { EnemyDef } = ({
 	enemy({
 		Key = "TheGlitch",
 		Name = "THE GLITCH",
-		Desc = "Boss. Teleports next to you, cuts the arena with laser lines, splits into blinkers.",
+		Desc = "Boss 3 of the Neon Strip (sometimes). Teleports next to you, cuts the street with lasers, calls blinkers.",
 		HP = 9000, Speed = 10, Damage = 18, XP = 300, Radius = 4.5,
 		Model = "GlitchBoss", Color = rgb(0, 255, 210), Accent = rgb(255, 0, 170),
 		Behavior = "Boss", Mass = 50, CoinChance = 1, ItemChance = 0, Boss = true,
@@ -277,7 +278,7 @@ local LIST: { EnemyDef } = ({
 	enemy({
 		Key = "TheMachine",
 		Name = "THE MACHINE",
-		Desc = "Boss. A walking weapons factory: rocket barrages, lasers, bullet rings.",
+		Desc = "Boss 2 of the Horde Mart Lot (sometimes). A walking weapons factory: missiles, lasers, bullet rings.",
 		HP = 9000, Speed = 8, Damage = 18, XP = 300, Radius = 5,
 		Model = "Machine", Color = rgb(150, 160, 175), Accent = rgb(255, 80, 40),
 		Behavior = "Boss", Mass = 60, CoinChance = 1, ItemChance = 0, Boss = true,
@@ -293,7 +294,7 @@ local LIST: { EnemyDef } = ({
 	enemy({
 		Key = "TheVoid",
 		Name = "THE VOID",
-		Desc = "Boss. Opens void zones under your feet and spins dark energy.",
+		Desc = "Boss 4 of the Rift (sometimes). Opens void pools under your feet and spins dark energy.",
 		HP = 18000, Speed = 9, Damage = 20, XP = 400, Radius = 5,
 		Model = "VoidBoss", Color = rgb(30, 20, 50), Accent = rgb(170, 90, 255),
 		Behavior = "Boss", Mass = 60, CoinChance = 1, ItemChance = 0, Boss = true,
@@ -303,13 +304,15 @@ local LIST: { EnemyDef } = ({
 			HazardEvery = 6, HazardCount = 3, HazardRadius = 7, HazardDelay = 1.1, HazardTime = 4, HazardDamage = 10,
 			SpiralEvery = 8, SpiralCount = 22, SpiralSpeed = 19, SpiralDamage = 13,
 			TeleportEvery = 9, TeleportDelay = 0.9, TeleportRadius = 10, TeleportDamage = 28,
+			SweepEvery = 7, SweepCount = 3, SweepLength = 60, SweepWidth = 4, SweepDelay = 1.2, SweepDamage = 24,
+			PhasePatterns = { [3] = { "Sweep" } },
 			Coins = 150,
 		},
 	}),
 	enemy({
 		Key = "TheOverlord",
 		Name = "THE OVERLORD",
-		Desc = "Boss. Dashes across the arena, fires rings and calls spitters.",
+		Desc = "Boss 4 of the Rift (sometimes). Charges across the altars, fires rings and calls spitters.",
 		HP = 18000, Speed = 10, Damage = 20, XP = 400, Radius = 4.6,
 		Model = "Overlord", Color = rgb(25, 25, 32), Accent = rgb(255, 205, 60),
 		Behavior = "Boss", Mass = 60, CoinChance = 1, ItemChance = 0, Boss = true,
@@ -319,13 +322,15 @@ local LIST: { EnemyDef } = ({
 			DashEvery = 6, DashWindup = 1.0, DashSpeed = 58, DashLength = 55, DashDamage = 30,
 			RingEvery = 7, RingCount = 16, RingSpeed = 20, RingDamage = 14,
 			SummonEvery = 12, SummonKey = "Spitter", SummonCount = 4,
+			BarrageEvery = 7, BarrageCount = 7, BarrageRadius = 5, BarrageSpread = 16, BarrageDelay = 1.2, BarrageDamage = 22,
+			PhasePatterns = { [3] = { "Barrage" } },
 			Coins = 150,
 		},
 	}),
 	enemy({
 		Key = "King67",
 		Name = "THE 67 KING",
-		Desc = "67 Boss. Only appears during a 67 BOSS event. Six. Seven. Six. Seven.",
+		Desc = "Boss 3 of the Neon Strip (sometimes). Six. Seven. Six. Seven.",
 		HP = 12000, Speed = 9.5, Damage = 20, XP = 400, Radius = 4.8,
 		Model = "King", Color = rgb(255, 200, 40), Accent = rgb(170, 60, 255),
 		Behavior = "Boss", Mass = 60, CoinChance = 1, ItemChance = 0, Boss = true, Rare = true,
@@ -341,22 +346,23 @@ local LIST: { EnemyDef } = ({
 	enemy({
 		Key = "TheFinalOne",
 		Name = "THE FINAL ONE",
-		Desc = "Final boss. Everything at once. Survive it to win the run.",
-		HP = 65000, Speed = 10, Damage = 24, XP = 1000, Radius = 7,
+		Desc = "The main boss: waits in the 67 ARENA at 15:00. Three phases. Beat it to win the run.",
+		HP = 65000, Speed = 8.5, Damage = 24, XP = 1000, Radius = 7,
 		Model = "FinalOne", Color = rgb(40, 30, 60), Accent = rgb(255, 64, 150),
 		Behavior = "Boss", Mass = 120, CoinChance = 1, ItemChance = 0, Boss = true,
 		Params = {
 			Title = "THE FINAL ONE",
 			Final = true,
-			Patterns = { "Slam", "Ring", "Barrage", "Spiral", "Hazard" },
-			EnragePatterns = { "Sweep" },
+			Patterns = { "Slam", "Ring", "Barrage" },
+			PhasePatterns = { [2] = { "Spiral", "Hazard", "Sweep" }, [3] = { "DoomRing", "Summon" } },
 			SlamEvery = 5, SlamRadius = 14, SlamDelay = 1.0, SlamDamage = 30,
-			RingEvery = 6.5, RingCount = 20, RingSpeed = 21, RingDamage = 15,
+			RingEvery = 6.5, RingCount = 20, RingSpeed = 21, RingDamage = 12,
 			BarrageEvery = 8, BarrageCount = 8, BarrageRadius = 5, BarrageSpread = 18, BarrageDelay = 1.2, BarrageDamage = 22,
-			SpiralEvery = 9, SpiralCount = 24, SpiralSpeed = 20, SpiralDamage = 14,
+			SpiralEvery = 9, SpiralCount = 24, SpiralSpeed = 20, SpiralDamage = 11,
 			HazardEvery = 10, HazardCount = 3, HazardRadius = 7, HazardDelay = 1.1, HazardTime = 4, HazardDamage = 12,
 			SweepEvery = 7, SweepCount = 4, SweepLength = 70, SweepWidth = 4.5, SweepDelay = 1.1, SweepDamage = 26,
-			EnrageAt = 0.5,
+			DoomRingEvery = 6.5, DoomCount = 40, DoomGap = 5, DoomSpeed = 15, DoomDamage = 22, DoomDelay = 1.2,
+			SummonEvery = 11, SummonKey = "Skitter", SummonCount = 8,
 			Coins = 400,
 		},
 	}),
@@ -375,7 +381,6 @@ local LIST: { EnemyDef } = ({
 			DropCount = 12, DropSpeed = 15, DropDamage = 9,
 			PuddleRadius = 8, PuddleTime = 6, PuddleSlow = 0.55,
 			DucklingEvery = 11, DucklingCount = 4,
-			EnrageAt = 0.4,
 		},
 	}),
 	enemy({
@@ -398,7 +403,6 @@ local LIST: { EnemyDef } = ({
 			ChargeEvery = 6.5, Dashes = 3, DashWindup = 0.85, DashSpeed = 62, DashLength = 46, DashDamage = 26,
 			SpillEvery = 8, SpillRadius = 3.4, SpillTime = 4, SpillDamage = 6,
 			PriceEvery = 9.5, PriceCount = 7, PriceRadius = 4.5, PriceSpread = 16, PriceDelay = 1.3, PriceDamage = 18,
-			EnrageAt = 0.35,
 		},
 	}),
 	enemy({
@@ -483,13 +487,26 @@ for id, def in LIST do
 	EnemyData.ById[id] = def
 end
 
--- boss slots of the timeline: one of each pair is picked per run
-EnemyData.BossSlots = {
-	{ "TheGiant", "TheGoober" },
-	{ "TheGlitch", "TheMachine" },
-	{ "TheVoid", "TheOverlord" },
+--[[
+	ELITES: a normal enemy of the current wave that the elite director (Sim/Elites.lua) turns
+	into something dangerous and worth hunting: much tougher (GameConfig.Elite), a ring and a
+	name plate, and 1-2 AFFIXES that change how it fights. Only these kinds can be elites.
+]]
+EnemyData.ElitePool = { "Husk", "Charger", "Spitter", "Splitter", "Blinker", "Brute", "Diver", "Leaper", "Summoner", "Ghost", "Sniper" }
+
+EnemyData.EliteAffixes = {
+	{ Key = "Swift", Name = "SWIFT", Desc = "Much faster", Speed = 1.45 },
+	{ Key = "Armored", Name = "ARMORED", Desc = "Takes 35% less damage", Armor = 0.35 },
+	{ Key = "Volatile", Name = "VOLATILE", Desc = "Explodes when it dies: step away", Blast = { Radius = 7, Delay = 1, Damage = 26 } },
+	{ Key = "Summoner", Name = "SUMMONER", Desc = "Calls skitters", Summon = { Every = 6, Count = 3, Key = "Skitter" } },
+	{ Key = "Vampiric", Name = "VAMPIRIC", Desc = "Heals when it hurts you", Leech = 0.12, Regen = 0.01 },
+	{ Key = "Frost", Name = "FROST", Desc = "Its hits slow you", Chill = { Factor = 0.6, Time = 2 } },
 }
-EnemyData.FinalBoss = "TheFinalOne"
+EnemyData.AffixByKey = {}
+for i, a in EnemyData.EliteAffixes do
+	a.Id = i
+	EnemyData.AffixByKey[a.Key] = a
+end
 
 function EnemyData.Get(key: string): EnemyDef
 	local def = EnemyData.ByKey[key]

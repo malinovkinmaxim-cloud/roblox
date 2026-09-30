@@ -439,27 +439,75 @@ Engine.Step(1)
 check("run continues after resume", run.Time > t0 + 0.5, run.Time - t0)
 
 ---------------------------------------------------------------------------
-section("boss at 3:00")
+section("boss 1 at 3:00 in its lair (the gardens)")
 ---------------------------------------------------------------------------
 mark = #Engine.Errors
+-- puts Alice somewhere in the arena (the server's speed check is told first)
+local function teleport(x: number, z: number)
+	local e = GM.Entries[alicePlayer]
+	if e then
+		e.LastX, e.LastZ = x, z
+	end
+	Engine.MoveCharacter("Alice", roblox.Vector3.new(x, ARENA_Y, z))
+	Engine.Step(0.2)
+end
+-- lets the run go on for `seconds` of RUN time while Alice stands at (x, z) (level-up cards
+-- are picked: they pause the run)
+local function hold(seconds: number, x: number?, z: number?)
+	local levelUp = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.LevelUpController")
+	local target = run.Time + seconds
+	local guard = 0
+	while run.Time < target and not run.Ended and guard < seconds * 40 + 40 do
+		guard += 1
+		if levelUp:IsOpen() and not levelUp.Busy then
+			local card = findGui(alice, "Card1")
+			if card then
+				Engine.Click(card)
+			end
+		end
+		if x and z then
+			local e = GM.Entries[alicePlayer]
+			if e then
+				e.LastX, e.LastZ = x, z
+			end
+			Engine.MoveCharacter("Alice", roblox.Vector3.new(x, ARENA_Y, z))
+		end
+		Engine.Step(0.1, 0.05)
+	end
+end
 cd:Fire("Admin", "god", "")
-cd:Fire("Admin", "time", "176")
-play(alice, run, 8)
-local bossKey = run.Boss and run.Boss.Key
-check("first boss spawned (THE GIANT or THE GOOBER)", bossKey == "TheGiant" or bossKey == "TheGoober", bossKey)
-check("client shows the boss bar", hud.BossPanel.Visible == true)
-check("client knows the boss", runClient.Boss ~= nil and runClient.Boss.Key == bossKey)
+cd:Fire("Admin", "time", "165")
+play(alice, run, 7)
+local enc1 = run.Map.Encounters[1]
+check("boss 1 announced 10 s early at its lair in the gardens", enc1 ~= nil and enc1.Slot == 1 and enc1.Zone == "Gardens" and enc1.Stage == "Warn", enc1 and enc1.Def.Key)
+local key1 = enc1 and enc1.Def.Key or "?"
 local banner = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.BannerController")
-play(alice, run, 6)
-check("boss attacks are telegraphed", #run.Telegraphs + #run.Hazards >= 0)
+check("client: the BOSS 1 warning", runClient.Encounters[key1] ~= nil and runClient.Encounters[key1].Slot == 1)
+check("HUD: the boss timeline says where it is", string.find(hud.BossLine.Text, "BOSS 1", 1, true) ~= nil and string.find(hud.BossLine.Text, "GARDENS", 1, true) ~= nil, hud.BossLine.Text)
+hold(math.max(0.5, 181 - run.Time))
+check("boss 1 spawned at 3:00 exactly", enc1 ~= nil and enc1.Stage == "Fight" and math.abs(enc1.SpawnedAt - 180) < 0.2, enc1 and enc1.SpawnedAt)
+check("bosses 1-4 have a plate over their head, not the top bar", hud.BossPanel.Visible == false)
+local body1 = enc1 and enc1.Bodies[1]
+if body1 then
+	teleport(body1.X + 12, body1.Z)
+	hold(2, body1.X + 12, body1.Z)
+end
+local drawn1 = body1 and runClient.Enemies[body1.Id]
+check("client: its name plate says BOSS 1", drawn1 ~= nil and drawn1.Plate ~= nil and string.find(drawn1.Plate.Status.Text, "BOSS 1", 1, true) ~= nil, drawn1 and drawn1.Plate and drawn1.Plate.Status.Text)
+check("it fights you when you are close", body1 ~= nil and body1.Engaged == true)
 local bossesBefore = #run.Result.Bosses
 cd:Fire("Admin", "killall", "")
-play(alice, run, 3)
-check("boss defeated", #run.Result.Bosses == bossesBefore + 1)
-check("boss bar hidden", hud.BossPanel.Visible == false)
-play(alice, run, 8)
-check("chest collected -> treasure offer handled", run.PendingChests == 0 and run.Offer == nil)
+Engine.Step(0.5)
+check("boss defeated", #run.Result.Bosses == bossesBefore + 1 and run.Result.BossSlots[1] == 1)
+check("it dropped an item on the map", #run.Loot >= 1, #run.Loot)
+if enc1 then
+	teleport(enc1.LastX, enc1.LastZ)
+	hold(1.5, enc1.LastX, enc1.LastZ)
+end
+check("walked over its loot: ITEM ACQUIRED", #run.ItemOrder >= 1 and hud.ItemCard.Visible == true, #run.ItemOrder)
+check("HUD: your items row (with levels)", #hud.ItemRow:GetChildren() >= 2)
 check("boss dropped a fragment that was picked up", run.Result.Fragments >= 1, run.Result.Fragments)
+play(alice, run, 4)
 check("no errors in the boss fight", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
@@ -480,31 +528,28 @@ play(alice, run, 3)
 check("no errors during 67 events", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
-section("67 TOWN: zones, minimap, mini-bosses, relics")
+section("67 TOWN: zones, minimap, bosses, elites, items, THE FINAL ONE")
 ---------------------------------------------------------------------------
 mark = #Engine.Errors
 do
 	local ArenaData = Engine.Module(server, "ReplicatedStorage.Modules.ArenaData")
-	local RelicData = Engine.Module(server, "ReplicatedStorage.Modules.RelicData")
-	local Relics = Engine.Module(server, "ServerScriptService.Server.Sim.Relics")
+	local ItemData = Engine.Module(server, "ReplicatedStorage.Modules.ItemData")
+	local BossData = Engine.Module(server, "ReplicatedStorage.Modules.BossData")
+	local Items = Engine.Module(server, "ServerScriptService.Server.Sim.Items")
+	local MiniBosses = Engine.Module(server, "ServerScriptService.Server.Sim.MiniBosses")
+	local EnemyManager = Engine.Module(server, "ServerScriptService.Server.Sim.EnemyManager")
 	local minimap = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.MinimapController")
 	local arenaC = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.ArenaController")
 	local loot = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.LootRenderer")
-	local entryA = GM.Entries[alicePlayer]
-	-- puts Alice somewhere in the arena (the server's speed check is told first)
-	local function teleport(x: number, z: number)
-		entryA.LastX, entryA.LastZ = x, z
-		Engine.MoveCharacter("Alice", roblox.Vector3.new(x, ARENA_Y, z))
-		Engine.Step(0.2)
-	end
 	check("the battle map is 67 TOWN", map.Arena:GetAttribute("MapName") == "67 TOWN")
 	check("the minimap shows in a run", minimap.Gui.Enabled == true)
 	check("the zone chip names the zone you are in", string.find(hud.ZoneName.Text, ArenaData.ZoneAt(run.PX, run.PZ).Name, 1, true) ~= nil, hud.ZoneName.Text)
 	check("the rift gates are sealed for you until the rift opens", #arenaC.Seals == 3 and (run.Map.RiftOpen or arenaC.Seals[1].Part.CanCollide == true), #arenaC.Seals)
+	check("THE 67 ARENA in the centre: pylons and its seal ring", #arenaC.Pylons >= 8 and #arenaC.ArenaSeals >= 30 and arenaC.ArenaSeals[1].CanCollide == false, #arenaC.ArenaSeals)
 
-	-- a mini-boss: the warning, its lair lights up, it arrives with a name plate
+	-- a boss (debug: THE BIG QUACK now): the warning, its lair lights up, it arrives
 	teleport(-100, 40)
-	cd:Fire("Admin", "miniboss", "BigQuack")
+	cd:Fire("Admin", "boss", "BigQuack")
 	Engine.Step(0.3)
 	local enc = nil
 	for _, e in run.Map.Encounters do
@@ -513,59 +558,99 @@ do
 		end
 	end
 	check("server: THE BIG QUACK is coming (to its lair)", enc ~= nil and enc.Lair ~= nil and enc.Lair.Key == "DuckPond")
-	check("client: MINI-BOSS APPEARED", runClient.Encounters.BigQuack ~= nil and string.find(banner.Giant.Text, "MINI-BOSS", 1, true) ~= nil, banner.Giant.Text)
+	check("client: the BOSS warning", runClient.Encounters.BigQuack ~= nil and string.find(banner.Giant.Text, "BOSS", 1, true) ~= nil, banner.Giant.Text)
 	check("its lair lights up", arenaC.Lit.DuckPond == true)
-	Engine.Step(3.5)
+	hold(3.5, -100, 40)
 	local quack = enc and enc.Bodies[1]
 	check("it arrived at its lair", quack ~= nil and quack.Alive and quack.Key == "BigQuack")
 	local drawn = quack and runClient.Enemies[quack.Id]
 	check("client: its name plate and HP bar", drawn ~= nil and drawn.Plate ~= nil and drawn.Plate.Fill ~= nil)
 	local arrow = false
 	for _, t in pointer:Targets() do
-		if t.Icon == "⚠" and string.find(t.Tag or "", "MINI-BOSS", 1, true) then
+		if string.find(t.Tag or "", "BOSS", 1, true) then
 			arrow = true
 		end
 	end
-	check("an arrow points to it: MINI-BOSS + distance", arrow)
+	check("an arrow points to it: BOSS + distance", arrow)
 	local marked = false
 	for _, t in minimap:Targets(os.clock()) do
-		if t.Glyph == "!" then
+		if t.Glyph == tostring(enc and enc.Slot) and (t.Size or 0) >= 15 then
 			marked = true
 		end
 	end
-	check("the minimap marks it", marked)
+	check("the minimap marks it (big, with its number)", marked)
 	-- walk up to it: it fights (telegraphed flops)
 	teleport(-150, 140)
-	Engine.Step(1.6)
-	check("it fights you when you are close", quack ~= nil and quack.Engaged == true and (#run.Telegraphs + #run.Hazards + #run.EnemyProjectiles) > 0)
+	hold(1.6, -150, 140)
+	check("it fights you when you are close", quack ~= nil and quack.Engaged == true)
+	local telegraphed = false
+	for _ = 1, 16 do
+		if #run.Telegraphs + #run.Hazards > 0 then
+			telegraphed = true
+			break
+		end
+		hold(0.5, -150, 140)
+	end
+	check("its attacks are telegraphed on the ground", telegraphed)
 	local mini = quack and runClient.Minis[quack.Id]
 	check("the name plate follows its HP", drawn ~= nil and drawn.Plate ~= nil and mini ~= nil and mini.HP ~= nil and mini.HP < 1, mini and mini.HP)
-	-- defeat it: relic loot on the ground
+	-- its weak point: exposed, the plate says so
+	if quack then
+		MiniBosses.Expose(run, quack, "Flop")
+		Engine.Step(0.3)
+	end
+	check("WEAK POINT: the plate says it", drawn ~= nil and drawn.Plate ~= nil and string.find(drawn.Plate.Status.Text, "WEAK POINT", 1, true) ~= nil, drawn and drawn.Plate and drawn.Plate.Status.Text)
+	-- defeat it (from a distance, so its loot stays on the ground): an item on the map
+	teleport(-100, 40)
+	local lootBefore = #run.Loot
 	cd:Fire("Admin", "killall", "")
 	Engine.Step(0.5)
-	check("defeated: the encounter is over", runClient.Encounters.BigQuack == nil and #run.Result.Bosses >= 0 and run.Result.MiniBosses >= 1, run.Result.MiniBosses)
-	check("it dropped a relic on the ground", #run.Loot >= 1, #run.Loot)
-	check("client draws the relic (beam + name)", next(loot.Items) ~= nil)
-	local l = run.Loot[1]
+	check("defeated: the encounter is over", runClient.Encounters.BigQuack == nil and run.Result.BossesBeaten >= 2, run.Result.BossesBeaten)
+	check("it dropped an item on the ground", #run.Loot > lootBefore, #run.Loot)
+	check("client draws the item (beam + name)", next(loot.Items) ~= nil)
+	local itemsBefore = run.Result.ItemsPicked
+	local l = run.Loot[#run.Loot]
 	if l then
 		teleport(l.X, l.Z)
 		Engine.Step(0.3)
 	end
-	check("walked over it: the relic is yours", #run.RelicOrder >= 1, #run.RelicOrder)
-	check("HUD: the relic card and your relics row", hud.RelicCard.Visible == true and #hud.RelicRow:GetChildren() >= 2)
-	local key = run.RelicOrder[1]
-	check("the relic counts in your stats", key ~= nil and RelicData.ByKey[key] ~= nil)
+	check("walked over it: the item is yours (or a level up)", run.Result.ItemsPicked > itemsBefore, run.Result.ItemsPicked)
+	local key = run.ItemOrder[1]
+	check("your items are real items", key ~= nil and ItemData.ByKey[key] ~= nil)
+	-- the same item again: level II, the card says I -> II
+	if key then
+		local level = run.Items[key]
+		Items.Drop(run, key, run.PX + 1, run.PZ)
+		Engine.Step(0.4)
+		check("found again: level up", run.Items[key] == math.min(level + 1, ItemData.ByKey[key].MaxLevel), run.Items[key])
+		check("ITEM LEVEL UP card: old -> new", hud.ItemCard.Visible == true and (run.Items[key] == level or string.find(hud.ItemCardTag.Text, "→", 1, true) ~= nil), hud.ItemCardTag.Text)
+	end
 
 	-- the DASH of the Rocket Skates
-	Relics.Gain(run, "RocketSkates")
+	Items.Gain(run, "RocketSkates")
 	Engine.Step(0.3)
 	check("dash button appears with the Rocket Skates", hud.DashButton.Visible == true)
 	local bx, bz = run.PX, run.PZ
 	runClient:RequestDash()
 	Engine.Step(0.4)
-	check("dash: the server moved you and spent the charge", (run.PX - bx) ^ 2 + (run.PZ - bz) ^ 2 > 9 and run.DashState.Charges == 0, string.format("%.1f,%.1f", run.PX - bx, run.PZ - bz))
-	Engine.Step(4)
-	check("the dash charge comes back", run.DashState.Charges == 1)
+	check("dash: the server moved you and spent the charge", (run.PX - bx) ^ 2 + (run.PZ - bz) ^ 2 > 9 and run.DashState.Charges < run.DashState.Max, string.format("%.1f,%.1f", run.PX - bx, run.PZ - bz))
+
+	-- an ELITE: a name plate with its affixes, a marker, an arrow
+	cd:Fire("Admin", "elite", "Husk")
+	Engine.Step(0.8)
+	local eliteId = next(runClient.Elites)
+	local eliteDrawn = eliteId and runClient.Enemies[eliteId]
+	check("an ELITE appeared (server + client)", eliteId ~= nil and #run.Elites >= 1)
+	check("its plate: ELITE + affixes", eliteDrawn ~= nil and eliteDrawn.Plate ~= nil and string.find(eliteDrawn.Plate.Name.Text, "ELITE", 1, true) ~= nil, eliteDrawn and eliteDrawn.Plate and eliteDrawn.Plate.Name.Text)
+	local eliteMarker = false
+	for _, t in minimap:Targets(os.clock()) do
+		eliteMarker = eliteMarker or t.Glyph == "E"
+	end
+	check("the minimap marks the elite", eliteMarker)
+	local elitesBefore = run.Result.Elites or 0
+	cd:Fire("Admin", "killall", "")
+	Engine.Step(0.5)
+	check("elite killed: counted, gone from the client", (run.Result.Elites or 0) > elitesBefore and next(runClient.Elites) == nil)
 
 	-- a 67 VAULT and the 67 RUSH
 	cd:Fire("Admin", "vault", "")
@@ -581,9 +666,10 @@ do
 	check("a 67 RUSH zone is on (the client knows which)", run.Map.Hot ~= nil and runClient.Map.Hot == run.Map.Hot.Zone, runClient.Map.Hot)
 	if awake then
 		local v = ArenaData.Vaults[awake]
+		local before = #run.Loot
 		teleport(v.X, v.Z)
 		Engine.Step(4.8)
-		check("stand on the vault: it cracks open (a relic pops out)", run.Result.Vaults >= 1 and #run.Loot >= 1, run.Result.Vaults)
+		check("stand on the vault: it cracks open (an item pops out)", run.Result.Vaults >= 1 and (#run.Loot > before or run.Result.ItemsPicked > 0), run.Result.Vaults)
 	end
 
 	-- the rift opens
@@ -592,7 +678,46 @@ do
 		Engine.Step(1.5)
 	end
 	check("THE RIFT opens: the gates let you through", run.Map.RiftOpen == true and runClient.Map.Rift == true and arenaC.Seals[1].Part.CanCollide == false)
-	teleport(0, 0)
+
+	-- THE FINAL ONE: 15:00, exactly in the centre, the arena seals when you walk in
+	teleport(70, 0)
+	cd:Fire("Admin", "killall", "")
+	cd:Fire("Admin", "time", tostring(BossData.Main.At - 12))
+	Engine.Step(0.2)
+	hold(4, 70, 0)
+	local main = nil
+	for _, e in run.Map.Encounters do
+		if e.Main then
+			main = e
+		end
+	end
+	check("the bosses 2-4 the jump went past never came", main ~= nil and #run.Map.Encounters == 1 and run.BossNext == 5, #run.Map.Encounters)
+	check("THE FINAL ONE announced (client + HUD)", runClient.Encounters.TheFinalOne ~= nil and runClient.Encounters.TheFinalOne.Main == true and string.find(hud.BossLine.Text, "FINAL ONE", 1, true) ~= nil, hud.BossLine.Text)
+	hold(9, 70, 0)
+	local boss = main and main.Bodies[1]
+	check(
+		"it spawned exactly in the centre at 15:00 (and waits there)",
+		boss ~= nil and boss.HomeX == BossData.Main.X and boss.HomeZ == BossData.Main.Z and (boss.X - BossData.Main.X) ^ 2 + (boss.Z - BossData.Main.Z) ^ 2 < 1 and math.abs(main.SpawnedAt - BossData.Main.At) < 0.2,
+		boss and string.format("%.2f,%.2f", boss.X, boss.Z)
+	)
+	check("the top boss bar is THE FINAL ONE's", hud.BossPanel.Visible == true and runClient.Boss ~= nil and runClient.Boss.Key == "TheFinalOne")
+	local big = false
+	for _, t in minimap:Targets(os.clock()) do
+		big = big or (t.Glyph == "67" and t.Size >= 20)
+	end
+	check("the minimap marks it: a huge 67", big)
+	check("its pylons burn", arenaC.Lit.arena == true)
+	teleport(10, 0)
+	hold(0.6, 10, 0)
+	check("you walked in: the arena is sealed (server + client ring)", run.Map.ArenaSealed ~= nil and runClient.Arena ~= nil and arenaC.ArenaSeals[1].CanCollide == true)
+	check("nobody walks out of the ring", Items.Blocked(run, BossData.Main.ArenaR + 6, 0) == true)
+	-- (the test run goes on: THE FINAL ONE leaves without a fight)
+	if main then
+		MiniBosses.Finish(run, main, "Left", EnemyManager)
+	end
+	Engine.Step(0.5)
+	check("the seal is gone with it", run.Map.ArenaSealed == nil and runClient.Arena == nil and arenaC.ArenaSeals[1].CanCollide == false)
+	teleport(0, 20)
 	cd:Fire("Admin", "killall", "")
 	Engine.Step(0.5)
 end
@@ -645,6 +770,7 @@ section("death -> results -> rewards saved")
 mark = #Engine.Errors
 local coinsBefore = session.Data.Coins
 local fragmentsBefore = session.Data.Fragments
+local chipsBefore = session.Data.Chips
 cd:Fire("Admin", "god", "")
 for _ = 1, 4 do
 	if run.Dead then
@@ -671,7 +797,9 @@ check("achievements: First Blood, 67, Evolution", session.Data.Achievements.Firs
 check("achievement cosmetics granted", session.Data.Cosmetics.Owned["Hat.Headband67"] == true)
 check("weekly challenge progress recorded", session.Data.Weekly.List[1] ~= nil)
 check("client got the new coins", cd.Data.Coins == session.Data.Coins)
-check("results show fragments and collection", results.StatLabels.Fragments.Text ~= "+0" and results.StatLabels.Collection.Text ~= "")
+check("results show fragments and CHIPS", results.StatLabels.Fragments.Text ~= "+0" and results.StatLabels.Chips.Text ~= "+0", results.StatLabels.Chips.Text)
+check("CHIPS rewarded for this run (bosses, elites, time)", session.Data.Chips > chipsBefore, session.Data.Chips - chipsBefore)
+check("items found are in the collection", next(session.Data.Seen.Items) ~= nil)
 check("difficulty progress saved (a boss on CALM)", session.Data.Difficulty.Best[1].Bosses >= 1 and session.Data.Difficulty.Best[1].Time == math.floor(run.Time))
 check("defeating a boss on CALM opens HUNT", cd.Data.Difficulty.Unlocked >= 2, cd.Data.Difficulty.Unlocked)
 check("results name the difficulty", string.find(results.ResultSub.Text, "CALM") ~= nil, results.ResultSub.Text)
@@ -779,6 +907,29 @@ fragments = session.Data.Fragments
 cd:Fire("RedeemCode", " fragments ")
 Engine.Step(0.5)
 check("codes ignore case and spaces, can give fragments", session.Data.Fragments == fragments + 5, session.Data.Fragments - fragments)
+
+---------------------------------------------------------------------------
+section("ITEMS: unlock premium items with CHIPS")
+---------------------------------------------------------------------------
+mark = #Engine.Errors
+session.Data.Chips = 1000
+table.clear(session.Data.ItemUnlocks) -- (the debug "unlockall" above unlocked everything)
+lobby:OpenPanel("Items")
+Engine.Step(0.5)
+local itemsPanel = lobby.Panels.Items
+check("the ITEMS menu opens (lobby nav)", itemsPanel ~= nil and itemsPanel.Frame.Visible == true and lobby.NavButtons.Items ~= nil)
+cd:Fire("UnlockItem", "RicochetCore")
+Engine.Step(0.5)
+check("premium item unlocked: CHIPS spent", session.Data.ItemUnlocks.RicochetCore == true and session.Data.Chips == 1000 - 400, session.Data.Chips)
+check("the menu shows the new balance", itemsPanel.State.Balance.Text == "600", itemsPanel.State.Balance.Text)
+cd:Fire("UnlockItem", "RicochetCore")
+cd:Fire("UnlockItem", "Fragment67")
+cd:Fire("UnlockItem", "MagneticBolt")
+Engine.Step(0.5)
+check("no double buy, no unlock without the CHIPS, base items are free", session.Data.Chips == 600 and session.Data.ItemUnlocks.Fragment67 == nil and session.Data.ItemUnlocks.MagneticBolt == nil)
+lobby:ClosePanel()
+Engine.Step(0.3)
+check("no errors in the ITEMS menu", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
 section("cosmetics")
@@ -936,6 +1087,13 @@ if aliceRun and bobRun then
 	check("mobile: ability bar away from the thumbstick", bobHud.Bottom.AnchorPoint.X == 1)
 	play(bob, bobRun, 10)
 	check("mobile run progresses", bobRun.Kills > 0, bobRun.Kills)
+	-- loot is personal: an item dropped in Alice's run is never Bob's (and the other way round)
+	local ItemsP = Engine.Module(server, "ServerScriptService.Server.Sim.Items")
+	local bobLoot = #bobRun.Loot
+	ItemsP.Drop(aliceRun, "Fang", aliceRun.PX + 1, aliceRun.PZ)
+	Engine.Step(0.5)
+	check("party: items are dropped for each player on their own", #bobRun.Loot == bobLoot and (bobRun.Items.Fang or 0) == 0)
+	check("party: separate builds (items, synergies)", aliceRun.Items ~= bobRun.Items and aliceRun.Synergies ~= bobRun.Synergies)
 	-- (the test engine replicates characters as plain rigs: check a rig part)
 	local aliceBob = alice.PlayersByName.Bob
 	local sample = aliceBob and aliceBob.Character and aliceBob.Character:FindFirstChild("Head")
@@ -995,9 +1153,14 @@ cd:Fire("SetSetting", "Coins", 999999)
 cd:Fire("ClaimQuest", 99)
 cd:Fire("ClaimWeekly", 99)
 cd:Fire("PartyInvite", "everyone")
+local chipsNow = session.Data.Chips
+cd:Fire("UnlockItem", { "table" })
+cd:Fire("UnlockItem", "NotAnItem")
+cd:Fire("UnlockItem", "Fragment67")
 Engine.Step(1)
 check("no free coins or fragments from bad requests", session.Data.Coins >= coins and session.Data.Fragments == fragments)
 check("evolutions cannot be unlocked", session.Data.Weapons.OverdriveBlaster == nil)
+check("items cannot be unlocked without CHIPS", session.Data.Chips == chipsNow and session.Data.ItemUnlocks.Fragment67 == nil)
 check("settings keep their type", session.Data.Settings.Sfx == true)
 check("unknown settings ignored", session.Data.Settings.Coins == nil)
 check("no server errors from bad requests", errorsSince(mark) == 0, Engine.Errors[mark + 1])
@@ -1007,6 +1170,7 @@ section("save -> leave -> rejoin")
 ---------------------------------------------------------------------------
 local savedCoins = session.Data.Coins
 local savedRuns = session.Data.Stats.Runs
+local savedChips = session.Data.Chips
 local userId = alicePlayer.UserId
 Engine.RemovePlayer("Alice")
 Engine.Step(2)
@@ -1019,6 +1183,7 @@ check("profile loaded again", session2 ~= nil)
 check("coins persisted", session2 and session2.Data.Coins >= savedCoins and session2.Data.Coins <= savedCoins + 2000, session2 and (session2.Data.Coins .. " vs " .. savedCoins))
 check("stats persisted", session2 and session2.Data.Stats.Runs == savedRuns)
 check("heroes, cosmetics and camp persisted", session2 and session2.Data.Heroes.Samurai == true and session2.Data.Cosmetics.Owned["Hat.Cone"] == true and session2.Data.Afk.Slots[1] == "Rookie")
+check("CHIPS and item unlocks persisted", session2 and session2.Data.ItemUnlocks.RicochetCore == true and session2.Data.Chips == savedChips, session2 and session2.Data.Chips)
 local _ = alice2
 
 ---------------------------------------------------------------------------

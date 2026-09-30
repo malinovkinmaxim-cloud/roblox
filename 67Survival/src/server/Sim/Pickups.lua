@@ -14,6 +14,8 @@ local Shared = ReplicatedStorage:WaitForChild("Modules")
 local GameConfig = require(Shared.GameConfig)
 local Protocol = require(Shared.Protocol)
 
+local Perks = require(script.Parent.Perks)
+
 local Pickups = {}
 
 local ITEM = Protocol.ItemIndex
@@ -66,7 +68,7 @@ function Pickups.SpawnGem(run, x: number, z: number, value: number)
 end
 
 function Pickups.SpawnItem(run, kind: string, x: number, z: number)
-	local items = run.Items
+	local items = run.Drops
 	if #items >= GameConfig.Sim.MaxPickups then
 		-- drop the oldest coin (or oldest non-chest) to make room
 		local victim = nil
@@ -129,8 +131,10 @@ local function collectItem(run, it)
 		run:Event("Fragment", { Total = run.Result.Fragments })
 	elseif kind == "CoinBag" then
 		run:AddCoins(GameConfig.Rewards.CoinBagValue)
+		Perks.OnCoin(run, GameConfig.Rewards.CoinBagValue)
 	elseif kind == "Coin" then
 		run:AddCoins(GameConfig.Rewards.CoinDropValue)
+		Perks.OnCoin(run, GameConfig.Rewards.CoinDropValue)
 	end
 end
 
@@ -139,6 +143,11 @@ function Pickups.Step(run, _dt: number)
 	local range = run.Stats.PickupRange
 	if run:Buff("Luck67") then
 		range *= 1.5
+	end
+	-- Tailwind V: while moving your pickup range doubles
+	local tail = run.UP and run.UP.Tailwind
+	if tail and tail.Magnet and run.Moved > 0.05 then
+		range *= 1 + tail.Magnet
 	end
 	local r2 = range * range
 
@@ -152,14 +161,14 @@ function Pickups.Step(run, _dt: number)
 		if all or dx * dx + dz * dz <= r2 then
 			run:Write("GemTake", g.Id)
 			run.Result.Gems += 1
-			run:AddXP(g.Value)
+			run:AddXP(g.Value * Perks.OnGem(run))
 			table.remove(gems, i) -- keeps age order (index 1 = oldest) for merging
 		else
 			i += 1
 		end
 	end
 
-	local items = run.Items
+	local items = run.Drops
 	local itemR2 = math.max(16, r2 * 0.35)
 	i = 1
 	while i <= #items do

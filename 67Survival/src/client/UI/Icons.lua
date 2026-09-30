@@ -3,7 +3,8 @@
 	  weapons, characters, hats  -> 3D previews (UI/Previews)
 	  passives, upgrades, products, cosmetics -> an image from UI/IconImages when one is set,
 	      else a drawn placeholder: a rounded tile in the category colour with a symbol
-	  relics (67 TOWN loot) -> their symbol on a tile in the colour of their rarity
+	  items (67 TOWN loot) -> their symbol on a tile in the colour of their rarity
+	  upgrades without an entry here -> their UpgradeData Symbol
 	  menu entries -> drawn glyphs (Widgets.Glyph)
 	Icons.Make(parent, kind, key, size, props?) returns the icon instance.
 	Icons.Tile(parent, symbol, color, size, props?, image?) draws one tile (used by the shop for
@@ -16,7 +17,8 @@ local Previews = require(script.Parent.Previews)
 local Kit = require(script.Parent.Kit)
 local IconImages = require(script.Parent.IconImages)
 local Modules = game:GetService("ReplicatedStorage"):WaitForChild("Modules")
-local RelicData = require(Modules.RelicData)
+local ItemData = require(Modules.ItemData)
+local UpgradeData = require(Modules.UpgradeData)
 local Rarity = require(Modules.Rarity)
 
 local Icons = {}
@@ -238,9 +240,9 @@ function Icons.Make(parent: Instance, kind: string, key: string, size: number, p
 			Previews.Enemy(holder, key)
 		end
 		return holder
-	elseif kind == "Relic" then
-		-- a relic: its symbol in the colour of its rarity
-		local def = RelicData.ByKey[key]
+	elseif kind == "Item" then
+		-- an item: its symbol in the colour of its rarity
+		local def = ItemData.ByKey[key]
 		return Icons.Tile(parent, if def then def.Symbol else "Special", if def then Rarity.Colors[def.Rarity] or C.Accent else C.Accent, size, props)
 	elseif kind == "Filler" then
 		return categoryTile(parent, Icons.Filler, IconImages.Filler, key, size, props)
@@ -253,6 +255,14 @@ function Icons.Make(parent: Instance, kind: string, key: string, size: number, p
 			AnchorPoint = Vector2.new(0.5, 0.5),
 		})
 		return badge
+	end
+	if Icons.Stat[key] == nil then
+		-- an upgrade: the symbol of its UpgradeData entry
+		local def = UpgradeData.PassiveByKey[key]
+		if def then
+			local sym = def.Symbol or "Special"
+			return Icons.Tile(parent, sym, Icons.Categories[sym] or C.Accent, size, props, IconImages.Stat[key])
+		end
 	end
 	return categoryTile(parent, Icons.Stat, IconImages.Stat, key, size, props)
 end

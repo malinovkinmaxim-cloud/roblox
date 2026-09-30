@@ -173,6 +173,8 @@ function PlayerManager:Snapshot(session)
 	return {
 		Coins = d.Coins,
 		Fragments = d.Fragments,
+		Chips = d.Chips,
+		ItemUnlocks = d.ItemUnlocks,
 		XP = d.XP,
 		Level = level,
 		LevelXP = xp,

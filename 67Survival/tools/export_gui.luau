@@ -398,6 +398,11 @@ session.Data.Difficulty.Best[1] = { Time = 740, Bosses = 3, Wins = 1 }
 session.Data.Difficulty.Best[2] = { Time = 655, Bosses = 2, Wins = 0 }
 session.Data.Difficulty.Cleared[1] = true
 session.Data.Difficulty.Selected = 3
+session.Data.Chips = 1850 -- the ITEMS menu: a few unlocks, a few affordable, most not yet
+session.Data.ItemUnlocks.RicochetCore = true
+session.Data.ItemUnlocks.QuackCore = true
+session.Data.Seen.Items.MagneticBolt = true
+session.Data.Seen.Items.RicochetCore = true
 local cd = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.ClientData")
 local lobby = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.LobbyController")
 cd:Fire("BuyMeta", "Might")
@@ -410,6 +415,7 @@ for _, scene in {
 	{ "More" },
 	{ "Heroes" },
 	{ "Abilities" },
+	{ "Items" },
 	{ "Shop" },
 	{ "Shop", "Cosmetics" },
 	{ "Shop", "Passes" },
@@ -468,13 +474,24 @@ end
 play(45)
 Engine.Step(0.5)
 export(alice, "hud", "in-run HUD")
--- 67 TOWN: a mini-boss out (its arrow, the minimap), relics picked up (card + row), the dash
-local Relics = Engine.Module(Engine.Server, "ServerScriptService.Server.Sim.Relics")
-cd:Fire("Admin", "miniboss", "Cartzilla")
+-- 67 TOWN: a boss out (its arrow, the minimap, the boss timeline), items picked up (card +
+-- row with levels), a synergy, an elite, the dash
+local Items = Engine.Module(Engine.Server, "ServerScriptService.Server.Sim.Items")
+local Perks = Engine.Module(Engine.Server, "ServerScriptService.Server.Sim.Perks")
+cd:Fire("Admin", "boss", "Cartzilla")
 Engine.Step(0.3)
-Relics.Gain(run, "ProteinBar")
-Relics.Gain(run, "Crown67")
-Relics.Gain(run, "RocketSkates")
+Items.Gain(run, "MagneticBolt")
+Items.Gain(run, "MagneticBolt")
+Items.Gain(run, "Crown67")
+Items.Gain(run, "RocketSkates")
+for key, level in { Ricochet = 2, DoubleShot = 1, Penetration = 2, Split = 1 } do
+	run.Passives[key] = level
+	table.insert(run.PassiveOrder, key)
+end
+Perks.Refresh(run)
+run:RefreshStats()
+run:SendLoadout()
+cd:Fire("Admin", "elite", "")
 Engine.Step(0.3)
 for _ = 1, 10 do
 	if levelUp:IsOpen() then
@@ -482,14 +499,15 @@ for _ = 1, 10 do
 	end
 	Engine.Step(0.25)
 end
-Relics.Gain(run, "Espresso67")
+Items.Gain(run, "MagneticBolt")
 Engine.Step(0.4)
-export(alice, "hud_town", "HUD in 67 TOWN: zone, minimap, mini-boss arrow, relics, dash")
-cd:Fire("Admin", "time", "177")
+export(alice, "hud_town", "HUD in 67 TOWN: zone, boss timeline, minimap, boss arrow, items, synergy, dash")
+cd:Fire("Admin", "killall", "")
+cd:Fire("Admin", "main", "")
 Engine.Step(0.2)
-play(8)
+play(4)
 Engine.Step(0.5)
-export(alice, "hud_boss", "in-run HUD with a boss")
+export(alice, "hud_boss", "in-run HUD with THE FINAL ONE")
 cd:Fire("Admin", "killall", "")
 play(4)
 cd:Fire("Admin", "event", "Luck67")
@@ -524,8 +542,8 @@ bobCd:Fire("StartRun")
 Engine.Step(8)
 export(bob, "phone_hud", "HUD on a phone")
 local bobRun = GM.Entries[bob.ServerPlayer].Run
-bobCd:Fire("Admin", "miniboss", "BigQuack")
-Relics.Gain(bobRun, "RocketSkates")
+bobCd:Fire("Admin", "boss", "BigQuack")
+Items.Gain(bobRun, "RocketSkates")
 Engine.Step(1)
 export(bob, "phone_town", "HUD in 67 TOWN on a phone")
 print("errors: " .. #Engine.Errors)

@@ -3,7 +3,8 @@
 	and spots come from shared/ArenaData.lua (the simulation and the minimap use the same table).
 
 	A pinwheel of zones around the start square (-Z is north: up the screen in a run):
-	  67 SQUARE       the start: the 67 fountain, a clock stuck at 6:07, benches, a hot dog cart
+	  67 SQUARE       the start: THE 67 ARENA in the middle (where THE FINAL ONE waits at 15:00),
+	                  a clock stuck at 6:07, benches, a hot dog cart
 	  GOOBER GARDENS  lawns, ponds, a giant rubber duck, hedges that spell 67 from above, the
 	                  DUCK POND lair
 	  HORDE MART LOT  a parking lot and the store (the Backrooms hide behind it), space no. 67,
@@ -27,6 +28,8 @@
 	  RiftLabel      the gate labels (client: "OPENS 4:30" / "OPEN")
 	  LairRing / LairBeam = lair key, VaultRing / VaultBeam / VaultSafe = vault index,
 	  Spot67 = spot index: lit up per run by the client (ArenaController)
+	  ArenaSeal      the ring wall of THE 67 ARENA (client: solid + visible only while sealed)
+	  ArenaPylon     = pylon index: lit red while THE FINAL ONE is out
 	  Spin / Bob     WorldController moves them
 ]]
 
@@ -35,6 +38,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local ArenaData = require(Shared.ArenaData)
 local GameConfig = require(Shared.GameConfig)
+local BossData = require(Shared.BossData)
 
 local BattleMap = {}
 
@@ -433,37 +437,68 @@ local function square(arena: Instance)
 	folder("Square", arena)
 	-- the plaza and the four avenues out of it
 	disc("Plaza", 0.2, 76, 0, 0.1, 0, COL.Cream, { Material = M.Pebble })
-	disc("PlazaRing", 0.05, 64, 0, 0.13, 0, COL.Gold, { CanCollide = false })
-	disc("PlazaInner", 0.05, 61, 0, 0.16, 0, COL.Cream, { Material = M.Pebble, CanCollide = false })
 	strip("Avenue", 0, -38, 0, -80, 14, 0.08, COL.Avenue, { Material = M.Pebble })
 	strip("Avenue", 0, 38, 0, 80, 14, 0.08, COL.Avenue, { Material = M.Pebble })
 	strip("Avenue", -38, 0, -80, 0, 14, 0.08, COL.Avenue, { Material = M.Pebble })
 	strip("Avenue", 38, 0, 80, 0, 14, 0.08, COL.Avenue, { Material = M.Pebble })
 
-	-- THE 67 FOUNTAIN: a stone basin, a pillar, a golden 6 and 7 spraying water
-	disc("FountainRim", 2.6, 22, 0, 2.6, 0, COL.Stone, { Blocker = true, Material = M.Pebble })
-	disc("FountainWater", 0.3, 19.4, 0, 2.3, 0, COL.Water, { Material = M.Glass, Transparency = 0.25, CanCollide = false })
-	local pillar = rod("FountainPillar", 4.2, 5, L(0, 4.1, 0), COL.Stone)
-	number("67", L(0, 6.2, 0), 3.6, 1.2, 1.2, COL.Gold, { Material = M.Neon, CanCollide = false })
-	local spray = Instance.new("ParticleEmitter")
-	spray.Name = "Spray"
-	spray.Color = ColorSequence.new(rgb(190, 230, 255))
-	spray.LightEmission = 0.4
-	spray.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 0.1) })
-	spray.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
-	spray.Lifetime = NumberRange.new(1, 1.4)
-	spray.Rate = 26
-	spray.Speed = NumberRange.new(10, 13)
-	spray.SpreadAngle = Vector2.new(16, 16)
-	spray.Acceleration = Vector3.new(0, -22, 0)
-	spray.EmissionDirection = Enum.NormalId.Right -- the rod's axis points up
-	spray.Parent = pillar
+	-- THE 67 ARENA: a flat round stage in the middle of the square (nothing in it: THE FINAL
+	-- ONE spawns exactly in its centre at 15:00 and the fight needs room). A gold rim, a giant
+	-- 67 set into the floor, eight pylons just outside the rim that light up red while THE
+	-- FINAL ONE is out, and the seal: a ring wall that only exists (for you) while it is sealed.
+	local main = BossData.Main
+	local R = main.ArenaR
+	-- one floor disc; the gold rim and the inner ring are flat segments on it (stacked discs
+	-- flicker from the run camera)
+	disc("ArenaFloor", 0.2, R * 2, main.X, 0.3, main.Z, rgb(58, 50, 84), { Material = M.Slate, CanCollide = false })
+	local function ring(name: string, radius: number, width: number, top: number, color: Color3, material: Enum.Material)
+		local n = 48
+		for k = 1, n do
+			local a = (k - 0.5) / n * math.pi * 2
+			local x, z = main.X + math.cos(a) * radius, main.Z + math.sin(a) * radius
+			box(
+				name,
+				2 * math.pi * radius / n + 0.3,
+				0.1,
+				width,
+				CFrame.lookAt(ORIGIN + Vector3.new(x, top - 0.05, z), ORIGIN + Vector3.new(main.X, top - 0.05, main.Z)),
+				color,
+				{ Material = material, CanCollide = false }
+			)
+		end
+	end
+	ring("ArenaRim", R - 0.6, 1.2, 0.42, COL.Gold, M.SmoothPlastic)
+	ring("ArenaInnerRing", R - 7, 0.6, 0.42, rgb(110, 92, 160), M.SmoothPlastic)
+	-- the 67 in the floor, readable from the run camera (lying flat, facing up)
+	number("67", L(main.X, 0.45, main.Z + 3) * ang(rad(-90), 0, 0), 7, 2.2, 0.2, COL.Gold, { Material = M.Neon, CanCollide = false, Transparency = 0.25 })
+	for i = 1, 8 do
+		local a = (i - 0.5) / 8 * math.pi * 2
+		local x, z = main.X + math.cos(a) * (R + 4), main.Z + math.sin(a) * (R + 4)
+		rod("ArenaPylon", 9, 2.4, L(x, 4.5, z), COL.Basalt, { Blocker = true, Attributes = { ArenaPylon = i } })
+		ball("ArenaPylonTip", 2.6, L(x, 9.6, z), COL.Gold, { Material = M.Neon, CanCollide = false, Attributes = { ArenaPylon = i } })
+	end
+	local segments = 40
+	for i = 1, segments do
+		local a = (i - 0.5) / segments * math.pi * 2
+		local x, z = main.X + math.cos(a) * R, main.Z + math.sin(a) * R
+		local length = 2 * math.pi * R / segments + 0.4
+		box(
+			"ArenaSeal",
+			length,
+			14,
+			0.6,
+			CFrame.lookAt(ORIGIN + Vector3.new(x, 7, z), ORIGIN + Vector3.new(main.X, 7, main.Z)), -- X runs along the ring
+			rgb(255, 60, 70),
+			{ Material = M.ForceField, CanCollide = false, Transparency = 1, Attributes = { ArenaSeal = true } }
+		)
+	end
+	camBoard("ArenaSign", 18, 3.4, main.X, 1.2, main.Z - R + 4, { Title = "THE 67 ARENA", Color = COL.Gold, Bg = COL.Ink, Glow = true }, { CanCollide = false })
 
-	-- benches and lamps around the plaza
-	for _, b in { { -44, -26 }, { 44, -26 }, { -44, 30 }, { 44, 30 } } do
+	-- benches and lamps around the plaza (outside the arena)
+	for _, b in { { -44, -30 }, { 44, -30 }, { -44, 34 }, { 44, 34 } } do
 		bench(b[1], b[2])
 	end
-	for _, l in { { -12, -42 }, { 12, 42 }, { 42, -12 }, { -42, 12 } } do
+	for _, l in { { -14, -52 }, { 14, 52 }, { 52, -14 }, { -52, 14 } } do
 		lamp(l[1], l[2], 11, rgb(255, 232, 170), true)
 	end
 

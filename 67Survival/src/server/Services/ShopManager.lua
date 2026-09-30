@@ -2,6 +2,8 @@
 	ShopManager - spending between runs:
 	  coins     -> permanent upgrades, cosmetics (AFK camp slots: AfkManager)
 	  fragments -> heroes and new abilities (both can also come from achievements)
+	  CHIPS     -> premium items and boss relics (shared/ItemData.lua): an unlock adds the item
+	               to the loot of runs, it still has to be found (and levelled) in a run
 	and choosing: hero, starting ability, loadouts (1 slot, 3 with the Extra Loadout pass),
 	equipped cosmetics. Codes.
 ]]
@@ -14,6 +16,7 @@ local MetaData = require(Shared.MetaData)
 local HeroData = require(Shared.HeroData)
 local WeaponData = require(Shared.WeaponData)
 local CosmeticData = require(Shared.CosmeticData)
+local ItemData = require(Shared.ItemData)
 
 local Guard = require(script.Parent.Parent.Util.Guard)
 local Codes = require(script.Parent.Parent.Data.Codes)
@@ -116,6 +119,31 @@ function ShopManager:UnlockWeapon(player: Player, key: string)
 	session.Data.Weapons[key] = true
 	self.Services.PlayerManager:Notify(player, "Unlocked: " .. def.Name, "Unlock")
 	self.Services.PlayerManager:Sync(player)
+end
+
+---------------------------------------------------------------------------
+-- items (CHIPS)
+---------------------------------------------------------------------------
+function ShopManager:UnlockItem(player: Player, key: string)
+	local session = self:Session(player)
+	local def = ItemData.ByKey[key]
+	if not session or not def or not ItemData.NeedsUnlock(def) or session.Data.ItemUnlocks[key] then
+		return
+	end
+	local PM = self.Services.PlayerManager
+	local price = def.Price or 0
+	if price <= 0 then
+		return
+	end
+	if session.Data.Chips < price then
+		PM:Notify(player, string.format("Needs %d CHIPS (you have %d)", price, session.Data.Chips), "Error")
+		return
+	end
+	session.Data.Chips -= price
+	session.Data.ItemUnlocks[key] = true
+	PM:Notify(player, "Unlocked: " .. def.Name .. " - it can now drop in runs", "Unlock")
+	self.Services.RewardManager:CheckAchievements(session)
+	PM:Sync(player)
 end
 
 -- the starting ability of the active loadout ("" = the hero's own)
@@ -239,6 +267,7 @@ function ShopManager:Start()
 	Guard.Connect(Net.Event("UnlockHero"), { Rate = 2, Burst = 3 }, key(ShopManager.UnlockHero))
 	Guard.Connect(Net.Event("SelectHero"), { Rate = 4, Burst = 6 }, key(ShopManager.SelectHero))
 	Guard.Connect(Net.Event("UnlockWeapon"), { Rate = 2, Burst = 3 }, key(ShopManager.UnlockWeapon))
+	Guard.Connect(Net.Event("UnlockItem"), { Rate = 2, Burst = 3 }, key(ShopManager.UnlockItem))
 	Guard.Connect(Net.Event("SetStartWeapon"), { Rate = 2, Burst = 4 }, function(player, k)
 		if Guard.Str(k, 40) or k == "" then
 			self:SetStartWeapon(player, k)

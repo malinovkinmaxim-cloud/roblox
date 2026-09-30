@@ -15,12 +15,16 @@ local C = Theme.Colors
 
 local COMMANDS = {
 	{ "+1 MIN", "time", "+60" },
-	{ "2:55 BOSS", "time", "175" },
-	{ "5:55 BOSS", "time", "355" },
-	{ "11:55 FINAL", "time", "715" },
+	{ "2:45 BOSS 1", "time", "165" },
+	{ "5:45 BOSS 2", "time", "345" },
+	{ "8:45 BOSS 3", "time", "525" },
+	{ "11:45 BOSS 4", "time", "705" },
+	{ "14:45 FINAL", "time", "885" },
 	{ "4:25 RIFT", "time", "265" },
-	{ "MINI-BOSS", "miniboss", "" },
-	{ "RELIC", "relic", "" },
+	{ "NEXT BOSS NOW", "boss", "" },
+	{ "FINAL ONE NOW", "main", "" },
+	{ "ELITE", "elite", "" },
+	{ "ITEM", "item", "" },
 	{ "67 VAULT", "vault", "" },
 	{ "67 RUSH", "rush", "" },
 	{ "67%", "event", "Percent67" },
@@ -38,6 +42,8 @@ local COMMANDS = {
 	{ "DIE", "die", "" },
 	{ "+5000 COINS", "coins", "5000" },
 	{ "+100 FRAG", "fragments", "100" },
+	{ "+1000 CHIPS", "chips", "1000" },
+	{ "UNLOCK ITEMS", "unlockitems", "" },
 	{ "AFK +2H", "afk", "120" },
 	{ "UNLOCK ALL", "unlockall", "" },
 	{ "MAX META", "maxmeta", "" },
@@ -57,7 +63,7 @@ function DebugController:Build()
 	local gui, root = Kit.ScreenGui("S67Debug", 60, Players.LocalPlayer:WaitForChild("PlayerGui"))
 	self.Gui = gui
 	local panel = Kit.Panel({
-		Size = UDim2.fromOffset(612, 420),
+		Size = UDim2.fromOffset(612, math.ceil(#COMMANDS / 4) * 50 + 16),
 		Position = UDim2.new(1, -8, 1, -46),
 		AnchorPoint = Vector2.new(1, 1),
 		Visible = false,
