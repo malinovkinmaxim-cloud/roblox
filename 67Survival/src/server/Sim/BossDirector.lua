@@ -6,7 +6,10 @@
 	  At - lead    BOSS n is announced at the lair of its zone (marker, arrow, minimap);
 	               bosses nobody is fighting leave with their loot
 	  At           it spawns there and waits for you (Sim/MiniBosses: lair rules)
-	  15:00        THE FINAL ONE appears in the 67 ARENA (the centre of the map)
+	  15:00        the tier's MAIN BOSS appears in the 67 ARENA (the centre of the map)
+
+	A slot draws from its pool's bosses of this tier (BossData MinTier: tiers I-II keep the
+	classic three); the main boss is the tier's own (BossData.MainFor).
 
 	lead = BossData.WarnLead (+ the Compass item). The 67 BOSS event crowns the boss that is out
 	(or the next one): tougher, double loot.
@@ -25,12 +28,19 @@ local BossDirector = {}
 
 local MAIN = BossData.Main
 
--- picks: forced BossData keys by slot (tests / debug)
+-- the main boss of this run's tier
+function BossDirector.Main(run)
+	return BossData.MainFor(run.Difficulty)
+end
+
+-- picks: forced BossData keys by slot (tests / debug; a forced boss ignores its tier)
 function BossDirector.Init(run, picks: { string }?)
 	local plan = {}
+	local tier = run.Difficulty or 2
 	for i, slot in BossData.Slots do
 		local forced = picks and picks[i]
-		plan[i] = if forced and table.find(slot.Pool, forced) then forced else slot.Pool[run.Rng:NextInteger(1, #slot.Pool)]
+		local pool = BossData.PoolFor(slot, tier)
+		plan[i] = if forced and table.find(slot.Pool, forced) then forced else pool[run.Rng:NextInteger(1, #pool)]
 	end
 	run.BossPlan = plan
 	run.BossNext = 1
@@ -68,7 +78,7 @@ function BossDirector.Step(run, EM)
 		run.MainAnnounced = true
 		MiniBosses.LeaveIdle(run, EM)
 		run.Map.MainOut = true
-		MiniBosses.Announce(run, BossData.Get(MAIN.Key), 5, MAIN.X, MAIN.Z, ARENA_LAIR, MAIN.At)
+		MiniBosses.Announce(run, BossDirector.Main(run), 5, MAIN.X, MAIN.Z, ARENA_LAIR, MAIN.At)
 	end
 	MiniBosses.StepEncounters(run, EM)
 end
@@ -101,14 +111,18 @@ function BossDirector.Force(run, slotIndex: number, key: string?, EM)
 	return true
 end
 
--- debug: THE FINAL ONE now
-function BossDirector.ForceMain(run)
+-- debug: the main boss now (key: another tier's main boss)
+function BossDirector.ForceMain(run, key: string?)
 	if run.MainAnnounced then
 		return false
 	end
+	local def = BossData.ByKey[key or ""]
+	if not def or def.Slot ~= 5 then
+		def = BossDirector.Main(run)
+	end
 	run.MainAnnounced = true
 	run.Map.MainOut = true
-	MiniBosses.Announce(run, BossData.Get(MAIN.Key), 5, MAIN.X, MAIN.Z, ARENA_LAIR, run.Time + 3)
+	MiniBosses.Announce(run, def, 5, MAIN.X, MAIN.Z, ARENA_LAIR, run.Time + 3)
 	return true
 end
 

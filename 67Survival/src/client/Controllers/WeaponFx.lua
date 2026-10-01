@@ -9,8 +9,9 @@
 	  Zone / ZoneEnd      poison clouds, black holes
 	  Clone               the decoy copy of the hero
 	  EProj / EProjEnd    enemy projectiles (straight lines, deterministic)
-	  Telegraph           circles / dash lines / void zones / laser lines that fill up;
-	                      puddles (blue) and spills (orange) stay on the ground a while
+	  Telegraph           circles / dash lines / void zones / laser lines / sectors that
+	                      fill up; puddles (blue), spills (orange), erased floor (white) and
+	                      burning sectors stay on the ground a while; safe spots are white
 	Always-on abilities (auras, fire rings, ice fields, orbits, drones, barrier) are drawn
 	from the Loadout every frame, with the same formulas as the server.
 
@@ -38,6 +39,7 @@ local PARK = CFrame.new(0, -400, 0)
 local FLAT = CFrame.Angles(0, 0, math.rad(90))
 local TAU = math.pi * 2
 local GFX = Protocol.Fx
+local SHAPES = Protocol.Shapes
 
 local function newPart(name: string, size: Vector3, color: Color3, material: Enum.Material?, shape: Enum.PartType?): Part
 	local p = Instance.new("Part")
@@ -131,6 +133,21 @@ local BUILD = {
 	end,
 	Block = function()
 		return newPart("Block", Vector3.new(1, 1, 1), rgb(255, 255, 255), Enum.Material.SmoothPlastic)
+	end,
+	-- half of a sector slice (a right triangle lying flat on the ground)
+	Wedge = function()
+		local p = Instance.new("WedgePart")
+		p.Name = "Wedge"
+		p.Size = Vector3.new(0.2, 1, 1)
+		p.Color = rgb(255, 40, 60)
+		p.Material = Enum.Material.Neon
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.CFrame = PARK
+		return p
 	end,
 }
 
@@ -462,21 +479,27 @@ end
 ---------------------------------------------------------------------------
 -- telegraphs (enemy / boss attacks)
 ---------------------------------------------------------------------------
-local TELE_COLOR = { [3] = rgb(150, 60, 255), [5] = rgb(80, 170, 255), [6] = rgb(255, 140, 40) }
-local LINGER_COLOR = { [3] = rgb(60, 20, 110), [5] = rgb(70, 150, 255), [6] = rgb(230, 100, 30) }
+local TELE_COLOR = { [3] = rgb(150, 60, 255), [5] = rgb(80, 170, 255), [6] = rgb(255, 140, 40), [8] = rgb(255, 255, 255) }
+local LINGER_COLOR = { [3] = rgb(60, 20, 110), [5] = rgb(70, 150, 255), [6] = rgb(230, 100, 30), [9] = rgb(246, 246, 250) }
+local SAFE = rgb(255, 255, 255)
 function WeaponFx:Telegraph(shape: number, x: number, z: number, angle: number, size: number, width: number, delay: number)
+	if shape == SHAPES.Sector or shape == SHAPES.SafeSector then
+		self:SectorTelegraph(shape, x, z, angle, size, width, delay)
+		return
+	end
 	local run = self.C.RunClient
 	local edge = self:Take("Disc")
 	local fill = self:Take("Disc")
-	-- lingering ground: void (purple), a slippery puddle (blue), a spill (orange)
+	-- lingering ground: void (purple), a slippery puddle (blue), a spill (orange); a safe spot
+	-- (white) sits on top of the red around it; erased floor warns in red, then stays white
 	local red = TELE_COLOR[shape] or rgb(255, 40, 60)
 	edge.Color = red
 	fill.Color = red
-	edge.Transparency = 0.55
+	edge.Transparency = if shape == SHAPES.Safe then 0.25 else 0.55
 	fill.Transparency = 0.35
 	local tele = { Edge = edge, Fill = fill, Shape = shape, T = 0, Delay = math.max(0.1, delay) }
-	if shape == 1 or shape == 3 or shape == 5 or shape == 6 then
-		local pos = run:World(x, z, 0.35)
+	if shape == 1 or shape == 3 or shape == 5 or shape == 6 or shape == SHAPES.Safe or shape == SHAPES.Erase then
+		local pos = run:World(x, z, if shape == SHAPES.Safe then 0.55 else 0.35)
 		edge.Size = Vector3.new(0.15, size * 2, size * 2)
 		edge.CFrame = CFrame.new(pos) * FLAT
 		tele.Update = function(t)
@@ -484,7 +507,7 @@ function WeaponFx:Telegraph(shape: number, x: number, z: number, angle: number, 
 			fill.Size = Vector3.new(0.2, r * 2, r * 2)
 			fill.CFrame = CFrame.new(pos + Vector3.new(0, 0.05, 0)) * FLAT
 		end
-		if shape == 3 or shape == 5 or shape == 6 then
+		if shape == 3 or shape == 5 or shape == 6 or shape == SHAPES.Erase then
 			-- after the warning the zone stays on the ground for `width` seconds
 			tele.Linger = width
 			tele.Pos = pos
@@ -514,6 +537,115 @@ function WeaponFx:Telegraph(shape: number, x: number, z: number, angle: number, 
 	end
 	tele.Update(0)
 	table.insert(self.Telegraphs, tele)
+end
+
+-- places a flat wedge as the right triangle O-M-A (right angle at M), lifted to y
+local function placeWedge(p: BasePart, o: Vector3, m: Vector3, a: Vector3)
+	local oz = m - o
+	local my = a - m
+	local lz, ly = oz.Magnitude, my.Magnitude
+	if lz < 0.05 or ly < 0.05 then
+		p.Size = Vector3.new(0.2, 0.05, 0.05)
+		p.CFrame = PARK
+		return
+	end
+	local vz, vy = oz / lz, my / ly
+	local vx = vy:Cross(vz)
+	p.Size = Vector3.new(0.2, ly, lz)
+	p.CFrame = CFrame.fromMatrix(o + vz * (lz / 2) + vy * (ly / 2), vx, vy, vz)
+end
+
+-- a sector (pie slice) around (x, z) towards angle, radius `size`, half-arc `half`: a fan of
+-- flat triangles; the red ones fill outwards, then burn for Protocol.SectorBurn seconds
+function WeaponFx:SectorTelegraph(shape: number, x: number, z: number, angle: number, size: number, half: number, delay: number)
+	local run = self.C.RunClient
+	local safe = shape == SHAPES.SafeSector
+	local subs = math.max(1, math.ceil(half * 2 / 0.5))
+	local step = half * 2 / subs
+	local reach = size / math.cos(step / 2) -- the chords reach the arc
+	local tele = { Edges = {}, Fills = {}, T = 0, Delay = math.max(0.1, delay), Safe = safe, Burn = if safe then 0 else Protocol.SectorBurn }
+	local y = if safe then 0.6 else 0.4
+	local o = run:World(x, z, y)
+	local slices = {}
+	for k = 0, subs - 1 do
+		local a0 = angle - half + k * step
+		local a1 = a0 + step
+		table.insert(slices, { Vector3.new(math.cos(a0), 0, math.sin(a0)), Vector3.new(math.cos(a1), 0, math.sin(a1)) })
+	end
+	local color = if safe then SAFE else rgb(255, 40, 60)
+	for _, sl in slices do
+		for side = 1, 2 do
+			local edge = self:Take("Wedge")
+			edge.Color = color
+			edge.Transparency = if safe then 0.35 else 0.6
+			local d0, d1 = sl[1] * reach, sl[2] * reach
+			local m = o + (d0 + d1) / 2
+			placeWedge(edge, o, m, o + (if side == 1 then d0 else d1))
+			table.insert(tele.Edges, edge)
+			local fill = self:Take("Wedge")
+			fill.Color = color
+			table.insert(tele.Fills, { Part = fill, Side = side, D0 = sl[1], D1 = sl[2] })
+		end
+	end
+	tele.Update = function(t)
+		local r = reach * math.max(0.03, t)
+		local lift = Vector3.new(0, 0.05, 0)
+		for _, f in tele.Fills do
+			local d0, d1 = f.D0 * r, f.D1 * r
+			local m = o + lift + (d0 + d1) / 2
+			placeWedge(f.Part, o + lift, m, o + lift + (if f.Side == 1 then d0 else d1))
+		end
+	end
+	tele.Update(0)
+	self.SectorTeles = self.SectorTeles or {}
+	table.insert(self.SectorTeles, tele)
+end
+
+local function freeSector(self, tele)
+	for _, p in tele.Edges do
+		self:Give("Wedge", p)
+	end
+	for _, f in tele.Fills do
+		self:Give("Wedge", f.Part)
+	end
+end
+
+function WeaponFx:UpdateSectors(dt: number, clock: number)
+	local list = self.SectorTeles
+	if not list then
+		return
+	end
+	local i = 1
+	while i <= #list do
+		local t = list[i]
+		t.T += dt
+		local frac = t.T / t.Delay
+		if frac < 1 then
+			t.Update(frac)
+			for _, f in t.Fills do
+				f.Part.Transparency = (if t.Safe then 0.45 else 0.55) - frac * 0.3 + (if frac > 0.75 and not t.Safe then math.sin(clock * 40) * 0.15 else 0)
+			end
+			i += 1
+		elseif not t.Safe and t.T < t.Delay + t.Burn then
+			-- it burns
+			if not t.Burning then
+				t.Burning = true
+				t.Update(1)
+				for _, f in t.Fills do
+					f.Part.Color = rgb(255, 150, 40)
+				end
+			end
+			local bt = (t.T - t.Delay) / t.Burn
+			for _, f in t.Fills do
+				f.Part.Transparency = 0.2 + math.sin(clock * 12) * 0.08 + bt * 0.6
+			end
+			i += 1
+		else
+			freeSector(self, t)
+			list[i] = list[#list]
+			list[#list] = nil
+		end
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -1020,6 +1152,49 @@ function WeaponFx:BuildFx(variant: number, x: number, z: number, pos: Vector3, a
 		fx:Ring(pos, r, rgb(255, 40, 80), 0.5)
 		fx:Emit("Smoke", pos + Vector3.new(0, 2, 0), rgb(80, 20, 40), 14)
 		sound:Play("Zap", 0.6, 0.8)
+	-- the harder tiers
+	elseif variant == GFX.Lava then
+		-- an Eruptor's lava ball arcs from (x, z) onto its circle
+		local from = pos + Vector3.new(0, 2.5, 0)
+		local to = pos + Vector3.new(math.cos(angle) * p1, 0.8, math.sin(angle) * p1)
+		local ball = self:Take("Ball")
+		ball.Color = rgb(255, 220, 110)
+		ball.Size = Vector3.new(1.6, 1.6, 1.6)
+		self:Transient(math.max(0.2, p2), function(t)
+			ball.CFrame = CFrame.new(from:Lerp(to, t) + Vector3.new(0, math.sin(t * math.pi) * (6 + p1 * 0.3), 0))
+		end, function()
+			self:Give("Ball", ball)
+			fx:Emit("Poof", to + Vector3.new(0, 1, 0), rgb(255, 200, 90), 8)
+		end)
+	elseif variant == GFX.Gravity then
+		-- a gravity pulse: rings that close in
+		for k = 0, 2 do
+			task.delay(k * 0.35, function()
+				fx:Ring(pos, r * (1 - k * 0.25), rgb(190, 150, 255), 0.6, r * 0.05)
+			end)
+		end
+		sound:Play("Freeze", 0.5, 0.4)
+	elseif variant == GFX.ShieldBreak then
+		fx:Ring(pos, r, rgb(220, 235, 255), 0.35)
+		fx:Emit("Poof", pos + Vector3.new(0, 2, 0), rgb(200, 220, 255), 12)
+		fx:WorldText(pos + Vector3.new(0, 6, 0), "BROKEN!", rgb(220, 235, 255), 1.6, 0.7)
+		sound:Play("Kill", 0.7, 0.6)
+	elseif variant == GFX.Block then
+		fx:Ring(pos, r, rgb(220, 235, 255), 0.2)
+		if math.random() < 0.3 then
+			sound:Play("Click", 0.8, 0.3)
+		end
+	elseif variant == GFX.Rage then
+		fx:Ring(pos, r, rgb(255, 205, 60), 0.5)
+		fx:WorldText(pos + Vector3.new(0, 6, 0), "!!", rgb(255, 205, 60), 2, 0.8)
+		sound:Play("Zap", 0.7, 0.5)
+	elseif variant == GFX.Hatch then
+		fx:Ring(pos, r, rgb(206, 240, 176), 0.35)
+		fx:Emit("Poof", pos + Vector3.new(0, 1.5, 0), rgb(220, 250, 200), 14)
+		sound:Play("Pick", 0.8, 0.5)
+	elseif variant == GFX.Rally then
+		fx:Ring(pos, r, rgb(255, 205, 60), 0.8, r * 0.04)
+		sound:Play("BossSpawn", 1.4, 0.4)
 	end
 end
 
@@ -1168,6 +1343,7 @@ function WeaponFx:Update(dt: number)
 	end
 
 	-- telegraphs
+	self:UpdateSectors(sdt, clock)
 	local i = 1
 	local teles = self.Telegraphs
 	while i <= #teles do
@@ -1241,6 +1417,10 @@ function WeaponFx:Clear()
 		self:Give("Disc", t.Fill)
 	end
 	table.clear(self.Telegraphs)
+	for _, t in self.SectorTeles or {} do
+		freeSector(self, t)
+	end
+	self.SectorTeles = {}
 	for _, t in self.Transients do
 		if t.Done then
 			t.Done()

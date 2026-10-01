@@ -82,16 +82,25 @@ T("every enemy has complete stats", function()
 	Expect(#EnemyData.List < 256, "enemy ids fit in a byte")
 end)
 
-T("every boss pattern has its timing numbers", function()
-	local EVERY = { Slam = "SlamEvery", DoubleSlam = "SlamEvery", Dash = "DashEvery", Ring = "RingEvery", Spiral = "SpiralEvery", Summon = "SummonEvery", Rain = "RainEvery", Leap = "LeapEvery", Teleport = "TeleportEvery", Barrage = "BarrageEvery", Sweep = "SweepEvery", Hazard = "HazardEvery" }
+T("every boss pattern has its timing numbers and its code", function()
+	local Bosses = R("ServerScriptService.Server.Sim.Bosses")
 	for _, def in EnemyData.List do
 		if def.Behavior == "Boss" then
-			local patterns = table.clone(def.Params.Patterns)
-			for _, extra in def.Params.EnragePatterns or {} do
+			local p = def.Params
+			local patterns = table.clone(p.Patterns)
+			for _, extra in p.EnragePatterns or {} do
 				table.insert(patterns, extra)
 			end
+			for _, sets in { p.PhasePatterns or {}, p.PhaseSets or {} } do
+				for _, set in sets do
+					for _, extra in set do
+						table.insert(patterns, extra)
+					end
+				end
+			end
 			for _, pattern in patterns do
-				Expect(EVERY[pattern] and def.Params[EVERY[pattern]], def.Key .. " " .. pattern)
+				Expect(Bosses.Actions[pattern], def.Key .. " " .. pattern .. " has code")
+				Expect(type(p[Bosses.Every[pattern]]) == "number", def.Key .. " " .. pattern .. " timer")
 			end
 		end
 	end
@@ -272,7 +281,9 @@ T("difficulty: a run scales the horde, bosses and rules", function()
 	local calmBoss = EM.Spawn(calm, "TheGiant", 40, 0, { Force = true })
 	Expect(math.abs(boss.MaxHP / calmBoss.MaxHP - tiers[7].BossHP / tiers[1].BossHP) < 1e-6, "boss health scales")
 	Eq(tiers[2].Reward, 1, "HUNT pays like the classic game")
-	-- a few minutes on the top tier stay error free (glitch, chaos, no mercy)
+	-- a few minutes on the top tier stay error free (glitch, chaos, no mercy); the test boss goes
+	-- first (a lone boss soaks every shot of the starting weapon)
+	EM.Despawn(top, boss)
 	top.Invulnerable = 1e9
 	for _ = 1, 20 * 150 do
 		top:Step(0.05)
@@ -944,8 +955,14 @@ T("bosses: 4 slots (3:00 / 6:00 / 9:00 / 12:00, zones by danger) + THE FINAL ONE
 			Expect(ph.At > 0 and ph.At < 1 and #ph.Name > 2 and #ph.Text > 5, def.Key .. " phase")
 		end
 		Expect(def.WeakPoint and def.WeakPoint.Mult > 1 and def.WeakPoint.Time > 0 and #def.WeakPoint.Text > 2, def.Key .. " weak point")
-		local relic = ItemData.ByKey[def.Relic]
-		Expect(relic and relic.Type == "BossRelic" and relic.Boss == def.Key, def.Key .. " has its relic")
+		-- the classic bosses (tiers I-II) have a BOSS RELIC; the harder tiers' bosses have none
+		local classic = def.MinTier == nil and (def.Tier == nil or def.Tier == 2)
+		if classic then
+			local relic = ItemData.ByKey[def.Relic]
+			Expect(relic and relic.Type == "BossRelic" and relic.Boss == def.Key, def.Key .. " has its relic")
+		else
+			Expect(def.Relic == nil, def.Key .. " has no relic")
+		end
 		for _, body in def.Bodies do
 			local e = EnemyData.ByKey[body]
 			Expect(e and e.Params.Title, body .. " body")
@@ -1276,7 +1293,14 @@ T("items: 40+, levels 2-5 with mechanics, prices by class, a relic per boss", fu
 		end
 	end
 	Expect(base >= 20 and premium >= 10, "base " .. base .. ", premium " .. premium)
-	Eq(relics, #BossData.List, "a relic for every boss")
+	local withRelic = 0
+	for _, def in BossData.List do
+		if def.Relic then
+			withRelic += 1
+		end
+	end
+	Eq(withRelic, 13, "the 13 classic bosses keep their relics")
+	Eq(relics, withRelic, "a relic for every classic boss")
 	Eq(ItemData.ByKey.Fragment67.Boss, "TheFinalOne", "the main boss drops the 67 FRAGMENT")
 	for _, key in { "MagneticBolt", "RedButton", "Fang", "Compass", "RustyToken", "BlackWire" } do
 		Eq(ItemData.ByKey[key] and ItemData.ByKey[key].Type, "Base", key)
@@ -1563,6 +1587,385 @@ T("the profile keeps CHIPS and item unlocks (and drops unknown keys)", function(
 	Expect(clean.ItemUnlocks.BloodEngine, "premium unlock kept")
 	Expect(clean.ItemUnlocks.MagneticBolt == nil and clean.ItemUnlocks.Nope == nil, "only unlockable items")
 	Eq(Defaults.Reconcile({ Chips = -5 }).Chips, 0, "no negative chips")
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("harder tiers")
+---------------------------------------------------------------------------
+T("tiers: the new horde joins tier by tier, on top of the classic mix", function()
+	Eq(#WaveData.TierPools, 11, "11 pools (Sevenlet comes with Sixlet)")
+	for _, pool in WaveData.TierPools do
+		local def = EnemyData.ByKey[pool.Key]
+		Expect(def and def.MinTier == pool.MinTier, pool.Key .. " tier")
+		Expect(pool.From > 0 and pool.From < 900 and pool.Weight > 0, pool.Key .. " timing")
+		if pool.Pair then
+			Expect(EnemyData.ByKey[pool.Pair] and EnemyData.ByKey[pool.Pair].MinTier == pool.MinTier, pool.Key .. " pair")
+		end
+	end
+	local _, late = WaveData.EntryAt(800)
+	local function keys(tier: number, t: number)
+		local set = {}
+		for _, m in WaveData.Mix(late, tier, t) do
+			set[m[1]] = m[2]
+		end
+		return set
+	end
+	-- the classic mix is untouched, the pools come on top
+	for key, w in late.Mix do
+		Eq(keys(7, 800)[key], w, "classic " .. key)
+	end
+	local calm, hunt, top = keys(1, 800), keys(2, 800), keys(7, 800)
+	Expect(calm.Snoozer and not calm.Shielder, "CALM: Snoozer only")
+	Expect(hunt.Snoozer and hunt.Shielder and not hunt.Stampeder, "HUNT: + Shielder")
+	for _, pool in WaveData.TierPools do
+		Expect(top[pool.Key], "THE 67 has " .. pool.Key)
+	end
+	Expect(not keys(7, 30).Snoozer, "nothing before its minute")
+	-- every new enemy has its numbers and its behaviour
+	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
+	for _, def in EnemyData.List do
+		if def.MinTier and not def.Boss and not def.Champion then
+			Expect(EM.Behaviors[def.Behavior], def.Key .. " behaviour " .. def.Behavior)
+			Expect(def.HP < 100 and def.Radius < 2, def.Key .. " is a horde enemy")
+		end
+	end
+end)
+
+T("tiers: elite affixes by tier; ECHO only on kinds that attack", function()
+	local function names(tier: number, kind: string?)
+		local set = {}
+		for _, a in EnemyData.AffixesFor(tier, kind) do
+			set[a.Key] = true
+		end
+		return set
+	end
+	local calm = names(1, "Brute")
+	Expect(calm.Swift and calm.Armored and not calm.Volatile and not calm.Shielded, "CALM: SWIFT, ARMORED")
+	local hunt = names(2, "Brute")
+	for _, key in { "Swift", "Armored", "Volatile", "Summoner", "Vampiric", "Frost" } do
+		Expect(hunt[key], "HUNT keeps " .. key)
+	end
+	Expect(not hunt.Shielded, "HUNT: only the classic six")
+	Expect(names(3).Shielded and not names(3).Cursed, "HORDE: + SHIELDED")
+	Expect(names(4).Cursed and names(4).Berserk, "NIGHTMARE: + CURSED, BERSERK")
+	Expect(names(5).Burning and names(5).Gravity, "INFERNO: + BURNING, GRAVITY")
+	Expect(names(6, "Spitter").Thorned and names(6, "Spitter").Echo, "OBLIVION: + THORNED, ECHO")
+	Expect(not names(6, "Brute").Echo, "a Brute has nothing to echo")
+	Expect(names(7).Gilded67, "THE 67: + GILDED 67")
+	for _, key in EnemyData.ElitePool do
+		Expect(EnemyData.ByKey[key], "elite kind " .. key)
+	end
+end)
+
+T("tiers: a slot draws its tier's bosses; every tier has its own main boss", function()
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
+	for i, slot in BossData.Slots do
+		Eq(#BossData.PoolFor(slot, 1), 3, "slot " .. i .. " CALM: the classic three")
+		Eq(#BossData.PoolFor(slot, 2), 3, "slot " .. i .. " HUNT: the classic three")
+		Eq(#BossData.PoolFor(slot, 3), 4, "slot " .. i .. " HORDE: +1")
+		Eq(#BossData.PoolFor(slot, 5), 5, "slot " .. i .. " INFERNO: +1 more")
+		Eq(#BossData.PoolFor(slot, 7), 5, "slot " .. i .. " THE 67: all")
+	end
+	-- the draw follows the tier
+	local seen = {}
+	for seed = 1, 40 do
+		local run = Run.new({ Seed = seed, Difficulty = 2 })
+		for i, key in run.BossPlan do
+			Expect(BossData.ByKey[key].MinTier == nil, "HUNT never draws " .. key)
+			Eq(BossData.ByKey[key].Slot, i, key .. " in its slot")
+		end
+		local top = Run.new({ Seed = seed, Difficulty = 7 })
+		for _, key in top.BossPlan do
+			seen[key] = true
+		end
+	end
+	for _, key in { "SirSnailsalot", "Scarecrow", "SelfCheckout", "Mannequin", "DJDrop", "RouletteRoller", "TheMirror", "EventHorizon" } do
+		Expect(seen[key], "THE 67 can draw " .. key)
+		local def = BossData.ByKey[key]
+		Expect(def.MinTier == 3 or def.MinTier == 5, key .. " tier")
+		Expect(EnemyData.ByKey[def.Bodies[1]].Champion, key .. " is a lair boss")
+	end
+	Eq(#BossData.Mains, 7, "a main boss per tier")
+	for tier = 1, 7 do
+		local def = BossData.MainFor(tier)
+		Eq(def.Tier, tier, def.Key .. " tier")
+		Eq(def.Slot, 5, def.Key .. " is a main boss")
+		local run = Run.new({ Seed = 3, Difficulty = tier })
+		Eq(BossDirector.Main(run).Key, def.Key, "tier " .. tier .. " meets " .. def.Key)
+	end
+	Eq(BossData.MainFor(2).Key, "TheFinalOne", "HUNT keeps THE FINAL ONE")
+	-- the bodies' HP in EnemyData is BossData's (only used by a body spawned on its own)
+	for _, def in BossData.List do
+		for _, body in def.Bodies do
+			Eq(EnemyData.ByKey[body].HP, def.HP, body .. " HP agrees with BossData")
+		end
+	end
+end)
+
+T("tiers: telegraphs are fair (horde >= 0.7 s, bosses >= 1 s, NO MERCY >= 0.75 s)", function()
+	local function check(def, minimum: number)
+		local p = def.Params
+		for key, v in p do
+			if type(v) == "number" and (string.sub(key, -5) == "Delay" or string.sub(key, -6) == "Windup") and key ~= "RingWindup" then
+				Expect(v >= minimum, def.Key .. "." .. key .. " = " .. v)
+				Expect(v * 0.75 >= minimum * 0.75 - 1e-6, def.Key .. "." .. key .. " on NO MERCY")
+			end
+		end
+		if p.RingWindup then
+			Expect(p.RingWindup * p.Beat >= 1, def.Key .. " ring warning")
+		end
+	end
+	for _, def in EnemyData.List do
+		if def.MinTier and (def.Boss or def.Champion) then
+			check(def, 1)
+		elseif def.MinTier then
+			check(def, 0.7)
+			if def.Params.Blink then
+				Expect(def.Params.Blink >= 0.7, def.Key .. " blinks long enough")
+			end
+		end
+	end
+	Expect(EnemyData.ByKey.Crow.Params.Windup >= 0.7, "crows aim long enough")
+	Expect(Protocol.SectorBurn > 0, "sectors burn a moment")
+end)
+
+-- a run on a tier, standing in the arena with god mode
+local function mainFight(tier: number, seed: number)
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
+	local run = townRun(seed, { Difficulty = tier })
+	steps(run, 1)
+	run.Time = BossData.Main.At - 4
+	Expect(BossDirector.ForceMain(run), "comes")
+	steps(run, 3.2, 8, 0)
+	local enc = nil
+	for _, e in run.Map.Encounters do
+		if e.Main then
+			enc = e
+		end
+	end
+	return run, enc
+end
+
+T("every main boss: sealed arena, its phases, its arena mechanic, victory", function()
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	for tier = 1, 7 do
+		local def = BossData.MainFor(tier)
+		local run, enc = mainFight(tier, 700 + tier)
+		Expect(enc and enc.Def.Key == def.Key, def.Key .. " is out")
+		steps(run, 0.5, 8, 0)
+		Expect(run.Map.ArenaSealed, def.Key .. ": sealed")
+		local events = {}
+		if def.Fused then
+			-- THE 67 PRIME: SIX and SEVEN together, then the fused 67
+			local six, seven = enc.Bodies[1], enc.Bodies[2]
+			Expect(six and seven and six.Alive and seven.Alive, "phase 1: two digits")
+			steps(run, 6, 8, 0, events)
+			EnemyManager.Damage(run, six, six.HP + 1, 0, 0, 0, 0)
+			steps(run, 1, 8, 0, events)
+			EnemyManager.Damage(run, seven, seven.HP + 1, 0, 0, 0, 0)
+			steps(run, 0.2, 8, 0, events)
+			Expect(enc.Fused and not run.Result.MainBoss, "they fused, the fight goes on")
+		end
+		local boss = enc.Bodies[#enc.Bodies]
+		Expect(boss and boss.Alive and run.Boss == boss, def.Key .. ": the top bar")
+		-- each phase: a few seconds of its attacks, then the next threshold
+		local telegraphs0 = run.Steps
+		for _ = 1, #def.Phases + 1 do
+			steps(run, 9, 8 + math.sin(run.Time) * 6, math.cos(run.Time) * 6, events)
+			EnemyManager.Damage(run, boss, boss.MaxHP * 0.9 / (#def.Phases + 1), 0, 0, 0, 0)
+			steps(run, 0.3, 8, 0, events)
+		end
+		local _ = telegraphs0
+		local phases = 0
+		local cues = 0
+		for _, ev in events do
+			if ev.Name == "MiniBoss" and (ev.P.Phase == "Phase" or ev.P.Phase == "Fused") then
+				phases += 1
+			elseif ev.Name == "BossCue" then
+				cues += 1
+			end
+		end
+		Expect(phases >= #def.Phases, def.Key .. " announced its phases: " .. phases)
+		if boss.Alive then
+			EnemyManager.Damage(run, boss, boss.HP + 1, 0, 0, 0, 0)
+		end
+		Expect(run.Result.MainBoss and run.VictoryAt, def.Key .. ": victory")
+		Expect(not run.Map.ArenaSealed and run.Map.DarkUntil == nil and run.ShotRoom == nil, def.Key .. ": the arena opens again")
+		steps(run, 8, 8, 0) -- (the level ups of the kill's XP come first)
+		Expect(run.Ended and run.Victory, def.Key .. ": the run is won")
+		if tier == 4 then
+			Expect(cues > 0, "THE DREAD turns the lights out (and says so)")
+		end
+	end
+end)
+
+T("the new lair bosses fight at their lair, show their weak point and fall", function()
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
+	for _, key in { "SirSnailsalot", "Scarecrow", "SelfCheckout", "Mannequin", "DJDrop", "RouletteRoller", "TheMirror", "EventHorizon" } do
+		local def = BossData.ByKey[key]
+		local run = townRun(900 + #key, { Difficulty = def.MinTier })
+		steps(run, 1)
+		Expect(BossDirector.Force(run, def.Slot, key, EnemyManager), key .. " announced")
+		local enc = run.Map.Encounters[1]
+		steps(run, 3.2)
+		local boss = enc.Bodies[1]
+		Expect(boss and boss.Alive and (boss.HomeX - enc.X) ^ 2 + (boss.HomeZ - enc.Z) ^ 2 < (enc.Lair.R + 5) ^ 2, key .. " at its lair")
+		local events = {}
+		local sent = 0
+		-- circle around it inside its lair for a while (and stand still now and then)
+		for k = 1, 30 * 20 do
+			local a = k / 20 * 0.8
+			local still = (k // 60) % 3 == 2
+			local px = enc.X + (if still then 14 else math.cos(a) * 14)
+			local pz = enc.Z + (if still then 0 else math.sin(a) * 14)
+			steps(run, 0.05, px, pz, events)
+		end
+		for _, ev in events do
+			if ev.Name == "MiniBoss" and ev.P.Phase == "Exposed" then
+				sent += 1
+			end
+		end
+		Expect(sent > 0, key .. " opened its weak point")
+		EnemyManager.Damage(run, boss, boss.MaxHP * 0.6, 0, 0, 0, 0)
+		steps(run, 4, enc.X + 14, enc.Z)
+		Expect(boss.Phase >= 2, key .. " phase 2")
+		for _ = 1, 5 do
+			if boss.Alive then
+				EnemyManager.Damage(run, boss, boss.MaxHP, 0, 0, 0, 0) -- (a tucked-in snail takes half)
+			end
+		end
+		Expect(#run.Map.Encounters == 0, key .. " defeated")
+		Expect(run.Result.BossesBeaten == 1, key .. " counts")
+	end
+end)
+
+T("new horde: shields, sleep, auras, pairs", function()
+	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
+	local run = townRun(41, { Difficulty = 7 })
+	steps(run, 0.5)
+	-- a Shielder's shield takes most of a hit from the front, none from behind
+	local s = EM.Spawn(run, "Shielder", run.PX + 10, run.PZ, { Force = true })
+	steps(run, 0.1, run.PX, run.PZ)
+	local hp = s.HP
+	EM.Damage(run, s, 10, 0, 1, 0, 0) -- pushed away from you: a hit from your side
+	Expect(math.abs(hp - s.HP - 10 * (1 - s.Def.Params.GuardCut)) < 1e-6, "the front is shielded")
+	hp = s.HP
+	EM.Damage(run, s, 10, 0, -1, 0, 0) -- from behind
+	Expect(math.abs(hp - s.HP - 10) < 1e-6, "the back is not")
+	EM.Damage(run, s, s.Guard / s.Def.Params.GuardCut + 1, 0, 1, 0, 0)
+	Expect(s.Guard == nil and s.GuardBroken, "the shield breaks")
+	-- a Snoozer sleeps until you come close, blinks, then runs
+	local z = EM.Spawn(run, "Snoozer", run.PX + 30, run.PZ, { Force = true })
+	steps(run, 1, run.PX, run.PZ)
+	Expect(z.Dormant, "asleep")
+	steps(run, 0.1, z.X - 4, z.Z)
+	Expect(not z.Dormant and z.State == 1, "woke up, blinking")
+	-- a Warden's bubble: the horde inside takes less damage
+	local w = EM.Spawn(run, "Warden", run.PX + 20, run.PZ + 20, { Force = true })
+	local g = EM.Spawn(run, "Husk", w.X + 3, w.Z, { Force = true })
+	steps(run, 0.6, run.PX, run.PZ)
+	hp = g.HP
+	EM.Damage(run, g, 10, 0, 0, 0, 0)
+	Expect(math.abs(hp - g.HP - 6) < 1e-6, "-40% inside the bubble")
+	-- a Bannerman: faster inside its ring
+	local b = EM.Spawn(run, "Bannerman", run.PX - 25, run.PZ, { Force = true })
+	local h = EM.Spawn(run, "Husk", b.X + 3, b.Z, { Force = true })
+	steps(run, 0.6, run.PX, run.PZ)
+	Expect(h.HasteUntil and h.HasteUntil > run.Time and h.Haste > 1, "hasted")
+	-- SIXLET + SEVENLET: one falls, the other rages 3 s later; both within 3 s: no rage
+	local six = EM.Spawn(run, "Sixlet", run.PX + 15, run.PZ - 15, { Force = true })
+	local seven = EM.Spawn(run, "Sevenlet", run.PX + 17, run.PZ - 15, { Force = true })
+	EM.Pair(six, seven)
+	local speed = seven.Speed
+	EM.Damage(run, six, six.HP + 1, 0, 0, 0, 0)
+	steps(run, 1, run.PX, run.PZ)
+	Expect(seven.GriefUntil and seven.Speed == speed, "it noticed, not mad yet")
+	steps(run, 2.2, run.PX, run.PZ)
+	Expect(seven.RageUntil and seven.Speed > speed * 1.5, "mad")
+	steps(run, 5.5, run.PX, run.PZ)
+	Expect(seven.RageUntil == nil and math.abs(seven.Speed - speed) < 1e-6, "calm again after RageTime")
+	local a = EM.Spawn(run, "Sixlet", run.PX - 15, run.PZ - 15, { Force = true })
+	local c = EM.Spawn(run, "Sevenlet", run.PX - 17, run.PZ - 15, { Force = true })
+	EM.Pair(a, c)
+	EM.Damage(run, a, a.HP + 1, 0, 0, 0, 0)
+	steps(run, 1.5, run.PX, run.PZ)
+	EM.Damage(run, c, c.HP + 1, 0, 0, 0, 0)
+	Expect(not c.Alive and not c.RageUntil, "both within 3 s: no rage")
+end)
+
+T("new affixes act: SHIELDED, ECHO, GRAVITY, THORNED, BERSERK, GILDED 67", function()
+	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
+	local Elites = R("ServerScriptService.Server.Sim.Elites")
+	local run = townRun(43, { Difficulty = 7 })
+	steps(run, 0.5)
+	run.Weapons = {} -- (your own shots would keep the shields down)
+	local px, pz = run.PX, run.PZ
+	local e = Elites.Spawn(run, "Husk", px + 20, pz, { "Shielded" })
+	local hp = e.HP
+	for _ = 1, 6 do
+		EM.Damage(run, e, 50, 0, 0, 0, 0)
+	end
+	Eq(e.HP, hp, "six hits eaten")
+	EM.Damage(run, e, 50, 0, 0, 0, 0)
+	Expect(e.HP < hp, "then it hurts")
+	steps(run, 6, px, pz)
+	Expect(e.HitShield > 0, "the shield grows back when left alone")
+	-- ECHO: a spitter's shot comes twice
+	local sp = Elites.Spawn(run, "Spitter", px + 18, pz + 4, { "Echo" })
+	local before = run.NextEProj or 0
+	sp.T = 0
+	steps(run, 0.1, px, pz)
+	local first = (run.NextEProj or 0) - before
+	Expect(first >= 1 and #run.Echoes >= 1, "a shot, and its echo waiting")
+	steps(run, 1.0, px, pz)
+	Expect((run.NextEProj or 0) - before >= first + 1, "the shot came again")
+	-- GRAVITY: walking away is slower, walking towards it is not
+	local gv = Elites.Spawn(run, "Brute", px + 8, pz, { "Gravity" })
+	steps(run, 0.1, px, pz)
+	run:SetPlayer(px - 0.5, pz)
+	Expect(run:SlowFactor() < 1, "walking away is slower")
+	run:SetPlayer(px, pz)
+	Expect(run:SlowFactor() == 1, "walking towards it is not")
+	EM.Despawn(run, gv)
+	-- THORNED: hitting it up close stings
+	run.Invulnerable = 0
+	run.HP = run.Stats.MaxHP
+	local th = Elites.Spawn(run, "Brute", px + 3, pz, { "Thorned" })
+	EM.Damage(run, th, 5, 0, 0, 0, 0)
+	Expect(run.HP < run.Stats.MaxHP, "it stung")
+	run.Invulnerable = 1e9
+	-- BERSERK: below half HP it speeds up
+	local bz = Elites.Spawn(run, "Husk", px - 20, pz, { "Berserk" })
+	local speed = bz.Speed
+	EM.Damage(run, bz, bz.MaxHP * 0.6, 0, 0, 0, 0)
+	steps(run, 0.1, px, pz)
+	Expect(bz.Speed > speed * 1.3, "berserk")
+	-- GILDED 67: two more affixes, double coins
+	local gd = Elites.Spawn(run, "Husk", px, pz - 20, { "Gilded67" })
+	Eq(#gd.Affixes, 3, "gilded + two")
+	Eq(gd.CoinMult, 2, "double coins")
+	local coins = run.Coins
+	EM.Damage(run, gd, gd.HP * 20 + 1, 0, 0, 0, 0)
+	Expect(run.Coins - coins >= GameConfig.Elite.Coins * 2, "paid double")
+end)
+
+T("sketches and lane runners drop nothing; eggs hatch unless broken", function()
+	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
+	local run = townRun(45, { Difficulty = 6 })
+	steps(run, 0.5)
+	local kills, gems = run.Kills, #run.Gems
+	local sk = EM.Spawn(run, "Brute", run.PX + 10, run.PZ, { Force = true, Elite = true, Sketch = true, Life = 10 })
+	EM.Damage(run, sk, sk.HP + 1, 0, 0, 0, 0)
+	Eq(run.Kills, kills, "a sketch is no kill")
+	Eq(#run.Gems, gems, "no gems")
+	local egg = EM.Spawn(run, "GooEgg", run.PX + 12, run.PZ + 12, { Force = true })
+	local n = #run.Enemies
+	steps(run, 4.5, run.PX, run.PZ)
+	Expect(not egg.Alive and #run.Enemies >= n + 2, "it hatched into goobers")
+	local egg2 = EM.Spawn(run, "GooEgg", run.PX - 12, run.PZ + 12, { Force = true })
+	EM.Damage(run, egg2, egg2.HP + 1, 0, 0, 0, 0)
+	Expect(not egg2.Alive, "broken in time")
 end)
 
 ---------------------------------------------------------------------------

@@ -134,7 +134,7 @@ end
 function PointerController:Targets()
 	local run = self.C.RunClient
 	local out = {}
-	-- bosses: the reason to go somewhere (THE FINAL ONE first)
+	-- bosses: the reason to go somewhere (the main boss first)
 	local encounters = {}
 	for _, enc in run.Encounters do
 		table.insert(encounters, enc)
@@ -152,7 +152,7 @@ function PointerController:Targets()
 			end
 		end
 		if #out < MAX_ARROWS then
-			local label = if enc.Main then "THE FINAL ONE " else "BOSS " .. tostring(enc.Slot or "") .. " · "
+			local label = if enc.Main then tostring(enc.Title or "MAIN BOSS") .. " " else "BOSS " .. tostring(enc.Slot or "") .. " · "
 			table.insert(out, { Pos = run:World(x, z, 3), Icon = if enc.Main then "67" else tostring(enc.Slot or "!"), Color = if enc.Crowned then C.Gold else C.Danger, Tag = label .. distance(run, x, z) })
 		end
 	end

@@ -128,13 +128,29 @@ local function spawnKind(run, key: string, entry)
 	-- the zone's danger (elites have their own director: Sim/Elites)
 	local opts = { HPMult = zone.HP * (if invasion then 0.4 else 1), DamageMult = zone.Damage }
 	local e = EnemyManager.Spawn(run, key, x, z, opts)
-	-- packs: some enemies come in groups
-	local pack = entry.Pack and entry.Pack[key]
+	-- packs: some enemies come in groups (a tier pool's herd comes in a line)
+	local pool = WaveData.TierPoolByKey[key]
+	local pack = (entry.Pack and entry.Pack[key]) or (pool and pool.Pack)
 	if e and pack and pack > 1 then
+		local line = pool ~= nil and pool.Pack ~= nil
+		local ax, az = -(run.PZ - z), run.PX - x
+		local len = math.max(0.1, math.sqrt(ax * ax + az * az))
 		for i = 2, pack do
-			local a = rng:NextNumber(0, TAU)
-			local r = 1.5 + i * 0.35
-			EnemyManager.Spawn(run, key, x + cos(a) * r, z + sin(a) * r, opts)
+			if line then
+				local off = (i // 2) * 2.8 * (if i % 2 == 0 then 1 else -1)
+				EnemyManager.Spawn(run, key, x + ax / len * off, z + az / len * off, opts)
+			else
+				local a = rng:NextNumber(0, TAU)
+				local r = 1.5 + i * 0.35
+				EnemyManager.Spawn(run, key, x + cos(a) * r, z + sin(a) * r, opts)
+			end
+		end
+	end
+	-- pairs: SIXLET always comes with a SEVENLET (Sim/EnemyManager links them)
+	if e and pool and pool.Pair then
+		local mate = EnemyManager.Spawn(run, pool.Pair, x + 2.4, z, opts)
+		if mate then
+			EnemyManager.Pair(e, mate)
 		end
 	end
 	return e
@@ -497,7 +513,8 @@ function WaveManager.Step(run, dt: number)
 	if index ~= w.Entry then
 		w.Entry = index
 		if entry.Banner then
-			run:Banner(entry.Banner.Title, entry.Banner.Sub, "Wave")
+			local sub = string.gsub(entry.Banner.Sub, "%%MAIN%%", BossDirector.Main(run).Title)
+			run:Banner(entry.Banner.Title, sub, "Wave")
 		end
 		if entry.Burst then
 			burst(run, entry.Burst)
@@ -531,7 +548,7 @@ function WaveManager.Step(run, dt: number)
 			break
 		end
 		local flavor = ArenaDirector.Zone(run).Flavor
-		local pick = pickWeighted(run.Rng, WaveManager.MixList(entry), function(m)
+		local pick = pickWeighted(run.Rng, WaveManager.MixList(entry, run), function(m)
 			return m[2] * (if flavor then flavor[m[1]] or 1 else 1)
 		end)
 		spawnKind(run, pick[1], entry)
@@ -551,22 +568,10 @@ function WaveManager.Step(run, dt: number)
 	Elites.Step(run, dt)
 end
 
--- timeline mixes as arrays (cached)
-local mixCache = {}
-function WaveManager.MixList(entry): { { any } }
-	local cached = mixCache[entry]
-	if cached then
-		return cached
-	end
-	local list = {}
-	for key, weight in entry.Mix do
-		table.insert(list, { key, weight })
-	end
-	table.sort(list, function(a, b)
-		return a[1] < b[1]
-	end)
-	mixCache[entry] = list
-	return list
+-- the spawn list of a timeline entry for this run: the classic Mix + the tier's pools
+-- (shared/WaveData.lua TierPools)
+function WaveManager.MixList(entry, run): { { any } }
+	return WaveData.Mix(entry, if run then run.Difficulty else nil, if run then run.Time else nil)
 end
 
 return WaveManager

@@ -61,6 +61,13 @@ for _, key in keys do
 				shape = shapeOf(r),
 				mat = r.Material.Name,
 				neon = r.Material.Name == "Neon",
+				mesh = (function()
+					local m = r:FindFirstChildOfClass("SpecialMesh")
+					if m then
+						return { type = m.MeshType.Name, scale = { m.Scale.X, m.Scale.Y, m.Scale.Z }, offset = { m.Offset.X, m.Offset.Y, m.Offset.Z } }
+					end
+					return nil
+				end)(),
 			})
 		end
 	end

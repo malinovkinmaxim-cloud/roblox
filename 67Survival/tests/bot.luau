@@ -154,11 +154,42 @@ function Bot.Direction(run, skill: number?): (number, number)
 			end
 		end
 	end
+	-- a sector (THE FURNACE, ROULETTE, THE SCARECROW): leave it sideways, over its nearer edge
+	local function leaveSector(x, z, a, half, r)
+		local dx, dz = px - x, pz - z
+		local d = math.sqrt(dx * dx + dz * dz) + 0.01
+		if d > r + 2 then
+			return
+		end
+		local diff = ((math.atan2(dz, dx) - a + math.pi) % (2 * math.pi)) - math.pi
+		if math.abs(diff) > half + 2 / d then
+			return
+		end
+		local sgn = if diff >= 0 then 1 else -1
+		mx += -dz / d * sgn * 4 * skill
+		mz += dx / d * sgn * 4 * skill
+	end
 	for _, t in run.Telegraphs do
-		if t.Shape == 1 or t.Shape == 3 or t.Shape == 5 or t.Shape == 6 then
+		if t.Safe then
+			-- COLLAPSE: walk into the nearest safe circle
+			local best, bx, bz = math.huge, nil, nil
+			for _, hole in t.Safe do
+				local d2 = (hole.X - px) ^ 2 + (hole.Z - pz) ^ 2
+				if d2 < best then
+					best, bx, bz = d2, hole.X, hole.Z
+				end
+			end
+			if bx and best > 1 then
+				local d = math.sqrt(best)
+				mx += (bx - px) / d * 6 * skill
+				mz += (bz - pz) / d * 6 * skill
+			end
+		elseif t.Shape == 1 or t.Shape == 3 or t.Shape == 5 or t.Shape == 6 or t.Shape == 9 then
 			flee(t.X, t.Z, t.R)
 		elseif t.Shape == 4 then
 			sidestep(t.X, t.Z, t.Angle, t.R, t.Width)
+		elseif t.Shape == 7 then
+			leaveSector(t.X, t.Z, t.Angle, t.Width, t.R)
 		end
 	end
 	-- the sealed rift: stay out (the gates are closed for real players)
@@ -169,7 +200,11 @@ function Bot.Direction(run, skill: number?): (number, number)
 		end
 	end
 	for _, h in run.Hazards do
-		flee(h.X, h.Z, h.R)
+		if h.Sector then
+			leaveSector(h.X, h.Z, h.Sector, h.Half, h.R)
+		elseif h.Damage > 0 or h.Slow then
+			flee(h.X, h.Z, h.R)
+		end
 	end
 	for _, e in run.Enemies do
 		if e.Lit then

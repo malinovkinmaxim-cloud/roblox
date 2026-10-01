@@ -79,7 +79,7 @@ CosmeticData.List = {
 	c("Hat", "Headband67", { Name = "67 Headband", Desc = "Witness a 67 EVENT.", Achievement = "SixSeven", Rarity = "Epic" }),
 	c("Hat", "Halo", { Name = "Untouchable Halo", Desc = "3 minutes without a scratch.", Achievement = "Untouchable", Rarity = "Epic" }),
 	c("Hat", "GoldAntenna", { Name = "Golden Antenna", Desc = "Defeat a Golden Goober.", Achievement = "GoldenGoober", Rarity = "Epic" }),
-	c("Hat", "Crown", { Name = "Survivor Crown", Desc = "Defeat THE FINAL ONE.", Achievement = "Victory", Rarity = "Legendary" }),
+	c("Hat", "Crown", { Name = "Survivor Crown", Desc = "Win a run: defeat the main boss.", Achievement = "Victory", Rarity = "Legendary" }),
 	c("Hat", "Crown67", { Name = "Crown of 67", Desc = "Win on THE 67 difficulty.", Achievement = "WinThe67", Rarity = "Secret" }),
 	-- hero skins
 	c("HeroSkin", "Default", { Name = "Original", Desc = "The hero's own colours.", Default = true }),

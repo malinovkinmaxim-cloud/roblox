@@ -83,6 +83,7 @@ export type Encounter = {
 	Done: boolean?,
 	Crowned: boolean?,
 	Fragments: number,
+	Fused: boolean?, -- THE 67 PRIME: its twins fused
 }
 
 function MiniBosses.Active(run): { Encounter }
@@ -307,6 +308,8 @@ local function finish(run, enc: Encounter, outcome: string, EM)
 	end
 	if enc.Main then
 		run.Map.MainOut = nil
+		run.Map.DarkUntil = nil
+		run.ShotRoom = nil
 	end
 	if outcome == "Defeated" then
 		reward(run, enc, EM)
@@ -440,6 +443,30 @@ function MiniBosses.FightingOther(run, enc: Encounter): boolean
 	return false
 end
 
+-- THE 67 PRIME's twins fused: its big body (phase 2 on) takes over the arena
+local function fuse(run, enc: Encounter, EM)
+	local def = enc.Def
+	enc.Fused = true
+	enc.Revive = nil
+	local hp = MiniBosses.BodyHP(run, def, enc.Slot, enc.Crowned) * (def.FuseHP or 1)
+	local x, z = enc.X, enc.Z
+	local dx, dz = x - run.PX, z - run.PZ
+	local d = sqrt(dx * dx + dz * dz)
+	if d < 12 then
+		-- not on top of you
+		local a = if d > 0.1 then atan2(dz, dx) else run.Rng:NextNumber(0, TAU)
+		x, z = run.PX + cos(a) * 14, run.PZ + sin(a) * 14
+	end
+	local e = EM.Spawn(run, def.Fused, x, z, { Force = true, Encounter = enc, HomeX = enc.X, HomeZ = enc.Z, BossHP = hp, BossDamage = bossDamage(enc) })
+	if e then
+		table.insert(enc.Bodies, e)
+		run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 4, 0, GFX.Blast67)
+		local ph = def.FusePhase
+		run:Event("MiniBoss", { Phase = "Fused", Key = def.Key, Id = e.Id, Ids = bodyIds(enc), Index = 2, Name = ph and ph.Name, Text = ph and ph.Text, Main = enc.Main })
+		run:Banner(def.Title .. " · " .. (if ph then ph.Name else "FUSED"), if ph then ph.Text else "", "Boss")
+	end
+end
+
 -- a body died (EnemyManager.Kill)
 function MiniBosses.OnKilled(run, e, EM)
 	if e.Pylons then
@@ -464,6 +491,11 @@ function MiniBosses.OnKilled(run, e, EM)
 				return
 			end
 		end
+	end
+	-- THE 67 PRIME: both twins down within 6.7 s: they fuse into one
+	if enc.Def.Fused and not enc.Fused and not anyAlive(enc) then
+		fuse(run, enc, EM)
+		return
 	end
 	if not anyAlive(enc) then
 		finish(run, enc, "Defeated", EM)
@@ -516,7 +548,7 @@ function MiniBosses.Expose(run, e, reason: string)
 	local enc = e.Encounter
 	local def = if enc then enc.Def else BossData.ByBody[e.Key]
 	local wp = def and def.WeakPoint
-	if not wp or wp.After ~= reason or not e.Alive then
+	if not wp or (wp.After ~= reason and wp.After ~= "*") or not e.Alive then
 		return
 	end
 	local time = wp.Time
@@ -533,10 +565,11 @@ function MiniBosses.Expose(run, e, reason: string)
 	run:Event("MiniBoss", { Phase = "Exposed", Key = def.Key, Id = e.Id, Text = wp.Text, Time = time })
 end
 
--- THE FINAL ONE: what happens when it enters a phase (the 67 FRAGMENT breaks off)
+-- a main boss enters a phase: THE FINAL ONE's 67 FRAGMENT breaks off (its relic; the main
+-- bosses of the other tiers have none)
 local function mainPhase(run, e, index: number)
 	local enc = e.Encounter
-	local relic = ItemData.ByBoss[MAIN.Key]
+	local relic = enc and ItemData.ByBoss[enc.Def.Key]
 	if relic and run.ItemUnlocks[relic.Key] and enc and enc.Fragments < relic.MaxLevel then
 		local have = (run.Items[relic.Key] or 0) + enc.Fragments
 		if have < relic.MaxLevel then
@@ -554,7 +587,7 @@ function MiniBosses.StepPhase(run, e)
 	local enc = e.Encounter
 	local def = if enc then enc.Def else BossData.ByBody[e.Key]
 	local phases = def and def.Phases
-	if not phases then
+	if not phases or e.Def.Params.NoPhases then
 		return
 	end
 	e.Phase = e.Phase or 1 -- a boss body spawned on its own (debug) starts in phase 1
@@ -976,6 +1009,527 @@ function AI.TickTock(run, e, dx, dz, d, dt, _EM)
 end
 
 
+---------------------------------------------------------------------------
+-- the lair bosses of the harder tiers
+---------------------------------------------------------------------------
+-- a line on its name plate: what to do now
+local function cue(run, e, text: string, time: number?)
+	run:Event("BossCue", { Id = e.Id, Text = text, Time = time or 2.5 })
+end
+
+-- aims a straight charge at you: a red line, then it goes
+local function aimDash(run, e, seconds: number, length: number, damage: number)
+	local dx, dz = run.PX - e.X, run.PZ - e.Z
+	local d = max(0.1, sqrt(dx * dx + dz * dz))
+	e.DirX, e.DirZ = dx / d, dz / d
+	local w = windup(run, seconds)
+	e.DashAt = run.Time + w
+	e.DashLen = length
+	e.DashDamage = damage * e.DmgScale
+	telegraph(run, e, SHAPE.DashLine, e.X, e.Z, atan2(e.DirZ, e.DirX), length, e.Radius * 2, w, 0)
+	state(run, e, ES.Windup)
+end
+
+-- SIR SNAILSALOT: tucks into its shell (half damage), rolls down a line leaving slime, peeks out
+local function aimRoll(run, e, p)
+	aimDash(run, e, p.RollWindup, p.RollLength, p.RollDamage)
+	e.ArmorCut = p.ShellArmor
+end
+
+function AI.SirSnailsalot(run, e, dx, dz, d, dt, EM)
+	local p = e.Def.Params
+	local now = run.Time
+	if e.Dashing then
+		local step = p.RollSpeed * dt
+		e.DashLeft -= step
+		e.SlimeAcc += step
+		if e.SlimeAcc >= p.SlimeEvery then
+			e.SlimeAcc = 0
+			telegraph(run, e, SHAPE.Puddle, e.X, e.Z, 0, p.SlimeRadius, p.SlimeTime * (if e.Enraged then 1.5 else 1), 0.05, 0, nil, p.SlimeSlow)
+		end
+		if e.DashLeft <= 0 then
+			e.Dashing = false
+			e.RollsLeft -= 1
+			if e.RollsLeft > 0 then
+				e.NextDashAt = now + 0.5
+			else
+				-- it peeks out: soft and slow for a moment
+				e.ArmorCut = nil
+				state(run, e, ES.Normal)
+				MiniBosses.Expose(run, e, "Peek")
+			end
+		end
+		return e.DirX, e.DirZ, p.RollSpeed / e.Speed
+	end
+	if e.DashAt then
+		if now >= e.DashAt then
+			e.DashAt = nil
+			e.Dashing = true
+			e.DashLeft = e.DashLen
+			e.SlimeAcc = 0
+			state(run, e, ES.Dash)
+			return e.DirX, e.DirZ, p.RollSpeed / e.Speed
+		end
+		return 0, 0, 0
+	end
+	if e.NextDashAt then
+		if now >= e.NextDashAt then
+			e.NextDashAt = nil
+			aimRoll(run, e, p)
+		end
+		return 0, 0, 0
+	end
+	if not e.Engaged then
+		return 0, 0, 0
+	end
+	e.Timers.Roll = timer(e, "Roll", p.RollEvery * 0.4) - dt * e.Rate
+	e.Timers.Spit = timer(e, "Spit", p.SpitEvery * 0.7) - dt * e.Rate
+	if e.Timers.Roll <= 0 then
+		e.Timers.Roll = p.RollEvery
+		e.RollsLeft = if e.Enraged then 2 else 1
+		aimRoll(run, e, p)
+		return 0, 0, 0
+	elseif e.Timers.Spit <= 0 then
+		e.Timers.Spit = p.SpitEvery
+		local base = atan2(dz, dx)
+		for i = 1, p.SpitShots do
+			local a = base + (i - (p.SpitShots + 1) / 2) * (p.SpitSpread / (p.SpitShots - 1))
+			EM.Shoot(run, e.X, e.Z, cos(a) * p.SpitSpeed, sin(a) * p.SpitSpeed, 1.3, p.SpitDamage * e.DmgScale, 3.5)
+		end
+	end
+	if d < e.Radius + PLAYER_R + 0.5 then
+		return 0, 0, 0
+	end
+	return dx / d, dz / d, 0.7
+end
+
+-- THE SCARECROW: two spins of its stick arms (a wide fan), crows; its pumpkin is soft after
+function AI.Scarecrow(run, e, dx, dz, d, dt, EM)
+	local p = e.Def.Params
+	if e.Busy > 0 then
+		e.Busy -= dt
+		if e.Busy <= 0 then
+			state(run, e, ES.Normal)
+		end
+		return 0, 0, 0
+	end
+	if not e.Engaged then
+		return 0, 0, 0
+	end
+	e.Timers.Spin = timer(e, "Spin", p.SpinEvery * 0.4) - dt * e.Rate
+	e.Timers.Crow = timer(e, "Crow", p.CrowEvery * 0.6) - dt * e.Rate
+	if e.Timers.Spin <= 0 then
+		e.Timers.Spin = p.SpinEvery
+		local arms = p.SpinArms + (if e.Enraged then 1 else 0)
+		local base = atan2(dz, dx)
+		local delay = windup(run, p.SpinDelay)
+		for turn = 0, 1 do
+			for k = 0, arms - 1 do
+				local a = base + k * TAU / arms + turn * p.SpinTurn
+				telegraph(run, e, SHAPE.Sector, e.X, e.Z, a, p.SpinRadius, p.SpinArc / 2, delay + turn * (delay + 0.3), p.SpinDamage * e.DmgScale, "Sector")
+			end
+		end
+		local done = delay * 2 + 0.3
+		e.Busy = done
+		e.PendingExpose = { Reason = "Spin", At = run.Time + done }
+		state(run, e, ES.Windup)
+		return 0, 0, 0
+	elseif e.Timers.Crow <= 0 then
+		e.Timers.Crow = p.CrowEvery
+		for i = 1, p.CrowCount + (if e.Enraged then 2 else 0) do
+			local a = i * TAU / p.CrowCount
+			EM.Spawn(run, "Crow", e.X + cos(a) * (e.Radius + 3), e.Z + sin(a) * (e.Radius + 3), { Force = true })
+		end
+	end
+	if d < e.Radius + PLAYER_R + 0.5 then
+		return 0, 0, 0
+	end
+	return dx / d, dz / d, 0.8
+end
+
+-- SELF-CHECKOUT: scanner beams across the lot (an ERROR after: its screen is open), and an
+-- UNEXPECTED ITEM: a mark under you that blows up and scatters items
+function AI.SelfCheckout(run, e, dx, dz, d, dt, EM)
+	local p = e.Def.Params
+	if e.Busy > 0 then
+		e.Busy -= dt
+		if e.Busy <= 0 then
+			state(run, e, ES.Normal)
+		end
+		return 0, 0, 0
+	end
+	if not e.Engaged then
+		return 0, 0, 0
+	end
+	e.Timers.Scan = timer(e, "Scan", p.ScanEvery * 0.35) - dt * e.Rate
+	e.Timers.Mark = timer(e, "Mark", p.MarkEvery * 0.7) - dt * e.Rate * (if e.Enraged then 1.3 else 1)
+	if e.Timers.Scan <= 0 then
+		e.Timers.Scan = p.ScanEvery
+		local delay = windup(run, p.ScanDelay)
+		local last = 0
+		for set = 0, (if e.Enraged then 1 else 0) do
+			local a = run.Rng:NextNumber(0, math.pi) + set * math.pi / 2
+			local ux, uz = cos(a), sin(a)
+			local nx, nz = -uz, ux
+			for i = 1, p.ScanCount do
+				local off = (i - (p.ScanCount + 1) / 2) * p.ScanSpacing
+				local cx, cz = run.PX + nx * off, run.PZ + nz * off
+				local half = p.ScanLength / 2
+				local at = delay + (i - 1) * p.ScanGap + set * 0.2
+				last = max(last, at)
+				telegraph(run, e, SHAPE.Laser, cx - ux * half, cz - uz * half, a, p.ScanLength, p.ScanWidth, at, p.ScanDamage * e.DmgScale, "Sweep")
+			end
+		end
+		e.Busy = last
+		e.PendingExpose = { Reason = "Error", At = run.Time + last + 0.1 }
+		Bosses.After(run, e, last + 0.1, function()
+			cue(run, e, "ERROR · SCREEN OPEN", 2)
+		end)
+		state(run, e, ES.Windup)
+		return 0, 0, 0
+	elseif e.Timers.Mark <= 0 then
+		e.Timers.Mark = p.MarkEvery
+		local x, z = run.PX, run.PZ
+		local delay = windup(run, p.MarkDelay)
+		telegraph(run, e, SHAPE.Circle, x, z, 0, p.MarkRadius, 0, delay, p.MarkDamage * e.DmgScale, "Slam")
+		cue(run, e, "UNEXPECTED ITEM IN THE BAGGING AREA", delay)
+		Bosses.After(run, e, delay, function(_, _, em)
+			Bosses.GapRing(run, em, x, z, p.MarkShots, 0, run.Rng:NextNumber(0, TAU), p.MarkSpeed, p.MarkShotDamage * e.DmgScale, 1.2, 3)
+		end)
+	end
+	if d < e.Radius + PLAYER_R + 0.5 then
+		return 0, 0, 0
+	end
+	return dx / d, dz / d, 0.6
+end
+
+-- THE MANNEQUIN: red light, green light. You move: it freezes. You stop: it lunges.
+function AI.Mannequin(run, e, dx, dz, d, dt, EM)
+	local p = e.Def.Params
+	local now = run.Time
+	if e.Dashing then
+		e.DashLeft -= p.DashSpeed * dt
+		if e.DashLeft <= 0 then
+			e.Dashing = false
+			e.DashesLeft -= 1
+			if e.DashesLeft > 0 then
+				aimDash(run, e, p.DashWindup, p.DashLength, p.DashDamage)
+			else
+				-- it topples over
+				e.RestUntil = now + p.DashRest
+				state(run, e, ES.Stunned)
+				MiniBosses.Expose(run, e, "Topple")
+			end
+		end
+		return e.DirX, e.DirZ, p.DashSpeed / e.Speed
+	end
+	if e.DashAt then
+		if now >= e.DashAt then
+			e.DashAt = nil
+			e.Dashing = true
+			e.DashLeft = e.DashLen
+			state(run, e, ES.Dash)
+			return e.DirX, e.DirZ, p.DashSpeed / e.Speed
+		end
+		return 0, 0, 0
+	end
+	if e.RestUntil then
+		if now < e.RestUntil then
+			return 0, 0, 0
+		end
+		e.RestUntil = nil
+		state(run, e, ES.Normal)
+	end
+	if not e.Engaged then
+		return 0, 0, 0
+	end
+	-- pose change: a ring of shots, whatever you do
+	e.Timers.Pose = timer(e, "Pose", p.PoseEvery * 0.6) - dt * e.Rate
+	if e.Timers.Pose <= 0 then
+		e.Timers.Pose = p.PoseEvery
+		Bosses.GapRing(run, EM, e.X, e.Z, p.PoseShots, 0, run.Rng:NextNumber(0, TAU), p.PoseSpeed, p.PoseDamage * e.DmgScale, 1.3, 4)
+	end
+	local still = run.StillFor >= p.Still
+	if still ~= e.Watching then
+		e.Watching = still
+		cue(run, e, if still then "IT SEES YOU STOP: MOVE!" else "FROZEN · KEEP MOVING", 1.5)
+	end
+	if not still then
+		return 0, 0, 0 -- you move: it is a mannequin
+	end
+	if d < p.DashLength - 4 then
+		e.DashesLeft = if e.Enraged then 2 else 1
+		aimDash(run, e, p.DashWindup, p.DashLength, p.DashDamage)
+		return 0, 0, 0
+	end
+	return dx / d, dz / d, 1.3
+end
+
+-- DJ DROP: everything on the beat. A ring with a gap every RingBeats beats (its speakers flash
+-- RingWindup beats before), and every DropEvery seconds THE DROP: rings with their gaps lined up
+function AI.DJDrop(run, e, dx, dz, d, dt, EM)
+	local p = e.Def.Params
+	if not e.Engaged then
+		return 0, 0, 0
+	end
+	local beat = p.Beat / e.Rate
+	e.BeatT = (e.BeatT or 0) + dt
+	e.DropT = (e.DropT or p.DropEvery * 0.6) - dt
+	local scale = e.DmgScale
+	if e.DropT <= 0 and not e.DropLeft then
+		e.DropT = p.DropEvery
+		e.DropLeft = p.DropRings
+		e.DropIn = windup(run, p.DropBuild)
+		e.DropGap = atan2(dz, dx) + run.Rng:NextNumber(-0.8, 0.8)
+		cue(run, e, "THE DROP IN 3... 2... 1...", e.DropIn)
+		telegraph(run, e, SHAPE.DashLine, e.X, e.Z, e.DropGap, 28, 7, e.DropIn, 0)
+		state(run, e, ES.Windup)
+	end
+	if e.DropLeft then
+		e.BeatT = 0 -- the beat waits for the drop
+		e.DropIn -= dt
+		if e.DropIn <= 0 then
+			e.DropIn = beat
+			e.DropLeft -= 1
+			Bosses.GapRing(run, EM, e.X, e.Z, p.RingCount, p.RingGap, e.DropGap, p.RingSpeed, p.DropDamage * scale, 1.3, 4)
+			if e.DropLeft <= 0 then
+				e.DropLeft = nil
+				state(run, e, ES.Normal)
+				MiniBosses.Expose(run, e, "Drop")
+			end
+		end
+		return 0, 0, 0
+	end
+	while e.BeatT >= beat do
+		e.BeatT -= beat
+		e.Beats = (e.Beats or 0) + 1
+		local k = e.Beats % p.RingBeats
+		if k == (p.RingBeats - p.RingWindup) % p.RingBeats then
+			-- the speakers flash: a ring in RingWindup beats
+			e.GapA = (e.GapA or atan2(dz, dx)) + p.GapStep
+			telegraph(run, e, SHAPE.DashLine, e.X, e.Z, e.GapA, 24, 6, beat * p.RingWindup, 0)
+			state(run, e, ES.Windup)
+		elseif k == 0 and e.GapA then
+			Bosses.GapRing(run, EM, e.X, e.Z, p.RingCount, p.RingGap, e.GapA, p.RingSpeed, p.RingDamage * scale, 1.3, 4)
+			state(run, e, ES.Normal)
+		end
+	end
+	if d < e.Radius + PLAYER_R + 0.5 then
+		return 0, 0, 0
+	end
+	return dx / d, dz / d, 0.6
+end
+
+-- ROULETTE ROLLER: calls the safe colour, then the other colour's sectors burn; ZERO stuns it
+local COLOURS = { "RED", "BLACK" }
+function AI.RouletteRoller(run, e, dx, dz, d, dt, EM)
+	local p = e.Def.Params
+	local now = run.Time
+	if e.StunnedUntil and now < e.StunnedUntil then
+		return 0, 0, 0
+	end
+	if e.SpinAt then
+		if now >= e.SpinAt then
+			e.SpinAt = nil
+			local n = p.Sectors + (if e.Enraged then 4 else 0)
+			local half = math.pi / n
+			local delay = windup(run, p.SectorDelay)
+			for k = 0, n - 1 do
+				local a = e.WheelA + (k + 0.5) * TAU / n
+				if k % 2 + 1 ~= e.Safe then
+					telegraph(run, e, SHAPE.Sector, e.X, e.Z, a, p.SectorRadius, half, delay, p.SectorDamage * e.DmgScale, "Sector")
+				else
+					telegraph(run, e, SHAPE.SafeSector, e.X, e.Z, a, p.SectorRadius, half, delay, 0)
+				end
+			end
+			e.Busy = delay
+		end
+		return 0, 0, 0
+	end
+	if e.Busy > 0 then
+		e.Busy -= dt
+		if e.Busy <= 0 then
+			state(run, e, ES.Normal)
+		end
+		return 0, 0, 0
+	end
+	if not e.Engaged then
+		return 0, 0, 0
+	end
+	e.Timers.Spin = timer(e, "Spin", p.SpinEvery * 0.4) - dt * e.Rate
+	e.Timers.Ball = timer(e, "Ball", p.BallEvery * 0.7) - dt * e.Rate
+	if e.Timers.Spin <= 0 then
+		e.Timers.Spin = p.SpinEvery
+		-- ZERO now and then (never more than ZeroEvery spins apart: a sure opening)
+		e.SinceZero = (e.SinceZero or 0) + 1
+		if run.Rng:NextNumber() < p.ZeroChance or e.SinceZero >= p.ZeroEvery then
+			e.SinceZero = 0
+			-- ZERO: nobody wins, it is stunned (hit it now)
+			e.StunnedUntil = now + p.StunTime
+			run:Write("Fx", 0, e.X, e.Z, 0, 10, 0, GFX.Jackpot)
+			cue(run, e, "ZERO! HIT IT!", p.StunTime)
+			MiniBosses.Expose(run, e, "Zero")
+			return 0, 0, 0
+		end
+		e.Safe = run.Rng:NextInteger(1, 2)
+		e.WheelA = run.Rng:NextNumber(0, TAU)
+		e.SpinAt = now + windup(run, p.SpinTime)
+		cue(run, e, "SAFE: " .. COLOURS[e.Safe], p.SpinTime + p.SectorDelay)
+		state(run, e, ES.Windup)
+		return 0, 0, 0
+	elseif e.Timers.Ball <= 0 then
+		e.Timers.Ball = p.BallEvery
+		local base = run.Rng:NextNumber(0, TAU)
+		for i = 0, p.BallShots - 1 do
+			Bosses.After(run, e, i * 0.09, function(_, _, em)
+				local a = base + i * 0.7
+				em.Shoot(run, e.X, e.Z, cos(a) * p.BallSpeed, sin(a) * p.BallSpeed, 1.3, p.BallDamage * e.DmgScale, 4)
+			end)
+		end
+	end
+	if d < e.Radius + PLAYER_R + 0.5 then
+		return 0, 0, 0
+	end
+	return dx / d, dz / d, 0.8
+end
+
+-- THE MIRROR: walks the path you walked, Behind seconds late; shards at you, echoes on your
+-- path, a long dash at you (it cracks after it)
+function AI.TheMirror(run, e, dx, dz, d, dt, EM)
+	local p = e.Def.Params
+	local now = run.Time
+	if e.Dashing then
+		e.DashLeft -= p.DashSpeed * dt
+		if e.DashLeft <= 0 then
+			e.Dashing = false
+			state(run, e, ES.Normal)
+			MiniBosses.Expose(run, e, "Crack")
+		end
+		return e.DirX, e.DirZ, p.DashSpeed / e.Speed
+	end
+	if e.DashAt then
+		if now >= e.DashAt then
+			e.DashAt = nil
+			e.Dashing = true
+			e.DashLeft = e.DashLen
+			state(run, e, ES.Dash)
+			return e.DirX, e.DirZ, p.DashSpeed / e.Speed
+		end
+		return 0, 0, 0
+	end
+	if not e.Engaged then
+		return 0, 0, 0
+	end
+	local rate = e.Rate
+	e.Timers.Shot = timer(e, "Shot", p.ShotEvery * 0.5) - dt * rate
+	e.Timers.Echo = timer(e, "Echo", p.EchoEvery * 0.6) - dt * rate
+	e.Timers.Dash = timer(e, "Dash", p.DashEvery * 0.7) - dt * rate
+	if e.Timers.Dash <= 0 then
+		e.Timers.Dash = p.DashEvery
+		aimDash(run, e, p.DashWindup, p.DashLength, p.DashDamage)
+		return 0, 0, 0
+	elseif e.Timers.Echo <= 0 then
+		e.Timers.Echo = p.EchoEvery
+		local pts = run:TrailPoints(2.6, 0.4)
+		local n = min(p.EchoCount + (if e.Enraged then 3 else 0), #pts)
+		local delay = windup(run, p.EchoDelay)
+		for i = 1, n do
+			local pt = pts[max(1, math.floor(i * #pts / n))]
+			telegraph(run, e, SHAPE.Circle, pt.X, pt.Z, 0, p.EchoRadius, 0, delay + (i - 1) * 0.1, p.EchoDamage * e.DmgScale, "Slam")
+		end
+	elseif e.Timers.Shot <= 0 then
+		e.Timers.Shot = p.ShotEvery
+		local base = atan2(dz, dx)
+		for i = 1, p.ShotCount do
+			local a = base + (i - (p.ShotCount + 1) / 2) * p.ShotSpread
+			EM.Shoot(run, e.X, e.Z, cos(a) * p.ShotSpeed, sin(a) * p.ShotSpeed, 1.2, p.ShotDamage * e.DmgScale, 3)
+		end
+	end
+	-- the path you walked, a little late
+	local tx, tz = run:PathAt(p.Behind)
+	local ox, oz = tx - e.X, tz - e.Z
+	local od = sqrt(ox * ox + oz * oz)
+	if od < 1 then
+		return 0, 0, 0
+	end
+	return ox / od, oz / od, math.clamp(od / 6, 0.6, 1.5)
+end
+
+-- THE EVENT HORIZON: a pulsing pull, ring waves coming in from the edge, and COLLAPSE:
+-- everything burns but a few white safe circles
+function AI.EventHorizon(run, e, dx, dz, d, dt, EM)
+	local p = e.Def.Params
+	local now = run.Time
+	if e.Well then
+		e.Well.X, e.Well.Z = e.X, e.Z
+	end
+	if e.Busy > 0 then
+		e.Busy -= dt
+		if e.Busy <= 0 then
+			state(run, e, ES.Normal)
+		end
+		return 0, 0, 0
+	end
+	if not e.Engaged then
+		return 0, 0, 0
+	end
+	local rate = e.Rate
+	e.Timers.Pull = timer(e, "Pull", p.PullEvery * 0.3) - dt * rate
+	e.Timers.Wave = timer(e, "Wave", p.WaveEvery * 0.6) - dt * rate
+	e.Timers.Collapse = timer(e, "Collapse", p.CollapseEvery * 0.8) - dt * rate
+	if e.Timers.Pull <= 0 then
+		e.Timers.Pull = p.PullEvery
+		local slow = if e.Enraged then p.PullSlow - 0.08 else p.PullSlow
+		e.Well = run:AddWell(e.X, e.Z, p.PullRadius, slow, p.PullTime)
+		run:Write("Fx", 0, e.X, e.Z, 0, p.PullRadius, p.PullTime, GFX.Gravity)
+	end
+	if e.Timers.Collapse <= 0 then
+		e.Timers.Collapse = p.CollapseEvery
+		local delay = windup(run, p.CollapseDelay)
+		local safe = {}
+		local n = p.SafeCount - (if e.Phase >= 3 then 1 else 0)
+		for i = 1, n do
+			local x, z
+			if i == 1 then
+				-- one is always within reach of you
+				local a = run.Rng:NextNumber(0, TAU)
+				local r = run.Rng:NextNumber(6, 11)
+				x, z = run.PX + cos(a) * r, run.PZ + sin(a) * r
+			else
+				local a = run.Rng:NextNumber(0, TAU)
+				local r = run.Rng:NextNumber(8, p.CollapseRadius * 0.75)
+				x, z = e.X + cos(a) * r, e.Z + sin(a) * r
+			end
+			table.insert(safe, { X = x, Z = z, R = p.SafeRadius })
+			telegraph(run, e, SHAPE.Safe, x, z, 0, p.SafeRadius, 0, delay, 0)
+		end
+		telegraph(run, e, SHAPE.Circle, e.X, e.Z, 0, p.CollapseRadius, 0, delay, p.CollapseDamage * e.DmgScale, "Slam", nil, { Safe = safe })
+		cue(run, e, "COLLAPSE: STAND IN A WHITE CIRCLE", delay)
+		e.Busy = delay
+		e.PendingExpose = { Reason = "Collapse", At = now + delay }
+		state(run, e, ES.Windup)
+		return 0, 0, 0
+	elseif e.Timers.Wave <= 0 then
+		e.Timers.Wave = p.WaveEvery
+		local gapA = atan2(-dz, -dx) + run.Rng:NextNumber(-0.9, 0.9) -- (seen from it: towards you)
+		local delay = windup(run, 1.0)
+		telegraph(run, e, SHAPE.DashLine, e.X, e.Z, gapA, p.WaveRadius, 6, delay, 0)
+		local cx, cz = e.X, e.Z
+		Bosses.After(run, e, delay, function(_, _, em)
+			Bosses.InwardRing(run, em, cx, cz, p.WaveRadius, p.WaveCount, p.WaveGap, gapA, p.WaveSpeed, p.WaveDamage * e.DmgScale)
+		end)
+	end
+	if d < e.Radius + PLAYER_R + 2 then
+		return 0, 0, 0
+	end
+	return dx / d, dz / d, 0.5
+end
+
+-- THE 67 PRIME, phase 1: SIX and SEVEN fight like the twins of the Rift
+AI.PrimeSix = AI.Six
+AI.PrimeSeven = AI.Seven
+
+
 MiniBosses.AI = AI
 
 -- the lair / arena rules around a boss's own fight: movement intent (dirX, dirZ, speed mult)
@@ -983,6 +1537,7 @@ function MiniBosses.Step(run, e, dx: number, dz: number, d: number, dt: number, 
 	local now = run.Time
 	local enc = e.Encounter
 	MiniBosses.StepPhase(run, e)
+	Bosses.RunQueue(run, e, EM)
 	if e.PendingExpose and now >= e.PendingExpose.At then
 		MiniBosses.Expose(run, e, e.PendingExpose.Reason)
 		e.PendingExpose = nil

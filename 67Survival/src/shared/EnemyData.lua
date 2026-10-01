@@ -1,10 +1,16 @@
 --[[
-	EnemyData - the horde (15 enemy types), rare specials, ELITE affixes and the bodies of every
-	boss (who and when: shared/BossData.lua). Lair bosses have Champion = true (their fights:
-	Sim/MiniBosses.lua), classic bosses and THE FINAL ONE use Behavior "Boss" (Sim/Bosses.lua).
+	EnemyData - the horde (15 classic enemy types + 12 that join on harder tiers), rare
+	specials, ELITE affixes and the bodies of every boss (who and when: shared/BossData.lua).
+	Lair bosses have Champion = true (their fights: Sim/MiniBosses.lua), classic bosses and the
+	MAIN bosses use Behavior "Boss" (attack patterns: Sim/Bosses.lua).
 
 	Stats are the values at minute 0; WaveManager scales HP / damage with run time.
 	  HP, Speed (studs/s), Damage (contact, per hit), XP (gem value), Radius (collision, studs)
+	  (a BOSS body's HP is the number of shared/BossData.lua: that is what every boss fight
+	  uses, through Sim/MiniBosses.BodyHP. The same number is written here only for a body
+	  spawned on its own: debug commands and tests)
+	  MinTier   - the first difficulty tier (shared/DifficultyData.lua index) it shows up on;
+	              nil = every tier (the classic horde). WaveData.TierPools says when
 	  Model     - client model style (Render/EnemyModels.lua): every enemy looks different
 	  Scale     - visual size multiplier of that model
 	  Behavior  - server AI (Sim/EnemyManager.lua): every enemy moves / attacks differently
@@ -37,6 +43,7 @@ export type EnemyDef = {
 	Champion: boolean?, -- a lair boss of 67 TOWN with its own fight (Sim/MiniBosses.lua)
 	Rare: boolean?,
 	Secret: boolean?,
+	MinTier: number?, -- first difficulty tier it appears on (nil = every tier)
 	NoContact: boolean?,
 	Collection: boolean?,
 	Params: { [string]: any },
@@ -231,7 +238,7 @@ local LIST: { EnemyDef } = ({
 		Key = "TheGiant",
 		Name = "THE GIANT",
 		Desc = "Boss 1 of Goober Gardens (sometimes). Slams the ground, sends out shockwaves, calls husks.",
-		HP = 2600, Speed = 7.5, Damage = 16, XP = 150, Radius = 5,
+		HP = 2500, Speed = 7.5, Damage = 16, XP = 150, Radius = 5,
 		Model = "Giant", Color = rgb(190, 150, 120), Accent = rgb(90, 70, 60),
 		Behavior = "Boss", Mass = 40, CoinChance = 1, ItemChance = 0, MiniBoss = true,
 		Params = {
@@ -247,7 +254,7 @@ local LIST: { EnemyDef } = ({
 		Key = "TheGoober",
 		Name = "THE GOOBER",
 		Desc = "Boss 1 of Goober Gardens (sometimes). The biggest blob. Bounces onto you and rains goobers.",
-		HP = 2600, Speed = 9, Damage = 16, XP = 150, Radius = 5,
+		HP = 2500, Speed = 9, Damage = 16, XP = 150, Radius = 5,
 		Model = "GooberBoss", Color = rgb(120, 220, 90), Accent = rgb(255, 110, 190),
 		Behavior = "Boss", Mass = 40, CoinChance = 1, ItemChance = 0, MiniBoss = true,
 		Params = {
@@ -263,7 +270,7 @@ local LIST: { EnemyDef } = ({
 		Key = "TheGlitch",
 		Name = "THE GLITCH",
 		Desc = "Boss 3 of the Neon Strip (sometimes). Teleports next to you, cuts the street with lasers, calls blinkers.",
-		HP = 9000, Speed = 10, Damage = 18, XP = 300, Radius = 4.5,
+		HP = 12000, Speed = 10, Damage = 18, XP = 300, Radius = 4.5,
 		Model = "GlitchBoss", Color = rgb(0, 255, 210), Accent = rgb(255, 0, 170),
 		Behavior = "Boss", Mass = 50, CoinChance = 1, ItemChance = 0, Boss = true,
 		Params = {
@@ -279,7 +286,7 @@ local LIST: { EnemyDef } = ({
 		Key = "TheMachine",
 		Name = "THE MACHINE",
 		Desc = "Boss 2 of the Horde Mart Lot (sometimes). A walking weapons factory: missiles, lasers, bullet rings.",
-		HP = 9000, Speed = 8, Damage = 18, XP = 300, Radius = 5,
+		HP = 7800, Speed = 8, Damage = 18, XP = 300, Radius = 5,
 		Model = "Machine", Color = rgb(150, 160, 175), Accent = rgb(255, 80, 40),
 		Behavior = "Boss", Mass = 60, CoinChance = 1, ItemChance = 0, Boss = true,
 		Params = {
@@ -295,7 +302,7 @@ local LIST: { EnemyDef } = ({
 		Key = "TheVoid",
 		Name = "THE VOID",
 		Desc = "Boss 4 of the Rift (sometimes). Opens void pools under your feet and spins dark energy.",
-		HP = 18000, Speed = 9, Damage = 20, XP = 400, Radius = 5,
+		HP = 24000, Speed = 9, Damage = 20, XP = 400, Radius = 5,
 		Model = "VoidBoss", Color = rgb(30, 20, 50), Accent = rgb(170, 90, 255),
 		Behavior = "Boss", Mass = 60, CoinChance = 1, ItemChance = 0, Boss = true,
 		Params = {
@@ -313,7 +320,7 @@ local LIST: { EnemyDef } = ({
 		Key = "TheOverlord",
 		Name = "THE OVERLORD",
 		Desc = "Boss 4 of the Rift (sometimes). Charges across the altars, fires rings and calls spitters.",
-		HP = 18000, Speed = 10, Damage = 20, XP = 400, Radius = 4.6,
+		HP = 24000, Speed = 10, Damage = 20, XP = 400, Radius = 4.6,
 		Model = "Overlord", Color = rgb(25, 25, 32), Accent = rgb(255, 205, 60),
 		Behavior = "Boss", Mass = 60, CoinChance = 1, ItemChance = 0, Boss = true,
 		Params = {
@@ -331,7 +338,7 @@ local LIST: { EnemyDef } = ({
 		Key = "King67",
 		Name = "THE 67 KING",
 		Desc = "Boss 3 of the Neon Strip (sometimes). Six. Seven. Six. Seven.",
-		HP = 12000, Speed = 9.5, Damage = 20, XP = 400, Radius = 4.8,
+		HP = 13000, Speed = 9.5, Damage = 20, XP = 400, Radius = 4.8,
 		Model = "King", Color = rgb(255, 200, 40), Accent = rgb(170, 60, 255),
 		Behavior = "Boss", Mass = 60, CoinChance = 1, ItemChance = 0, Boss = true, Rare = true,
 		Params = {
@@ -347,7 +354,7 @@ local LIST: { EnemyDef } = ({
 		Key = "TheFinalOne",
 		Name = "THE FINAL ONE",
 		Desc = "The main boss: waits in the 67 ARENA at 15:00. Three phases. Beat it to win the run.",
-		HP = 65000, Speed = 8.5, Damage = 24, XP = 1000, Radius = 7,
+		HP = 80000, Speed = 8.5, Damage = 24, XP = 1000, Radius = 7,
 		Model = "FinalOne", Color = rgb(40, 30, 60), Accent = rgb(255, 64, 150),
 		Behavior = "Boss", Mass = 120, CoinChance = 1, ItemChance = 0, Boss = true,
 		Params = {
@@ -372,7 +379,7 @@ local LIST: { EnemyDef } = ({
 		Key = "BigQuack",
 		Name = "THE BIG QUACK",
 		Desc = "Mini-boss of Goober Gardens. Belly-flops where you stand and leaves slippery puddles.",
-		HP = 1500, Speed = 8, Damage = 14, XP = 0, Radius = 4.4,
+		HP = 2400, Speed = 8, Damage = 14, XP = 0, Radius = 4.4,
 		Model = "Quack", Color = rgb(255, 214, 60), Accent = rgb(255, 136, 40),
 		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true,
 		Params = {
@@ -395,7 +402,7 @@ local LIST: { EnemyDef } = ({
 		Key = "Cartzilla",
 		Name = "CARTZILLA",
 		Desc = "Mini-boss of the Horde Mart Lot. Charges in straight lines and spills everywhere.",
-		HP = 1800, Speed = 9, Damage = 16, XP = 0, Radius = 4.2,
+		HP = 7000, Speed = 9, Damage = 16, XP = 0, Radius = 4.2,
 		Model = "Cart", Color = rgb(196, 204, 220), Accent = rgb(255, 72, 72),
 		Behavior = "Champion", Mass = 34, CoinChance = 0, ItemChance = 0, Champion = true,
 		Params = {
@@ -409,7 +416,7 @@ local LIST: { EnemyDef } = ({
 		Key = "JackpotJimmy",
 		Name = "JACKPOT JIMMY",
 		Desc = "Mini-boss of the Neon Strip. Its reels decide the attack. Tilts behind a shield of coin stacks.",
-		HP = 2000, Speed = 6.5, Damage = 16, XP = 0, Radius = 4.4,
+		HP = 13000, Speed = 6.5, Damage = 16, XP = 0, Radius = 4.4,
 		Model = "Slots", Color = rgb(235, 60, 100), Accent = rgb(255, 205, 60),
 		Behavior = "Champion", Mass = 40, CoinChance = 0, ItemChance = 0, Champion = true,
 		Params = {
@@ -436,7 +443,7 @@ local LIST: { EnemyDef } = ({
 		Key = "Six",
 		Name = "SIX",
 		Desc = "Mini-boss of the Rift (with SEVEN). Keeps its distance and fans out sixes.",
-		HP = 1300, Speed = 10, Damage = 14, XP = 0, Radius = 3.4,
+		HP = 11000, Speed = 10, Damage = 14, XP = 0, Radius = 3.4,
 		Model = "Six", Color = rgb(255, 205, 50), Accent = rgb(130, 70, 220),
 		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true,
 		Params = {
@@ -449,7 +456,7 @@ local LIST: { EnemyDef } = ({
 		Key = "Seven",
 		Name = "SEVEN",
 		Desc = "Mini-boss of the Rift (with SIX). Walks up to you and lays seven mines.",
-		HP = 1300, Speed = 8.5, Damage = 16, XP = 0, Radius = 3.6,
+		HP = 11000, Speed = 8.5, Damage = 16, XP = 0, Radius = 3.6,
 		Model = "Seven", Color = rgb(140, 80, 230), Accent = rgb(255, 205, 50),
 		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true,
 		Params = {
@@ -462,7 +469,7 @@ local LIST: { EnemyDef } = ({
 		Key = "TickTock",
 		Name = "TICK TOCK",
 		Desc = "Roaming mini-boss. A laser clock hand sweeps around it. 67 seconds, then it rings and runs.",
-		HP = 1600, Speed = 6.2, Damage = 15, XP = 0, Radius = 3.8,
+		HP = 6200, Speed = 6.2, Damage = 15, XP = 0, Radius = 3.8,
 		Model = "Clock", Color = rgb(240, 80, 80), Accent = rgb(250, 248, 240),
 		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true,
 		Params = {
@@ -472,6 +479,414 @@ local LIST: { EnemyDef } = ({
 			TockEvery = 8, TockRadius = 8, TockDelay = 1, TockDamage = 20,
 			AlarmCount = 24, AlarmSpeed = 20, AlarmDamage = 14,
 			OnTimeCoins = 67,
+		},
+	}),
+	-------------------------------------------------------------------- the horde of the harder tiers
+	-- (appended: the list order is the network id). MinTier = the first tier it joins the horde
+	-- on; WaveData.TierPools says from when and how often.
+	enemy({
+		Key = "Snoozer",
+		Name = "Snoozer",
+		Desc = "Sleeps where it lands. Walk too close and it wakes up, blinks, and comes running.",
+		HP = 14, Speed = 10, Damage = 6, XP = 2, Radius = 1.4,
+		Model = "Snoozer", Color = rgb(150, 160, 235), Accent = rgb(60, 62, 125),
+		Behavior = "Sleep", MinTier = 1,
+		Params = { Wake = 9, Blink = 0.8, Rush = 1.2 },
+	}),
+	enemy({
+		Key = "Shielder",
+		Name = "Shielder",
+		Desc = "Hides behind a big shield: hits from the front barely hurt and the shield covers the horde behind it. Flank it or break the shield.",
+		HP = 32, Speed = 7, Damage = 8, XP = 4, Radius = 1.7,
+		Model = "Shielder", Color = rgb(90, 130, 190), Accent = rgb(232, 236, 245),
+		Behavior = "Shield", Mass = 3, CoinChance = 0.015, MinTier = 2,
+		Params = { GuardHP = 1.2, GuardCut = 0.7, GuardArc = 1.25 },
+	}),
+	enemy({
+		Key = "Stampeder",
+		Name = "Stampeder",
+		Desc = "Stamps, then runs a straight lane, faster and faster. It can't turn: step aside.",
+		HP = 22, Speed = 9, Damage = 9, XP = 3, Radius = 1.4,
+		Model = "Stampeder", Color = rgb(186, 128, 76), Accent = rgb(250, 236, 205),
+		Behavior = "Stampede", Mass = 2, MinTier = 3,
+		Params = { Trigger = 42, Windup = 0.8, RunTime = 2.4, TopSpeed = 27, Accel = 1.4, Turn = 0.45, Rest = 1.1 },
+	}),
+	enemy({
+		Key = "Bannerman",
+		Name = "Bannerman",
+		Desc = "Waves its banner behind the horde: everything inside its ring runs faster. Take it out first.",
+		HP = 50, Speed = 7.5, Damage = 6, XP = 6, Radius = 1.5,
+		Model = "Bannerman", Color = rgb(120, 72, 165), Accent = rgb(255, 205, 60),
+		Behavior = "Banner", Mass = 2, CoinChance = 0.04, ItemChance = 3, MinTier = 3,
+		Params = { Keep = 22, Aura = 12, Haste = 1.2 },
+	}),
+	enemy({
+		Key = "Wailer",
+		Name = "Wailer",
+		Desc = "Keeps its distance and wails: a slow ring wave with one gap. Find the gap.",
+		HP = 32, Speed = 8, Damage = 6, XP = 4, Radius = 1.4,
+		Model = "Wailer", Color = rgb(200, 210, 240), Accent = rgb(72, 60, 140),
+		Behavior = "Wail", Mass = 1.2, CoinChance = 0.02, MinTier = 4,
+		Params = { Keep = 20, Every = 4.6, Windup = 0.8, Count = 16, Gap = 3, ProjSpeed = 13, ProjDamage = 7, ProjRadius = 1.1, ProjLife = 3.4 },
+	}),
+	enemy({
+		Key = "Hexer",
+		Name = "Hexer",
+		Desc = "Draws a curse circle under your feet. It explodes 1.2 s later: keep walking.",
+		HP = 30, Speed = 7.5, Damage = 6, XP = 4, Radius = 1.4,
+		Model = "Hexer", Color = rgb(72, 52, 132), Accent = rgb(250, 240, 150),
+		Behavior = "Hex", Mass = 1.2, CoinChance = 0.02, MinTier = 4,
+		Params = { Keep = 22, Every = 5.5, Delay = 1.2, Radius = 4.5, HexDamage = 14 },
+	}),
+	enemy({
+		Key = "Cinder",
+		Name = "Cinder",
+		Desc = "A walking ember. Leaves a trail of fire for a few seconds: don't follow it.",
+		HP = 26, Speed = 10, Damage = 7, XP = 3, Radius = 1.3,
+		Model = "Cinder", Color = rgb(48, 42, 44), Accent = rgb(255, 236, 150),
+		Behavior = "Cinder", MinTier = 5,
+		Params = { TrailEvery = 0.7, TrailRadius = 2.2, TrailTime = 3, TrailDamage = 5 },
+	}),
+	enemy({
+		Key = "Eruptor",
+		Name = "Eruptor",
+		Desc = "Barely moves. Lobs lava onto where you stand: the circle shows where it lands.",
+		HP = 45, Speed = 3, Damage = 8, XP = 5, Radius = 1.8,
+		Model = "Eruptor", Color = rgb(58, 52, 58), Accent = rgb(255, 222, 120),
+		Behavior = "Mortar", Mass = 4, CoinChance = 0.03, ItemChance = 2, MinTier = 5,
+		Params = { Keep = 30, Every = 4, Delay = 1.3, Radius = 4, LavaDamage = 15 },
+	}),
+	enemy({
+		Key = "Predator",
+		Name = "Predator",
+		Desc = "Doesn't run at you: runs at where you WILL be, then pounces. Change direction.",
+		HP = 34, Speed = 12.5, Damage = 10, XP = 5, Radius = 1.4,
+		Model = "Predator", Color = rgb(100, 108, 128), Accent = rgb(150, 235, 255),
+		Behavior = "Predator", Mass = 1.4, MinTier = 6,
+		Params = { Lead = 0.8, Trigger = 14, Windup = 0.75, PounceTime = 0.45, PounceSpeed = 34, Rest = 1.2 },
+	}),
+	enemy({
+		Key = "Warden",
+		Name = "Warden",
+		Desc = "Slow. Its bubble protects the horde inside (-40% damage taken). Pop the Warden first.",
+		HP = 70, Speed = 6, Damage = 8, XP = 7, Radius = 1.8,
+		Model = "Warden", Color = rgb(222, 226, 236), Accent = rgb(120, 172, 255),
+		Behavior = "Ward", Mass = 4, CoinChance = 0.04, ItemChance = 3, MinTier = 6,
+		Params = { Keep = 14, Aura = 9, Ward = 0.4 },
+	}),
+	enemy({
+		Key = "Sixlet",
+		Name = "Sixlet",
+		Desc = "A little 6. Always with a little 7. Kill one and the other goes mad, unless both fall within 3 s.",
+		HP = 30, Speed = 11, Damage = 8, XP = 4, Radius = 1.3,
+		Model = "Sixlet", Color = rgb(255, 205, 50), Accent = rgb(130, 70, 220),
+		Behavior = "Chase", MinTier = 7,
+		Params = { Pair = "Sevenlet", RageDelay = 3, RageTime = 5, RageSpeed = 1.6, RageDamage = 1.3 },
+	}),
+	enemy({
+		Key = "Sevenlet",
+		Name = "Sevenlet",
+		Desc = "A little 7. Always with a little 6. Kill one and the other goes mad, unless both fall within 3 s.",
+		HP = 30, Speed = 11, Damage = 8, XP = 4, Radius = 1.3,
+		Model = "Sevenlet", Color = rgb(140, 80, 230), Accent = rgb(255, 205, 50),
+		Behavior = "Chase", MinTier = 7,
+		Params = { Pair = "Sixlet", RageDelay = 3, RageTime = 5, RageSpeed = 1.6, RageDamage = 1.3 },
+	}),
+	-------------------------------------------------------------------- boss minions
+	enemy({
+		Key = "Crow",
+		Name = "Crow",
+		Desc = "THE SCARECROW's crows. Circle, aim, dive.",
+		HP = 12, Speed = 13, Damage = 7, XP = 1, Radius = 1.0,
+		Model = "Crow", Color = rgb(38, 38, 48), Accent = rgb(255, 214, 80),
+		Behavior = "Dive", Mass = 0.6, CoinChance = 0.004, ItemChance = 0,
+		Params = { Radius = 13, Circle = 2.2, DiveTime = 0.6, DiveSpeed = 34, Windup = 0.75, Lifetime = 18 },
+	}),
+	enemy({
+		Key = "GooEgg",
+		Name = "Goo Egg",
+		Desc = "MAMA GOOBER's eggs. Break them before they hatch.",
+		HP = 60, Speed = 0, Damage = 0, XP = 1, Radius = 1.6,
+		Model = "GooEgg", Color = rgb(206, 240, 176), Accent = rgb(255, 128, 196),
+		Behavior = "Egg", Mass = 999, CoinChance = 0, ItemChance = 0, NoContact = true, Collection = false,
+		Params = { Hatch = 4, HatchKey = "Goober", HatchCount = 4 },
+	}),
+	enemy({
+		Key = "WarBanner",
+		Name = "War Banner",
+		Desc = "THE HORDEMASTER's banner: the horde runs faster while it stands. Break the pole.",
+		HP = 400, Speed = 0, Damage = 0, XP = 2, Radius = 1.8,
+		Model = "WarBanner", Color = rgb(178, 40, 52), Accent = rgb(255, 205, 60),
+		Behavior = "Rally", Mass = 999, CoinChance = 0, ItemChance = 0, NoContact = true, Collection = false,
+		Params = { Aura = 22, Haste = 1.3 },
+	}),
+	-------------------------------------------------------------------- lair bosses of the harder tiers
+	-- (shared/BossData.lua: MinTier, slot; Sim/MiniBosses.lua AI: how they fight)
+	enemy({
+		Key = "SirSnailsalot",
+		Name = "SIR SNAILSALOT",
+		Desc = "Boss 1 of Goober Gardens (tier III+). Rolls its shell down a line, leaves slime. Hit it when it peeks out.",
+		HP = 2600, Speed = 6, Damage = 14, XP = 0, Radius = 4.2,
+		Model = "Snail", Color = rgb(176, 214, 120), Accent = rgb(168, 112, 72),
+		Behavior = "Champion", Mass = 32, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 3,
+		Params = {
+			Title = "SIR SNAILSALOT",
+			RollEvery = 6, RollWindup = 1.1, RollSpeed = 40, RollLength = 44, RollDamage = 24, ShellArmor = 0.5,
+			SlimeEvery = 5, SlimeRadius = 4, SlimeTime = 6, SlimeSlow = 0.6,
+			SpitEvery = 7, SpitShots = 5, SpitSpread = 0.8, SpitSpeed = 16, SpitDamage = 9,
+		},
+	}),
+	enemy({
+		Key = "Scarecrow",
+		Name = "THE SCARECROW",
+		Desc = "Boss 1 of Goober Gardens (tier V+). Spins its stick arms in a wide fan and sends crows. Its head is soft after a spin.",
+		HP = 2700, Speed = 7, Damage = 15, XP = 0, Radius = 4.0,
+		Model = "Scarecrow", Color = rgb(226, 196, 112), Accent = rgb(255, 186, 56),
+		Behavior = "Champion", Mass = 30, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 5,
+		Params = {
+			Title = "THE SCARECROW",
+			SpinEvery = 6.5, SpinDelay = 1.1, SpinArms = 3, SpinArc = 1.0, SpinRadius = 18, SpinTurn = 1.05, SpinDamage = 22,
+			CrowEvery = 10, CrowCount = 3,
+		},
+	}),
+	enemy({
+		Key = "SelfCheckout",
+		Name = "SELF-CHECKOUT",
+		Desc = "Boss 2 of the Horde Mart Lot (tier III+). Scanner beams, and an UNEXPECTED ITEM in your bagging area.",
+		HP = 7200, Speed = 6, Damage = 16, XP = 0, Radius = 4.4,
+		Model = "Checkout", Color = rgb(222, 226, 232), Accent = rgb(80, 205, 255),
+		Behavior = "Champion", Mass = 40, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 3,
+		Params = {
+			Title = "SELF-CHECKOUT",
+			ScanEvery = 6.5, ScanCount = 3, ScanLength = 64, ScanWidth = 4, ScanDelay = 1.1, ScanGap = 0.35, ScanSpacing = 9, ScanDamage = 22,
+			MarkEvery = 8.5, MarkDelay = 1.5, MarkRadius = 7, MarkDamage = 24, MarkShots = 10, MarkSpeed = 14, MarkShotDamage = 9,
+		},
+	}),
+	enemy({
+		Key = "Mannequin",
+		Name = "THE MANNEQUIN",
+		Desc = "Boss 2 of the Horde Mart Lot (tier V+). Red light, green light: it freezes while you move and dashes when you stand still.",
+		HP = 7000, Speed = 7, Damage = 16, XP = 0, Radius = 3.8,
+		Model = "Mannequin", Color = rgb(236, 222, 204), Accent = rgb(32, 32, 38),
+		Behavior = "Champion", Mass = 34, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 5,
+		Params = {
+			Title = "THE MANNEQUIN",
+			Still = 0.45, DashWindup = 1.0, DashSpeed = 60, DashLength = 40, DashDamage = 26, DashRest = 1.4,
+			PoseEvery = 7, PoseShots = 12, PoseSpeed = 15, PoseDamage = 10,
+		},
+	}),
+	enemy({
+		Key = "DJDrop",
+		Name = "DJ DROP",
+		Desc = "Boss 3 of the Neon Strip (tier III+). Everything happens on the beat: rings with a gap, and then... the DROP.",
+		HP = 12500, Speed = 5.5, Damage = 16, XP = 0, Radius = 4.4,
+		Model = "DJ", Color = rgb(52, 42, 74), Accent = rgb(80, 240, 255),
+		Behavior = "Champion", Mass = 40, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 3,
+		Params = {
+			Title = "DJ DROP",
+			Beat = 0.5, RingBeats = 4, RingWindup = 2, RingCount = 24, RingGap = 4, RingSpeed = 15, RingDamage = 12, GapStep = 0.785,
+			DropEvery = 14, DropBuild = 1.5, DropRings = 4, DropDamage = 12,
+		},
+	}),
+	enemy({
+		Key = "RouletteRoller",
+		Name = "ROULETTE ROLLER",
+		Desc = "Boss 3 of the Neon Strip (tier V+). Red or black? It tells you the safe colour, then the other one burns.",
+		HP = 13000, Speed = 7, Damage = 16, XP = 0, Radius = 4.6,
+		Model = "Roulette", Color = rgb(30, 30, 38), Accent = rgb(255, 205, 60),
+		Behavior = "Champion", Mass = 40, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 5,
+		Params = {
+			Title = "ROULETTE ROLLER",
+			SpinEvery = 6.5, SpinTime = 1.4, Sectors = 8, SectorRadius = 24, SectorDelay = 1.3, SectorDamage = 26,
+			ZeroChance = 0.12, ZeroEvery = 4, StunTime = 3,
+			BallEvery = 9, BallShots = 10, BallSpeed = 16, BallDamage = 10,
+		},
+	}),
+	enemy({
+		Key = "TheMirror",
+		Name = "THE MIRROR",
+		Desc = "Boss 4 of the Rift (tier III+). Walks the path you walked, fires along it. Cracks after its dash.",
+		HP = 23000, Speed = 9, Damage = 18, XP = 0, Radius = 4.0,
+		Model = "Mirror", Color = rgb(200, 210, 226), Accent = rgb(120, 230, 255),
+		Behavior = "Champion", Mass = 40, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 3,
+		Params = {
+			Title = "THE MIRROR",
+			Behind = 2.0, EchoEvery = 6, EchoCount = 6, EchoRadius = 4.5, EchoDelay = 1.1, EchoDamage = 22,
+			DashEvery = 9, DashWindup = 1.1, DashSpeed = 62, DashLength = 44, DashDamage = 28,
+			ShotEvery = 3.5, ShotCount = 3, ShotSpread = 0.35, ShotSpeed = 20, ShotDamage = 11,
+		},
+	}),
+	enemy({
+		Key = "EventHorizon",
+		Name = "THE EVENT HORIZON",
+		Desc = "Boss 4 of the Rift (tier V+). Pulls gently, sends ring waves in from the edge, then collapses everything but a few safe spots.",
+		HP = 24500, Speed = 4.5, Damage = 18, XP = 0, Radius = 4.6,
+		Model = "Horizon", Color = rgb(22, 18, 32), Accent = rgb(190, 150, 255),
+		Behavior = "Champion", Mass = 60, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 5,
+		Params = {
+			Title = "THE EVENT HORIZON",
+			PullRadius = 34, PullSlow = 0.78, PullEvery = 7, PullTime = 3.5,
+			WaveEvery = 7, WaveCount = 28, WaveGap = 4, WaveRadius = 30, WaveSpeed = 12, WaveDamage = 13,
+			CollapseEvery = 11, CollapseRadius = 30, SafeCount = 3, SafeRadius = 5, CollapseDelay = 1.6, CollapseDamage = 30,
+		},
+	}),
+	-------------------------------------------------------------------- MAIN bosses (one per tier: BossData.Mains)
+	enemy({
+		Key = "MamaGoober",
+		Name = "MAMA GOOBER",
+		Desc = "Main boss of tier I CALM: waits in the 67 ARENA at 15:00. Belly-flops, goober rain, a nest of eggs.",
+		HP = 70000, Speed = 7.5, Damage = 18, XP = 1000, Radius = 7.5,
+		Model = "MamaGoober", Color = rgb(124, 222, 96), Accent = rgb(255, 132, 192),
+		Behavior = "Boss", Mass = 120, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 1,
+		Params = {
+			Title = "MAMA GOOBER",
+			Final = true,
+			ShotRoom = 60, -- (Sim/EnemyManager.Shoot: room for its rings)
+			Patterns = { "BellyFlop", "GooRain", "Nest" },
+			PhasePatterns = { [2] = { "Ring" } },
+			BellyFlopEvery = 6, FlopDelay = 1.4, FlopRadius = 11, FlopDamage = 26, FlopDrops = 12, FlopDropSpeed = 13, FlopDropDamage = 9,
+			GooRainEvery = 9, RainCount = 8,
+			NestEvery = 14, EggCount = 3, EggKey = "GooEgg",
+			RingEvery = 7, RingCount = 18, RingSpeed = 16, RingDamage = 10,
+			Coins = 400,
+		},
+	}),
+	enemy({
+		Key = "TheHordemaster",
+		Name = "THE HORDEMASTER",
+		Desc = "Main boss of tier III HORDE. Commands the horde through a megaphone: stampede lanes, formation walls, a war banner.",
+		HP = 80000, Speed = 8, Damage = 24, XP = 1000, Radius = 7,
+		Model = "Hordemaster", Color = rgb(150, 34, 46), Accent = rgb(255, 205, 60),
+		Behavior = "Boss", Mass = 120, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 3,
+		Params = {
+			Title = "THE HORDEMASTER",
+			Final = true,
+			ShotRoom = 60, -- (Sim/EnemyManager.Shoot: room for its rings)
+			Patterns = { "Lanes", "Slam", "BannerCall" },
+			PhasePatterns = { [2] = { "Formation" }, [3] = { "FullCharge" } },
+			LanesEvery = 7, LaneCount = 3, LaneLength = 84, LaneWidth = 6, LaneDelay = 1.3, LaneDamage = 24, LaneKey = "Stampeder", LaneHerd = 3,
+			SlamEvery = 6, SlamRadius = 12, SlamDelay = 1.1, SlamDamage = 26,
+			BannerCallEvery = 16, BannerKey = "WarBanner",
+			FormationEvery = 15, FormationCount = 18, FormationRadius = 26, FormationGap = 3, FormationKey = "Shielder", FormationSpeed = 3.5, FormationLife = 9,
+			FullChargeEvery = 13, ChargeDelay = 1.5, ChargeDamage = 28, ChargeSafe = 7,
+			Coins = 400,
+		},
+	}),
+	enemy({
+		Key = "TheDread",
+		Name = "THE DREAD",
+		Desc = "Main boss of tier IV NIGHTMARE. A tall shadow with a moon eye. Turns the lights out.",
+		HP = 80000, Speed = 8, Damage = 24, XP = 1000, Radius = 6.5,
+		Model = "Dread", Color = rgb(64, 54, 124), Accent = rgb(252, 240, 160),
+		Behavior = "Boss", Mass = 120, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 4,
+		Params = {
+			Title = "THE DREAD",
+			Final = true,
+			ShotRoom = 60, -- (Sim/EnemyManager.Shoot: room for its rings)
+			Patterns = { "Hands", "EyeSweep", "Ring" },
+			PhasePatterns = { [2] = { "Echoes", "LightsOut" }, [3] = { "DoomRing" } },
+			HandsEvery = 6, HandCount = 5, HandRadius = 5, HandSpread = 14, HandDelay = 1.2, HandDamage = 22,
+			EyeSweepEvery = 9, SweepLines = 7, SweepLength = 60, SweepWidth = 5, SweepDelay = 1.2, SweepStep = 0.22, SweepGap = 0.18, SweepDamage = 26,
+			RingEvery = 7, RingCount = 20, RingSpeed = 18, RingDamage = 11,
+			EchoesEvery = 8, EchoCount = 6, EchoRadius = 4.5, EchoDelay = 1.2, EchoDamage = 20,
+			LightsOutEvery = 18, DarkTime = 9,
+			DoomRingEvery = 7, DoomCount = 40, DoomGap = 5, DoomSpeed = 14, DoomDamage = 20, DoomDelay = 1.3,
+			Coins = 400,
+		},
+	}),
+	enemy({
+		Key = "TheFurnace",
+		Name = "THE FURNACE",
+		Desc = "Main boss of tier V INFERNO. A furnace golem that heats the arena one sector at a time.",
+		HP = 82000, Speed = 7, Damage = 24, XP = 1000, Radius = 7.5,
+		Model = "Furnace", Color = rgb(40, 38, 44), Accent = rgb(255, 214, 90),
+		Behavior = "Boss", Mass = 140, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 5,
+		Params = {
+			Title = "THE FURNACE",
+			Final = true,
+			ShotRoom = 60, -- (Sim/EnemyManager.Shoot: room for its rings)
+			Patterns = { "Sectors", "Slam", "EmberRing" },
+			PhasePatterns = { [2] = { "Meteors" }, [3] = { "Steam" } },
+			SectorsEvery = 5, SectorCount = 8, SectorHot = 3, SectorDelay = 1.5, SectorDamage = 26,
+			SlamEvery = 6.5, SlamRadius = 12, SlamDelay = 1.1, SlamDamage = 28,
+			EmberRingEvery = 7.5, EmberCount = 22, EmberGap = 4, EmberSpeed = 15, EmberDamage = 11,
+			MeteorsEvery = 10, MeteorCount = 8, MeteorRadius = 5, MeteorSpread = 18, MeteorDelay = 1.3, MeteorDamage = 22,
+			SteamEvery = 9, SteamRadius = 11, SteamDelay = 1.2, SteamDamage = 18,
+			Coins = 400,
+		},
+	}),
+	enemy({
+		Key = "TheEraser",
+		Name = "THE ERASER",
+		Desc = "Main boss of tier VI OBLIVION. Erases the floor and the arena with it, then redraws the horde.",
+		HP = 82000, Speed = 8.5, Damage = 24, XP = 1000, Radius = 7,
+		Model = "Eraser", Color = rgb(240, 238, 232), Accent = rgb(70, 72, 82),
+		Behavior = "Boss", Mass = 120, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 6,
+		Params = {
+			Title = "THE ERASER",
+			Final = true,
+			ShotRoom = 60, -- (Sim/EnemyManager.Shoot: room for its rings)
+			Patterns = { "Swipe", "Erase" },
+			PhasePatterns = { [2] = { "Redraw" }, [3] = { "DoomRing" } },
+			EdgeErase = 7, -- studs of arena erased at every new phase (Sim/Bosses.EraseEdge)
+			SwipeEvery = 7, SwipeWindup = 1.1, SwipeLength = 64, SwipeWidth = 9, SwipeSpeed = 60, SwipeDamage = 28,
+			EraseEvery = 8, EraseCount = 3, EraseRadius = 6, EraseDelay = 1.2, EraseTime = 24, EraseDamage = 10,
+			RedrawEvery = 15, RedrawCount = 3, RedrawLife = 14,
+			DoomRingEvery = 7, DoomCount = 40, DoomGap = 5, DoomSpeed = 14, DoomDamage = 20, DoomDelay = 1.3,
+			Coins = 400,
+		},
+	}),
+	enemy({
+		Key = "PrimeSix",
+		Name = "SIX",
+		Desc = "THE 67 PRIME, phase 1: a golden six. Its twin SEVEN must fall within 6.7 s of it.",
+		HP = 12000, Speed = 10, Damage = 20, XP = 0, Radius = 4.4,
+		Model = "PrimeSix", Color = rgb(255, 205, 50), Accent = rgb(150, 80, 240),
+		Behavior = "Champion", Mass = 60, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 7, Collection = false,
+		Params = {
+			Title = "SIX", Twin = "PrimeSeven", Fuse = "The67Prime", NoPhases = true,
+			Keep = 16, FanEvery = 2.8, FanShots = 7, FanSpread = 1.0, FanSpeed = 21, FanDamage = 12,
+			ReviveTime = 6.7,
+		},
+	}),
+	enemy({
+		Key = "PrimeSeven",
+		Name = "SEVEN",
+		Desc = "THE 67 PRIME, phase 1: a golden seven. Its twin SIX must fall within 6.7 s of it.",
+		HP = 12000, Speed = 9, Damage = 22, XP = 0, Radius = 4.6,
+		Model = "PrimeSeven", Color = rgb(30, 26, 36), Accent = rgb(255, 205, 50),
+		Behavior = "Champion", Mass = 60, CoinChance = 0, ItemChance = 0, Champion = true, MinTier = 7, Collection = false,
+		Params = {
+			Title = "SEVEN", Twin = "PrimeSix", Fuse = "The67Prime", NoPhases = true,
+			MineEvery = 5, MineCount = 7, MineRadius = 4.5, MineDelay = 1.5, MineDamage = 24,
+			ReviveTime = 6.7,
+		},
+	}),
+	enemy({
+		Key = "The67Prime",
+		Name = "THE 67 PRIME",
+		Desc = "Main boss of tier VII THE 67. Six and seven, fused into gold. Every boss you ever met, in one.",
+		HP = 56000, Speed = 8, Damage = 26, XP = 1000, Radius = 7.5,
+		Model = "Prime67", Color = rgb(255, 200, 40), Accent = rgb(140, 70, 230),
+		Behavior = "Boss", Mass = 140, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 7,
+		Params = {
+			Title = "THE 67 PRIME",
+			Final = true,
+			ShotRoom = 60, -- (Sim/EnemyManager.Shoot: room for its rings)
+			Patterns = { "BellyFlop", "Lanes", "Nest" },
+			PhaseSets = { [2] = { "Hands", "EyeSweep", "Sectors", "LightsOut" }, [3] = { "Erase", "DoomRing", "SixSeven" } },
+			BellyFlopEvery = 6.5, FlopDelay = 1.3, FlopRadius = 11, FlopDamage = 28, FlopDrops = 14, FlopDropSpeed = 14, FlopDropDamage = 10,
+			NestEvery = 15, EggCount = 3, EggKey = "GooEgg",
+			LanesEvery = 7, LaneCount = 4, LaneLength = 84, LaneWidth = 6, LaneDelay = 1.3, LaneDamage = 26, LaneKey = "Stampeder", LaneHerd = 3,
+			HandsEvery = 6, HandCount = 5, HandRadius = 5, HandSpread = 14, HandDelay = 1.2, HandDamage = 24,
+			EyeSweepEvery = 9, SweepLines = 7, SweepLength = 60, SweepWidth = 5, SweepDelay = 1.2, SweepStep = 0.22, SweepGap = 0.18, SweepDamage = 28,
+			SectorsEvery = 6, SectorCount = 8, SectorHot = 3, SectorDelay = 1.5, SectorDamage = 28,
+			LightsOutEvery = 20, DarkTime = 10,
+			EraseEvery = 8, EraseCount = 3, EraseRadius = 6, EraseDelay = 1.2, EraseTime = 24, EraseDamage = 12,
+			DoomRingEvery = 8, DoomCount = 40, DoomGap = 5, DoomSpeed = 14, DoomDamage = 22, DoomDelay = 1.3,
+			SixSevenEvery = 12, SeriesBeat = 0.67, SeriesCount = 24, SeriesGap = 4, SeriesSpeed = 15, SeriesDamage = 14,
+			EdgeErase = 7, EdgeFrom = 3, -- phase 4 (its third own phase) erases the edge
+			Coins = 400,
 		},
 	}),
 } :: any)
@@ -489,23 +904,62 @@ end
 
 --[[
 	ELITES: a normal enemy of the current wave that the elite director (Sim/Elites.lua) turns
-	into something dangerous and worth hunting: much tougher (GameConfig.Elite), a ring and a
-	name plate, and 1-2 AFFIXES that change how it fights. Only these kinds can be elites.
+	into something dangerous and worth hunting: much tougher (GameConfig.Elite), a ring, a
+	crest and a name plate, and 1-2 AFFIXES that change how it fights. Only these kinds can be
+	elites (the harder tiers' kinds only once they are part of the wave).
+
+	Affixes join the pool tier by tier (MinTier, shared/DifficultyData.lua index):
+	  I    SWIFT, ARMORED
+	  II   + VOLATILE, SUMMONER, VAMPIRIC, FROST           (the classic six)
+	  III  + SHIELDED    IV + CURSED, BERSERK    V + BURNING, GRAVITY
+	  VI   + THORNED, ECHO                                 VII + GILDED 67
+	Kinds = the only kinds it may land on (an affix that needs attacks to repeat, ...).
 ]]
-EnemyData.ElitePool = { "Husk", "Charger", "Spitter", "Splitter", "Blinker", "Brute", "Diver", "Leaper", "Summoner", "Ghost", "Sniper" }
+EnemyData.ElitePool = {
+	"Husk", "Charger", "Spitter", "Splitter", "Blinker", "Brute", "Diver", "Leaper", "Summoner", "Ghost", "Sniper",
+	-- harder tiers (only when they are in the wave)
+	"Shielder", "Stampeder", "Wailer", "Hexer", "Cinder", "Eruptor", "Predator", "Warden",
+}
+
+local ECHO_KINDS = { "Charger", "Spitter", "Diver", "Leaper", "Sniper", "Stampeder", "Wailer", "Hexer", "Eruptor", "Predator" }
 
 EnemyData.EliteAffixes = {
-	{ Key = "Swift", Name = "SWIFT", Desc = "Much faster", Speed = 1.45 },
-	{ Key = "Armored", Name = "ARMORED", Desc = "Takes 35% less damage", Armor = 0.35 },
-	{ Key = "Volatile", Name = "VOLATILE", Desc = "Explodes when it dies: step away", Blast = { Radius = 7, Delay = 1, Damage = 26 } },
-	{ Key = "Summoner", Name = "SUMMONER", Desc = "Calls skitters", Summon = { Every = 6, Count = 3, Key = "Skitter" } },
-	{ Key = "Vampiric", Name = "VAMPIRIC", Desc = "Heals when it hurts you", Leech = 0.12, Regen = 0.01 },
-	{ Key = "Frost", Name = "FROST", Desc = "Its hits slow you", Chill = { Factor = 0.6, Time = 2 } },
+	{ Key = "Swift", Name = "SWIFT", Desc = "Much faster", Speed = 1.45, MinTier = 1 },
+	{ Key = "Armored", Name = "ARMORED", Desc = "Takes 35% less damage", Armor = 0.35, MinTier = 1 },
+	{ Key = "Volatile", Name = "VOLATILE", Desc = "Explodes when it dies: step away", Blast = { Radius = 7, Delay = 1, Damage = 26 }, MinTier = 2 },
+	{ Key = "Summoner", Name = "SUMMONER", Desc = "Calls skitters", Summon = { Every = 6, Count = 3, Key = "Skitter" }, MinTier = 2 },
+	{ Key = "Vampiric", Name = "VAMPIRIC", Desc = "Heals when it hurts you", Leech = 0.12, Regen = 0.01, MinTier = 2 },
+	{ Key = "Frost", Name = "FROST", Desc = "Its hits slow you", Chill = { Factor = 0.6, Time = 2 }, MinTier = 2 },
+	-- the harder tiers
+	{ Key = "Shielded", Name = "SHIELDED", Desc = "A shield eats the first hits; it comes back when left alone", HitShield = { Hits = 6, Recharge = 4, Every = 1 }, MinTier = 3 },
+	{ Key = "Cursed", Name = "CURSED", Desc = "Draws curse circles under you", Curse = { Every = 6, Delay = 1.2, Radius = 4.5, Damage = 16, Range = 30 }, MinTier = 4 },
+	{ Key = "Berserk", Name = "BERSERK", Desc = "Faster and angrier below half HP", Berserk = { At = 0.5, Speed = 1.4, Damage = 1.3 }, MinTier = 4 },
+	{ Key = "Burning", Name = "BURNING", Desc = "Leaves a trail of fire", Burning = { Every = 0.8, Radius = 2.6, Time = 3, Damage = 6 }, MinTier = 5 },
+	{ Key = "Gravity", Name = "GRAVITY", Desc = "Pulls at you: walking away is slower", Gravity = { Radius = 16, Slow = 0.8 }, MinTier = 5 },
+	{ Key = "Thorned", Name = "THORNED", Desc = "Hitting it up close hurts you a little", Thorns = { Range = 7, Damage = 6, Every = 0.8 }, MinTier = 6 },
+	{ Key = "Echo", Name = "ECHO", Desc = "Every attack comes twice", Echo = { Delay = 0.8 }, Kinds = ECHO_KINDS, MinTier = 6 },
+	{ Key = "Gilded67", Name = "GILDED 67", Desc = "Golden: two more affixes at once, double coins", Gilded = { Extra = 2, Coins = 2 }, MinTier = 7 },
 }
 EnemyData.AffixByKey = {}
 for i, a in EnemyData.EliteAffixes do
 	a.Id = i
 	EnemyData.AffixByKey[a.Key] = a
+end
+
+-- the affixes an elite of this kind may get on this tier
+function EnemyData.AffixesFor(tier: number, kind: string?): { any }
+	local out = {}
+	for _, a in EnemyData.EliteAffixes do
+		if (a.MinTier or 1) <= tier and (not a.Kinds or (kind ~= nil and table.find(a.Kinds, kind) ~= nil)) then
+			table.insert(out, a)
+		end
+	end
+	return out
+end
+
+-- does this enemy belong on this tier (its MinTier)?
+function EnemyData.OnTier(def, tier: number): boolean
+	return (def.MinTier or 1) <= tier
 end
 
 function EnemyData.Get(key: string): EnemyDef

@@ -10,6 +10,12 @@
 	  Chase Charge Strafe Blink Bomber Dive Summoner Phase Leap Mimic Sniper
 	  Flee (67 Goblin)  Sixty (THE 67)  Static (loot box)  March (formations)  Boss
 	  Champion (the MINI-BOSSES of 67 TOWN: Sim/MiniBosses.lua)
+	  the harder tiers: Sleep (Snoozer) Shield (Shielder) Stampede Banner (Bannerman, an
+	  aura: faster) Wail (a ring with a gap) Hex (a curse circle) Cinder (a fire trail)
+	  Mortar (Eruptor) Predator (runs where you will be) Ward (Warden, an aura: tougher)
+	  Egg Rally (war banner) Converge (a shrinking formation)
+	SIXLET / SEVENLET come as a pair (EnemyManager.Pair): kill one and the other rages 3 s
+	later, unless it falls too. Sketches (THE ERASER's Redraw) drop nothing.
 
 	67 TOWN (Sim/ArenaDirector.lua): the horde never spawns in the sealed rift or behind a wall
 	from you, the zone scales XP / coins, kills fill the zone's threat meter; enemies stuck on
@@ -41,9 +47,11 @@ local TAU = math.pi * 2
 local FLAGS = Protocol.Flags
 local ES = Protocol.EState
 local GFX = Protocol.Fx
+local SHAPE = Protocol.Shapes
 local PLAYER_R = GameConfig.Player.Radius
 local HALF = GameConfig.Arena.HalfSize
 local scratch = {}
+local auraScratch = {}
 local NO_DIFF = { EnemyHP = 1, EnemyDamage = 1, EnemySpeed = 1, BossHP = 1, BossDamage = 1 }
 
 -- NO MERCY difficulty: shorter wind-ups (the telegraph is shortened too: always fair)
@@ -93,6 +101,7 @@ export type SpawnOptions = {
 	BossDamage: number?, -- ... and its damage multiplier (shared/BossData.lua Slots Damage)
 	HomeX: number?, -- mini-boss: its lair
 	HomeZ: number?,
+	Sketch: boolean?, -- THE ERASER's redrawn copy: no loot
 }
 
 function EnemyManager.Count(run): number
@@ -191,11 +200,28 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 		NoContact = def.NoContact == true,
 		SpawnedAt = t,
 		Index = 0,
+		Sketch = o.Sketch == true,
 	}
 	local p = def.Params
 	local b = e.Behavior
 	local rng = run.Rng
-	if b == "Blink" or b == "Summoner" or b == "Sniper" then
+	if p.GuardHP then
+		e.Guard = hp * p.GuardHP -- a Shielder's shield (EnemyManager.Damage)
+	end
+	if p.ShotRoom then
+		run.ShotRoom = p.ShotRoom -- a main boss of the harder tiers: room for its rings
+	end
+	if b == "Wail" or b == "Hex" or b == "Mortar" then
+		e.T = p.Every * rng:NextNumber(0.4, 1)
+	elseif b == "Cinder" then
+		e.T = p.TrailEvery
+	elseif b == "Banner" or b == "Ward" or b == "Rally" then
+		e.T = rng:NextNumber(0, 0.5)
+	elseif b == "Egg" then
+		e.T = p.Hatch
+	elseif b == "Sleep" then
+		e.Dormant = true
+	elseif b == "Blink" or b == "Summoner" or b == "Sniper" then
 		e.T = p.Every * rng:NextNumber(0.4, 1)
 	elseif b == "Strafe" then
 		e.T = p.ShootEvery * rng:NextNumber(0.4, 1)
@@ -235,6 +261,9 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 	if giant then
 		flags += FLAGS.Giant
 	end
+	if e.Sketch then
+		flags += FLAGS.Sketch
+	end
 	run:Write("Spawn", e.Id, def.Id, x, z, flags)
 	if e.Dormant then
 		setState(run, e, ES.Dormant)
@@ -246,6 +275,11 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 		Bosses.Init(run, e)
 	end
 	return e
+end
+
+-- SIXLET + SEVENLET: kill one and the other rages (unless it falls within RageDelay too)
+function EnemyManager.Pair(a, b)
+	a.Partner, b.Partner = b, a
 end
 
 -- true when a wall stands between (x0, z0) and (x1, z1) (sampled every few studs)
@@ -381,6 +415,25 @@ function EnemyManager.Kill(run, e)
 		Pickups.SpawnItem(run, EnemyManager.RollItem(run), e.X, e.Z)
 		return
 	end
+	-- a sketch (THE ERASER) or a lane runner (THE HORDEMASTER) leaves nothing behind
+	if e.Sketch or e.Runner then
+		return
+	end
+	-- SIXLET / SEVENLET: the other one notices (it shakes) and goes mad RageDelay s later
+	local mate = e.Partner
+	if mate and mate.Alive and not mate.GriefUntil then
+		mate.GriefUntil = run.Time + mate.Def.Params.RageDelay
+		setState(run, mate, ES.Windup)
+	end
+	-- THE HORDEMASTER's war banner: its megaphone is open
+	if e.Owner and e.Behavior == "Rally" then
+		local owner = e.Owner
+		owner.Banner = nil
+		run:Write("Fx", 0, e.X, e.Z, 0, 6, 0, GFX.ShieldBreak)
+		if owner.Alive then
+			MiniBosses.Expose(run, owner, "Banner")
+		end
+	end
 
 	run.Kills += 1
 	result.EnemyKills[key] = (result.EnemyKills[key] or 0) + 1
@@ -442,8 +495,45 @@ end
 local function wake(run, e)
 	if e.Dormant then
 		e.Dormant = false
-		setState(run, e, ES.Normal)
+		if e.Behavior == "Sleep" then
+			-- a Snoozer blinks awake before it runs
+			e.State = 1
+			e.T = windup(run, e.Def.Params.Blink)
+			setState(run, e, ES.Windup)
+		else
+			setState(run, e, ES.Normal)
+		end
 	end
+end
+
+-- a hit on a Shielder's shield: from the front (the side it faces), mostly absorbed
+local function guard(run, e, dmg: number, kx: number, kz: number): (number, boolean)
+	local p = e.Def.Params
+	-- where the hit came from: against its knockback, else from you
+	local hx, hz = -kx, -kz
+	if hx * hx + hz * hz < 1e-4 then
+		hx, hz = run.PX - e.X, run.PZ - e.Z
+	end
+	local len = math.sqrt(hx * hx + hz * hz)
+	local fx, fz = e.FaceX or 0, e.FaceZ or 0
+	if len < 1e-3 or (fx * hx + fz * hz) / len < math.cos(p.GuardArc) then
+		return dmg, false
+	end
+	local absorbed = dmg * p.GuardCut
+	e.Guard -= absorbed
+	dmg -= absorbed
+	if e.Guard <= 0 then
+		-- the shield breaks: the rest of the hit goes through
+		dmg -= e.Guard
+		e.Guard = nil
+		e.GuardBroken = true
+		setState(run, e, ES.Broken)
+		run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2, 0, GFX.ShieldBreak)
+	elseif run.Time >= (e.BlockFx or 0) then
+		e.BlockFx = run.Time + 0.4
+		run:Write("Fx", 0, e.X + (e.FaceX or 0) * e.Radius, e.Z + (e.FaceZ or 0) * e.Radius, 0, e.Radius, 0, GFX.Block)
+	end
+	return dmg, true
 end
 
 function EnemyManager.Damage(run, e, dmg: number, hitFlags: number, kx: number, kz: number, knock: number)
@@ -453,8 +543,42 @@ function EnemyManager.Damage(run, e, dmg: number, hitFlags: number, kx: number, 
 	if e.Dormant then
 		wake(run, e)
 	end
+	local now = run.Time
+	-- a SHIELDED elite: its shield eats whole hits (it comes back when left alone)
+	if e.HitShield and e.HitShield > 0 then
+		e.HitShield -= 1
+		e.LastHitAt = now
+		if e.HitShield == 0 then
+			run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2, 0, GFX.ShieldBreak)
+		elseif now >= (e.BlockFx or 0) then
+			e.BlockFx = now + 0.3
+			run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 1.4, 0, GFX.Block)
+		end
+		return
+	end
+	e.LastHitAt = now
 	if e.ArmorCut then
 		dmg *= 1 - e.ArmorCut -- an ARMORED elite
+	end
+	if e.WardUntil and e.WardUntil > now then
+		dmg *= 1 - e.Ward -- inside a Warden's bubble
+	end
+	if e.Guard then
+		local blocked
+		dmg, blocked = guard(run, e, dmg, kx, kz)
+		if blocked then
+			knock *= 0.2 -- the shield holds its ground
+		end
+	end
+	-- a THORNED elite: hitting it up close hurts you a little
+	local thorns = e.Thorns
+	if thorns and now >= (e.ThornAt or 0) then
+		local dx, dz = run.PX - e.X, run.PZ - e.Z
+		if dx * dx + dz * dz <= (thorns.Range + e.Radius) ^ 2 then
+			e.ThornAt = now + thorns.Every
+			run:HurtPlayer(thorns.Damage * e.DmgScale, true, "Thorns")
+			run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 1.5, 0, GFX.Thorns)
+		end
 	end
 	e.HP -= dmg
 	if run.FrameHits < GameConfig.Sim.MaxHitsPerFrame or dmg >= 100 or e.IsBoss then
@@ -598,8 +722,19 @@ end
 -- enemy projectiles (straight, deterministic: the client simulates them from one record)
 ---------------------------------------------------------------------------
 function EnemyManager.Shoot(run, x: number, z: number, vx: number, vz: number, radius: number, damage: number, life: number)
-	if #run.EnemyProjectiles >= GameConfig.Sim.MaxEnemyProjectiles then
+	if #run.EnemyProjectiles >= GameConfig.Sim.MaxEnemyProjectiles + (run.ShotRoom or 0) then
 		return
+	end
+	-- an ECHO elite is shooting: the same shot again a moment later
+	local src = run.Shooter
+	if src and src.Echo then
+		local delay = src.Echo.Delay
+		table.insert(run.Echoes, {
+			At = run.Time + delay,
+			Fn = function()
+				EnemyManager.Shoot(run, x, z, vx, vz, radius, damage, life)
+			end,
+		})
 	end
 	run.NextEProj = (run.NextEProj or 0) % 65535 + 1
 	local k = run.ShotSpeed or 1 -- NO MERCY: faster shots (same reach)
@@ -683,6 +818,7 @@ function Behaviors.Charge(run, e, dx, dz, d, dt)
 			e.T = p.DashTime
 			e.DirX, e.DirZ = dx / d, dz / d
 			setState(run, e, ES.Dash)
+			EnemyManager.EchoLine(run, e, p.DashSpeed * p.DashTime)
 		end
 		return 0, 0, 0
 	elseif e.State == 2 then
@@ -772,7 +908,7 @@ function Behaviors.Dive(run, e, dx, dz, d, dt)
 		local m = sqrt(tx * tx + tz * tz)
 		if e.T <= 0 and d < r + 10 then
 			e.State = 1
-			e.T = windup(run, 0.45)
+			e.T = windup(run, p.Windup or 0.45)
 			e.DirX, e.DirZ = dx / d, dz / d
 			local length = p.DiveSpeed * p.DiveTime
 			run:Write("Telegraph", 2, e.X, e.Z, atan2(e.DirZ, e.DirX), length, e.Radius * 2, e.T)
@@ -788,6 +924,7 @@ function Behaviors.Dive(run, e, dx, dz, d, dt)
 			e.State = 2
 			e.T = p.DiveTime
 			setState(run, e, ES.Dash)
+			EnemyManager.EchoLine(run, e, p.DiveSpeed * p.DiveTime)
 		end
 		return 0, 0, 0
 	end
@@ -959,6 +1096,305 @@ function Behaviors.Champion(run, e, dx, dz, d, dt)
 	return MiniBosses.Step(run, e, dx, dz, d, dt, EnemyManager)
 end
 
+---------------------------------------------------------------------------
+-- the horde of the harder tiers
+---------------------------------------------------------------------------
+-- an ECHO elite's dash / dive comes again as a red line along its path
+function EnemyManager.EchoLine(run, e, length: number)
+	local echo = e.Echo
+	if not echo then
+		return
+	end
+	local x, z, a = e.X, e.Z, atan2(e.DirZ, e.DirX)
+	local damage = e.Damage
+	table.insert(run.Echoes, {
+		At = run.Time + echo.Delay * 0.5,
+		Fn = function()
+			Bosses.Telegraph(run, e, SHAPE.Laser, x, z, a, length, e.Radius * 2, windup(run, 0.8), damage, "Sweep", nil, { Echo = false })
+		end,
+	})
+end
+
+-- a patch of fire under (x, z) for a few seconds (Cinder, BURNING elites); the run caps how
+-- fast new patches come so a crowd of them never floods the ground
+function EnemyManager.FireTrail(run, e, radius: number, time: number, damage: number)
+	local now = run.Time
+	if now < (run.FireAt or 0) then
+		return
+	end
+	run.FireAt = now + 0.06
+	Bosses.Telegraph(run, e, SHAPE.Spill, e.X, e.Z, 0, radius, time, 0.05, damage * e.DmgScale, nil, nil, { Echo = false })
+end
+
+-- an aura: every enemy in the radius gets `field` = value for a moment (Bannerman / war banner:
+-- Haste, Warden: Ward). withBosses: the war banner speeds up its boss too
+local function aura(run, e, radius: number, field: string, value: number, withBosses: boolean?)
+	local n = SpatialGrid.Query(run.Grid, e.X, e.Z, radius + 2, auraScratch)
+	local untilT = run.Time + 0.7
+	for k = 1, n do
+		local o = auraScratch[k]
+		if o ~= e and o.Alive and (withBosses or not o.IsBoss) then
+			local dx, dz = o.X - e.X, o.Z - e.Z
+			if dx * dx + dz * dz <= radius * radius then
+				o[field .. "Until"] = untilT
+				o[field] = value
+			end
+		end
+	end
+	if withBosses and e.Owner and e.Owner.Alive then
+		e.Owner[field .. "Until"] = untilT
+		e.Owner[field] = value
+	end
+end
+
+-- Snoozer: asleep where it landed; close enough (or hit) and it wakes, blinks, and rushes
+function Behaviors.Sleep(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	if e.Dormant then
+		if d < p.Wake then
+			wake(run, e)
+		end
+		return 0, 0, 0
+	end
+	if e.State == 1 then
+		e.T -= dt
+		if e.T <= 0 then
+			e.State = 2
+			setState(run, e, ES.Normal)
+		end
+		return 0, 0, 0
+	end
+	local x, z = Behaviors.Chase(run, e, dx, dz, d)
+	return x, z, p.Rush
+end
+
+-- Shielder: walks at you behind its shield (the shield faces you: EnemyManager.Damage)
+function Behaviors.Shield(run, e, dx, dz, d)
+	e.FaceX, e.FaceZ = dx / d, dz / d
+	return Behaviors.Chase(run, e, dx, dz, d)
+end
+
+-- a formation closing in on a point (THE HORDEMASTER's shielders)
+function Behaviors.Converge(run, e, dx, dz, d)
+	e.FaceX, e.FaceZ = dx / d, dz / d
+	local cx, cz = (e.CX or run.PX) - e.X, (e.CZ or run.PZ) - e.Z
+	local cd = sqrt(cx * cx + cz * cz)
+	if cd < 2.5 then
+		return 0, 0, 0
+	end
+	return cx / cd, cz / cd, 1
+end
+
+-- Stampeder: stamps (a red line), then runs a straight lane, faster and faster, turning badly
+function Behaviors.Stampede(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	if e.State == 0 then
+		if d < p.Trigger then
+			e.State = 1
+			e.T = windup(run, p.Windup)
+			e.DirX, e.DirZ = dx / d, dz / d
+			run:Write("Telegraph", 2, e.X, e.Z, atan2(e.DirZ, e.DirX), p.TopSpeed * p.RunTime * 0.7, e.Radius * 2, e.T)
+			setState(run, e, ES.Windup)
+			return 0, 0, 0
+		end
+		return Behaviors.Chase(run, e, dx, dz, d)
+	elseif e.State == 1 then
+		e.T -= dt
+		if e.T <= 0 then
+			e.State = 2
+			e.T = p.RunTime
+			e.RunT = 0
+			setState(run, e, ES.Dash)
+		end
+		return 0, 0, 0
+	elseif e.State == 2 then
+		e.T -= dt
+		e.RunT += dt
+		local cur = atan2(e.DirZ, e.DirX)
+		local diff = ((atan2(dz, dx) - cur + math.pi) % TAU) - math.pi
+		cur += math.clamp(diff, -p.Turn * dt, p.Turn * dt)
+		e.DirX, e.DirZ = cos(cur), sin(cur)
+		if e.T <= 0 then
+			e.State = 3
+			e.T = p.Rest
+			setState(run, e, ES.Normal)
+		end
+		local speed = p.TopSpeed * min(1, 0.35 + 0.65 * e.RunT / p.Accel)
+		return e.DirX, e.DirZ, speed / e.Speed
+	end
+	e.T -= dt
+	if e.T <= 0 then
+		e.State = 0
+	end
+	local x, z = Behaviors.Chase(run, e, dx, dz, d)
+	return x, z, 0.5
+end
+
+-- Bannerman: stays behind the horde; everything inside its ring runs faster
+function Behaviors.Banner(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	e.T -= dt
+	if e.T <= 0 then
+		e.T = 0.5
+		aura(run, e, p.Aura, "Haste", p.Haste)
+	end
+	return keepAway(e, dx, dz, d, p.Keep)
+end
+
+-- Wailer: keeps its distance, wails a slow ring wave with one gap
+function Behaviors.Wail(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	e.T -= dt
+	if e.State == 1 then
+		if e.T <= 0 then
+			e.State = 0
+			e.T = p.Every
+			setState(run, e, ES.Normal)
+			Bosses.GapRing(run, EnemyManager, e.X, e.Z, p.Count, p.Gap, e.GapA, p.ProjSpeed, p.ProjDamage * e.DmgScale, p.ProjRadius, p.ProjLife)
+		end
+		return 0, 0, 0
+	end
+	if e.T <= 0 and d < p.Keep + 16 then
+		e.State = 1
+		e.T = windup(run, p.Windup)
+		-- the gap opens near you, never exactly on you: a step to the side
+		local side = if run.Rng:NextNumber() < 0.5 then -1 else 1
+		e.GapA = atan2(dz, dx) + side * run.Rng:NextNumber(0.3, 1.2)
+		setState(run, e, ES.Windup)
+		return 0, 0, 0
+	end
+	return keepAway(e, dx, dz, d, p.Keep)
+end
+
+-- Hexer: a curse circle under you that explodes Delay seconds later
+function Behaviors.Hex(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	e.T -= dt
+	if e.T <= 0 and d < p.Keep + 14 then
+		e.T = p.Every
+		Bosses.Telegraph(run, e, SHAPE.Circle, run.PX, run.PZ, 0, p.Radius, 0, windup(run, p.Delay), p.HexDamage * e.DmgScale, "Slam")
+		setState(run, e, ES.Windup)
+		e.CastUntil = run.Time + 0.5
+	elseif e.CastUntil and run.Time >= e.CastUntil then
+		e.CastUntil = nil
+		setState(run, e, ES.Normal)
+	end
+	return keepAway(e, dx, dz, d, p.Keep)
+end
+
+-- Cinder: chases you and leaves a trail of fire
+function Behaviors.Cinder(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	e.T -= dt
+	if e.T <= 0 then
+		e.T = p.TrailEvery
+		EnemyManager.FireTrail(run, e, p.TrailRadius, p.TrailTime, p.TrailDamage)
+	end
+	return Behaviors.Chase(run, e, dx, dz, d)
+end
+
+-- Eruptor: barely moves, lobs lava onto where you stand (the circle shows where)
+function Behaviors.Mortar(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	e.T -= dt
+	if e.T <= 0 and d < p.Keep + 22 then
+		e.T = p.Every
+		local delay = windup(run, p.Delay)
+		local tx, tz = run.PX, run.PZ
+		Bosses.Telegraph(run, e, SHAPE.Circle, tx, tz, 0, p.Radius, 0, delay, p.LavaDamage * e.DmgScale, "Slam")
+		local ax, az = tx - e.X, tz - e.Z
+		run:Write("Fx", 0, e.X, e.Z, atan2(az, ax), sqrt(ax * ax + az * az), delay, GFX.Lava)
+		setState(run, e, ES.Windup)
+		e.CastUntil = run.Time + 0.4
+	elseif e.CastUntil and run.Time >= e.CastUntil then
+		e.CastUntil = nil
+		setState(run, e, ES.Normal)
+	end
+	return keepAway(e, dx, dz, d, p.Keep)
+end
+
+-- Predator: runs to where you WILL be, then pounces along a red line
+function Behaviors.Predator(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	if e.State == 1 then
+		e.T -= dt
+		if e.T <= 0 then
+			e.State = 2
+			e.T = p.PounceTime
+			setState(run, e, ES.Dash)
+			EnemyManager.EchoLine(run, e, p.PounceSpeed * p.PounceTime)
+		end
+		return 0, 0, 0
+	elseif e.State == 2 then
+		e.T -= dt
+		if e.T <= 0 then
+			e.State = 3
+			e.T = p.Rest
+			setState(run, e, ES.Normal)
+		end
+		return e.DirX, e.DirZ, p.PounceSpeed / e.Speed
+	elseif e.State == 3 then
+		e.T -= dt
+		if e.T <= 0 then
+			e.State = 0
+		end
+		local x, z = Behaviors.Chase(run, e, dx, dz, d)
+		return x, z, 0.6
+	end
+	-- the point you are heading to (only when it is hunting you, not your decoy)
+	local tx, tz = dx, dz
+	local onPlayer = abs(e.X + dx - run.PX) < 0.01 and abs(e.Z + dz - run.PZ) < 0.01
+	if onPlayer then
+		local v = math.clamp(run.Moved / max(dt, 1e-3), 0, 40)
+		tx += run.FX * v * p.Lead
+		tz += run.FZ * v * p.Lead
+	end
+	local td = max(0.01, sqrt(tx * tx + tz * tz))
+	if d < p.Trigger then
+		e.State = 1
+		e.T = windup(run, p.Windup)
+		e.DirX, e.DirZ = tx / td, tz / td
+		run:Write("Telegraph", 2, e.X, e.Z, atan2(e.DirZ, e.DirX), p.PounceSpeed * p.PounceTime, e.Radius * 2, e.T)
+		setState(run, e, ES.Windup)
+		return 0, 0, 0
+	end
+	return tx / td, tz / td, 1
+end
+
+-- Warden: slow; its bubble protects the horde inside it
+function Behaviors.Ward(run, e, dx, dz, d, dt)
+	local p = e.Def.Params
+	e.T -= dt
+	if e.T <= 0 then
+		e.T = 0.5
+		aura(run, e, p.Aura, "Ward", p.Ward)
+	end
+	return keepAway(e, dx, dz, d, p.Keep)
+end
+
+-- a goo egg: shakes for its last second, then hatches (resolved after the pass)
+function Behaviors.Egg(run, e, _dx, _dz, _d, dt)
+	e.T -= dt
+	if e.T <= 1.2 and e.VState ~= ES.Windup then
+		setState(run, e, ES.Windup)
+	end
+	if e.T <= 0 then
+		e.Hatch = true
+	end
+	return 0, 0, 0
+end
+
+-- a war banner: the horde around it (and its boss) runs faster
+function Behaviors.Rally(run, e, _dx, _dz, _d, dt)
+	local p = e.Def.Params
+	e.T -= dt
+	if e.T <= 0 then
+		e.T = 0.5
+		aura(run, e, p.Aura, "Haste", p.Haste, true)
+	end
+	return 0, 0, 0
+end
+
 EnemyManager.Behaviors = Behaviors
 
 ---------------------------------------------------------------------------
@@ -972,7 +1408,8 @@ function EnemyManager.RebuildGrid(run)
 	end
 end
 
-local NO_RELOCATE = { March = true, Static = true, Flee = true, Sixty = true, Mimic = true, Boss = true, Champion = true }
+local STILL = { Static = true, Egg = true, Rally = true } -- never pushed around by the crowd
+local NO_RELOCATE = { March = true, Static = true, Flee = true, Sixty = true, Mimic = true, Boss = true, Champion = true, Egg = true, Rally = true, Converge = true }
 local RIFT = ArenaData.ByKey.Rift.Rect
 
 local function inRift(x: number, z: number): boolean
@@ -1065,11 +1502,32 @@ function EnemyManager.Step(run, dt: number)
 				run:Write("EState", e.Id, e.VState)
 			end
 			local behavior = Behaviors[e.Behavior] or Behaviors.Chase
+			run.Shooter = if e.Echo then e else nil -- an ECHO elite's shots come twice
 			dirX, dirZ, mult = behavior(run, e, dx, dz, d, dt)
 		end
 		local slow = if e.SlowUntil > now then e.SlowFactor else 1
 		if e.SlowUntil <= now then
 			e.SlowFactor = 1
+		end
+		-- a Bannerman / war banner nearby: faster
+		if e.HasteUntil and e.HasteUntil > now then
+			slow *= e.Haste
+		end
+		-- SIXLET / SEVENLET lost its twin: it shakes, then rages for a while
+		if e.GriefUntil and now >= e.GriefUntil then
+			local p = e.Def.Params
+			e.GriefUntil = nil
+			e.RageUntil = now + p.RageTime
+			e.Speed *= p.RageSpeed
+			e.Damage *= p.RageDamage
+			setState(run, e, ES.Enraged)
+			run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2.5, 0, GFX.Rage)
+		elseif e.RageUntil and now >= e.RageUntil then
+			local p = e.Def.Params
+			e.RageUntil = nil
+			e.Speed /= p.RageSpeed
+			e.Damage /= p.RageDamage
+			setState(run, e, ES.Normal)
 		end
 		-- ponds: the horde wades slower (not bosses, not flyers)
 		local wade = if not e.IsBoss and not e.Air and run:InWater(e.X, e.Z) then GameConfig.Water.EnemySpeed else 1
@@ -1077,7 +1535,7 @@ function EnemyManager.Step(run, dt: number)
 
 		-- crowd separation (a few neighbours are enough to spread a horde)
 		local sepX, sepZ = 0, 0
-		if not e.IsBoss and e.Behavior ~= "Static" and not e.Air then
+		if not e.IsBoss and not STILL[e.Behavior] and not e.Air then
 			local n = SpatialGrid.Query(grid, e.X, e.Z, e.Radius * 2, scratch)
 			local checked = 0
 			for k = 1, n do
@@ -1190,7 +1648,7 @@ function EnemyManager.Step(run, dt: number)
 			end
 		end
 
-		if e.Explode or e.Land or (e.BurnUntil and e.BurnUntil > now) or (e.Life and now >= e.Life) then
+		if e.Explode or e.Land or e.Hatch or (e.BurnUntil and e.BurnUntil > now) or (e.Life and now >= e.Life) then
 			later = later or {}
 			table.insert(later, e)
 		end
@@ -1233,6 +1691,23 @@ function EnemyManager.Step(run, dt: number)
 					if dx * dx + dz * dz <= (p.LandRadius + PLAYER_R * 0.5) ^ 2 then
 						run:HurtPlayer(p.LandDamage * e.DmgScale, true)
 					end
+					if e.Echo then
+						-- ECHO: the landing comes again
+						Bosses.Telegraph(run, e, SHAPE.Circle, e.X, e.Z, 0, p.LandRadius, 0, windup(run, 0.9), p.LandDamage * e.DmgScale, "Land", nil, { Echo = false })
+					end
+				elseif e.Hatch then
+					-- a goo egg hatches
+					e.Hatch = nil
+					local p = e.Def.Params
+					run:Write("Fx", 0, e.X, e.Z, 0, 4, 0, GFX.Hatch)
+					for k = 1, p.HatchCount do
+						local a = k * TAU / p.HatchCount
+						local g = EnemyManager.Spawn(run, p.HatchKey, e.X + cos(a) * 2, e.Z + sin(a) * 2, { Force = true })
+						if g and e.ArenaAdd then
+							g.ArenaAdd = true
+						end
+					end
+					EnemyManager.Despawn(run, e)
 				end
 			end
 			if e.Alive and e.BurnUntil and e.BurnUntil > now then
@@ -1249,6 +1724,22 @@ function EnemyManager.Step(run, dt: number)
 					run:Banner("THE 67 LEFT", "It will be back...", "Info")
 				end
 				EnemyManager.Despawn(run, e)
+			end
+		end
+	end
+
+	run.Shooter = nil
+	-- ECHO elites: their attacks again
+	local echoes = run.Echoes
+	if echoes and #echoes > 0 then
+		local k = 1
+		while k <= #echoes do
+			local ev = echoes[k]
+			if now >= ev.At then
+				table.remove(echoes, k)
+				ev.Fn()
+			else
+				k += 1
 			end
 		end
 	end

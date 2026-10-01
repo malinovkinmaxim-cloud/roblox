@@ -503,7 +503,7 @@ function RunClient:BuildEventHandlers()
 			self.Minis[p.Id] = self.Minis[p.Id] or { Id = p.Id, HP = 1, Flags = 0 }
 			self.Minis[p.Id].Elite = true
 			C.BannerController:Elite(p)
-			C.EnemyRenderer:MarkElite(p.Id, p.Name, p.Affixes or {})
+			C.EnemyRenderer:MarkElite(p.Id, p.Name, p.Affixes or {}, p.Keys or {})
 		elseif p.Phase == "Defeated" then
 			self.Elites[p.Id] = nil
 			self.Minis[p.Id] = nil
@@ -511,11 +511,31 @@ function RunClient:BuildEventHandlers()
 		end
 	end
 	function e.Arena(p)
-		self.Arena = if p.Sealed then { X = p.X, Z = p.Z, R = p.R } else nil
-		C.ArenaController:SetSeal(self.Arena)
-		if p.Sealed then
-			C.CameraController:Shake(1.2)
-			C.SoundController:Play("BossSpawn", 0.8, 0.8)
+		if p.Sealed ~= nil then
+			self.Arena = if p.Sealed then { X = p.X, Z = p.Z, R = p.R } else nil
+			C.ArenaController:SetSeal(self.Arena)
+			if p.Sealed then
+				C.CameraController:Shake(1.2)
+				C.SoundController:Play("BossSpawn", 0.8, 0.8)
+			else
+				C.ArenaController:SetDark(false)
+			end
+		end
+		if p.Dark ~= nil then
+			-- THE DREAD: lights out around you for a while
+			C.ArenaController:SetDark(p.Dark, p.Time)
+		end
+	end
+	-- what a boss wants you to do now: on its plate, or a toast for a main boss
+	function e.BossCue(p)
+		local m = self.Minis[p.Id]
+		if m then
+			m.Cue = p.Text
+			m.CueUntil = os.clock() + (p.Time or 2.5)
+		end
+		local enemy = self.Enemies[p.Id]
+		if not (enemy and enemy.Plate) then
+			C.BannerController:Toast(tostring(p.Text), "Error")
 		end
 	end
 	function e.Map(p)
@@ -617,7 +637,19 @@ function RunClient:OnMiniBoss(p)
 		if m then
 			m.Phase = p.Index
 		end
+		C.EnemyRenderer:SetPhase(p.Id, p.Index)
 		C.CameraController:Shake(1.5)
+	elseif phase == "Fused" and enc then
+		-- THE 67 PRIME: its twins became one
+		enc.Ids = p.Ids or enc.Ids
+		for _, id in enc.Ids do
+			local m = self.Minis[id] or { Id = id, HP = 1, Flags = 0 }
+			m.Encounter = p.Key
+			m.ReviveUntil = nil
+			self.Minis[id] = m
+		end
+		C.CameraController:Shake(2)
+		C.SoundController:Play("Blast67")
 	elseif phase == "Crowned" and enc then
 		enc.Crowned = true
 	elseif phase == "Bond" then

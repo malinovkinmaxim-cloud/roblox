@@ -29,7 +29,7 @@ AchievementData.List = {
 	{ Key = "FirstBlood", Name = "First Blood", Desc = "Defeat your first enemy", Coins = 25, Fragments = 1, Stat = "Kills", Goal = 1 },
 	{ Key = "Survivor5", Name = "Still Standing", Desc = "Survive 5 minutes", Coins = 100, Fragments = 2, Stat = "BestTime", Goal = 300 },
 	{ Key = "Survivor10", Name = "Built Different", Desc = "Survive 10 minutes", Coins = 250, Fragments = 2, Stat = "BestTime", Goal = 600 },
-	{ Key = "Victory", Name = "67 Survivor", Desc = "Defeat THE FINAL ONE", Coins = 1000, Fragments = 5, Stat = "Wins", Goal = 1, Unlocks = "Survivor Crown" },
+	{ Key = "Victory", Name = "67 Survivor", Desc = "Win a run: defeat the main boss", Coins = 1000, Fragments = 5, Stat = "Wins", Goal = 1, Unlocks = "Survivor Crown" },
 	{ Key = "Level20", Name = "Getting Stronger", Desc = "Reach level 20 in a run", Coins = 100, Fragments = 1, Stat = "BestLevel", Goal = 20 },
 	{ Key = "Level35", Name = "Powerhouse", Desc = "Reach level 35 in a run", Coins = 250, Fragments = 2, Stat = "BestLevel", Goal = 35 },
 	{ Key = "Level50", Name = "Unstoppable", Desc = "Reach level 50 in a run", Coins = 500, Fragments = 2, Stat = "BestLevel", Goal = 50 },

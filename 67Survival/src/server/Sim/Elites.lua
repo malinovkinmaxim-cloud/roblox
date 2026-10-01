@@ -7,6 +7,12 @@
 	  SUMMONER  calls skitters       VAMPIRIC  heals when it hurts you, regenerates
 	  FROST     its hits slow you
 
+	The harder tiers add their affixes (shared/EnemyData.lua MinTier): SHIELDED (eats whole hits,
+	regrows), CURSED (curse circles), BERSERK (below half HP), BURNING (a fire trail),
+	GRAVITY (walking away from it is slower), THORNED (hitting it up close stings), ECHO (its
+	attacks come twice: Sim/EnemyManager / Sim/Bosses), GILDED 67 (gold, two more affixes,
+	double coins).
+
 	The director (GameConfig.Elite): the first one after FirstAt, then a try every Every
 	seconds (random), each try spawns one with Chance, never more than Max at once. Never in
 	67 SQUARE or in a boss lair, never during THE FINAL ONE. A dangerous zone makes it tougher.
@@ -99,12 +105,16 @@ local function spawnPoint(run): (number?, number?)
 	return nil, nil
 end
 
--- a kind from the wave that is running now (the elite pool only)
+-- a kind from the wave that is running now (the elite pool only; the tier's pools count)
 local function pickKind(run): string
 	local _, entry = WaveData.EntryAt(run.Time)
+	local weights = {}
+	for _, m in WaveData.Mix(entry, run.Difficulty, run.Time) do
+		weights[m[1]] = m[2]
+	end
 	local total, list = 0, {}
 	for _, key in EnemyData.ElitePool do
-		local w = entry.Mix[key]
+		local w = weights[key]
 		if w and w > 0 then
 			total += w
 			table.insert(list, { key, w })
@@ -138,9 +148,9 @@ function Elites.Spawn(run, key: string?, atX: number?, atZ: number?, affixKeys: 
 	if not e then
 		return nil
 	end
-	-- affixes
+	-- affixes (the tier's pool: shared/EnemyData.lua AffixesFor)
 	local count = if run.Time >= CFG.LateAt then CFG.AffixesLate else CFG.Affixes
-	local pool = table.clone(EnemyData.EliteAffixes)
+	local pool = EnemyData.AffixesFor(run.Difficulty or 2, key)
 	local chosen = {}
 	if affixKeys then
 		for _, k in affixKeys do
@@ -157,7 +167,25 @@ function Elites.Spawn(run, key: string?, atX: number?, atZ: number?, affixKeys: 
 			table.insert(chosen, table.remove(pool, run.Rng:NextInteger(1, #pool)))
 		end
 	end
+	-- GILDED 67: two more affixes at once
+	for _, a in table.clone(chosen) do
+		if a.Gilded then
+			local extra = EnemyData.AffixesFor(run.Difficulty or 2, key)
+			for _ = 1, a.Gilded.Extra do
+				for i = #extra, 1, -1 do
+					if table.find(chosen, extra[i]) or extra[i].Gilded then
+						table.remove(extra, i)
+					end
+				end
+				if #extra == 0 then
+					break
+				end
+				table.insert(chosen, table.remove(extra, run.Rng:NextInteger(1, #extra)))
+			end
+		end
+	end
 	local names, keys = {}, {}
+	local now = run.Time
 	for _, a in chosen do
 		table.insert(names, a.Name)
 		table.insert(keys, a.Key)
@@ -175,10 +203,38 @@ function Elites.Spawn(run, key: string?, atX: number?, atZ: number?, affixKeys: 
 		end
 		if a.Summon then
 			e.Summon = a.Summon
-			e.SummonAt = run.Time + a.Summon.Every * 0.5
+			e.SummonAt = now + a.Summon.Every * 0.5
 		end
 		if a.Blast then
 			e.Volatile = a.Blast
+		end
+		if a.HitShield then
+			e.HitShieldDef = a.HitShield
+			e.HitShield = a.HitShield.Hits
+		end
+		if a.Curse then
+			e.Curse = a.Curse
+			e.CurseAt = now + a.Curse.Every * 0.6
+		end
+		if a.Berserk then
+			e.Berserk = a.Berserk
+		end
+		if a.Burning then
+			e.Burning = a.Burning
+			e.TrailAt = now
+		end
+		if a.Gravity then
+			e.Gravity = a.Gravity
+			e.Well = run:AddWell(e.X, e.Z, a.Gravity.Radius, a.Gravity.Slow, 0.3)
+		end
+		if a.Thorns then
+			e.Thorns = a.Thorns
+		end
+		if a.Echo then
+			e.Echo = a.Echo
+		end
+		if a.Gilded then
+			e.CoinMult = a.Gilded.Coins
 		end
 	end
 	e.Affixes = keys
@@ -192,6 +248,7 @@ function Elites.Spawn(run, key: string?, atX: number?, atZ: number?, affixKeys: 
 		Key = key,
 		Name = "ELITE " .. string.upper(e.Def.Name),
 		Affixes = names,
+		Keys = keys, -- (the client dresses it: Render/EnemyRenderer MarkElite)
 		X = x,
 		Z = z,
 		Zone = zone.Key,
@@ -212,6 +269,53 @@ end
 -- the main boss fight: no elites (the arena is sealed)
 local function quiet(run): boolean
 	return not (run.Map and (run.Map.ArenaSealed or run.Map.MainOut))
+end
+
+-- the affixes of the harder tiers that act on their own
+local function stepAffixes(run, e, now: number, dt: number)
+	-- SHIELDED: the shield comes back hit by hit when it is left alone
+	local hs = e.HitShieldDef
+	if hs and e.HitShield < hs.Hits and now - (e.LastHitAt or 0) >= hs.Recharge then
+		e.ShieldTick = (e.ShieldTick or 0) - dt
+		if e.ShieldTick <= 0 then
+			e.ShieldTick = hs.Every
+			e.HitShield += 1
+		end
+	end
+	-- CURSED: a curse circle under you every few seconds
+	local curse = e.Curse
+	if curse and now >= e.CurseAt then
+		e.CurseAt = now + curse.Every
+		if (run.PX - e.X) ^ 2 + (run.PZ - e.Z) ^ 2 <= curse.Range * curse.Range then
+			local Bosses = require(script.Parent.Bosses) :: any
+			Bosses.Telegraph(run, e, Protocol.Shapes.Circle, run.PX, run.PZ, 0, curse.Radius, 0, curse.Delay * (run.Windup or 1), curse.Damage * e.DmgScale, "Slam")
+		end
+	end
+	-- BERSERK: below half HP it gets faster and angrier (once)
+	local berserk = e.Berserk
+	if berserk and not e.Berserking and e.HP < e.MaxHP * berserk.At then
+		e.Berserking = true
+		e.Speed *= berserk.Speed
+		e.Damage *= berserk.Damage
+		run:Write("EState", e.Id, Protocol.EState.Enraged)
+		e.VState = Protocol.EState.Enraged
+		run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2.5, 0, GFX.Rage)
+	end
+	-- BURNING: a trail of fire
+	local burning = e.Burning
+	if burning and now >= e.TrailAt then
+		e.TrailAt = now + burning.Every
+		EM().FireTrail(run, e, burning.Radius, burning.Time, burning.Damage)
+	end
+	-- GRAVITY: its well follows it
+	local well = e.Well
+	if well then
+		if well.Until <= now then
+			e.Well = run:AddWell(e.X, e.Z, e.Gravity.Radius, e.Gravity.Slow, 0.3)
+		else
+			well.X, well.Z, well.Until = e.X, e.Z, now + 0.3
+		end
+	end
 end
 
 function Elites.Step(run, dt: number)
@@ -243,6 +347,7 @@ function Elites.Step(run, dt: number)
 			if e.EliteRegen and e.HP < e.MaxHP then
 				e.HP = min(e.MaxHP, e.HP + e.MaxHP * e.EliteRegen * dt)
 			end
+			stepAffixes(run, e, now, dt)
 			i += 1
 		end
 	end
@@ -276,7 +381,7 @@ function Elites.OnKilled(run, e, EM_)
 		local r = rng:NextNumber(2.5, 5)
 		Pickups.SpawnGem(run, e.X + cos(a) * r, e.Z + sin(a) * r, xp / 6)
 	end
-	run:AddCoins(CFG.Coins + (if bounty then bounty.Coins else 0))
+	run:AddCoins((CFG.Coins + (if bounty then bounty.Coins else 0)) * (e.CoinMult or 1)) -- GILDED 67: double
 	if bounty and bounty.Snack then
 		Pickups.SpawnItem(run, "Snack", e.X + 2, e.Z)
 		run.MagnetAll = true

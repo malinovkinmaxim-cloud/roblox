@@ -5,20 +5,29 @@
 	  06:00  BOSS 2   in the ★★ zone     (HORDE MART LOT)
 	  09:00  BOSS 3   in the ★★★ zone    (NEON STRIP)
 	  12:00  BOSS 4   in the ★★★★ zone   (THE RIFT)
-	  15:00  MAIN BOSS  THE FINAL ONE, in the 67 ARENA in the centre of the map
+	  15:00  MAIN BOSS  of the tier, in the 67 ARENA in the centre of the map
 
 	Each slot draws ONE boss from its pool when the run starts (every run meets a different
 	line-up). The code calls boss 1-4 "mini-bosses" / encounters (Sim/MiniBosses.lua): they
 	guard the lair of their zone, come for you when you are close, walk home and heal when you
-	run away, and LEAVE (no loot) when the next boss is announced. THE FINAL ONE waits in the
+	run away, and LEAVE (no loot) when the next boss is announced. The MAIN boss waits in the
 	arena; walking in seals it, and if you never come it pulls you in (Main.PullAfter).
+
+	TIERS (shared/DifficultyData.lua index): a boss with MinTier joins its slot's pool from that
+	tier on (tier III adds one new boss per slot, tier V another; tiers I-II keep the classic
+	three). Every tier has its OWN main boss (Mains / MainFor, the entry's Tier):
+	  I CALM MAMA GOOBER · II HUNT THE FINAL ONE · III HORDE THE HORDEMASTER · IV NIGHTMARE
+	  THE DREAD · V INFERNO THE FURNACE · VI OBLIVION THE ERASER · VII THE 67 THE 67 PRIME
+	They share the arena, 15:00, the seal and the pull (Main).
 
 	Every boss tests something different (Slots[i].Tests) and has:
 	  Concept / Silhouette      what it is and how you recognise it from the run camera
 	  Movement / Basic / Secondary / Special / AoE / Telegraphs   how it fights
 	  Phases    HP thresholds: each one is announced and changes the fight
-	  WeakPoint after one of its attacks it is EXPOSED for a moment (WeakPoint.Mult damage)
+	  WeakPoint after one of its attacks it is EXPOSED for a moment (WeakPoint.Mult damage);
+	            After = "*": after any of its attack series
 	  Relic     its BOSS RELIC (shared/ItemData.lua): unlocked with CHIPS, then it drops from it
+	            (the bosses of the harder tiers have none: Relic = nil)
 	  Loot      shared/LootData.lua (Slot = the table, better for every slot)
 	  HP        per body, HUNT difficulty at the slot's time; a stronger build than Slot.Level
 	            meets a little more HP (Sim/MiniBosses), the tier's BossHP scales it too
@@ -26,17 +35,21 @@
 
 	Combat numbers of each body (attack timings, damage) live in shared/EnemyData.lua Params;
 	the fight code in Sim/MiniBosses.lua (lair bosses) and Sim/Bosses.lua (classic bosses and
-	THE FINAL ONE).
-	Adding a boss: an EnemyData body + an entry here + its key in a slot's Pool.
+	the main bosses).
+	Adding a boss: an EnemyData body + an entry here + its key in a slot's Pool (+ MinTier).
 ]]
 
 export type Phase = { At: number, Name: string, Text: string, Speed: number?, Rate: number? }
 export type Boss = {
 	Key: string,
 	Title: string,
-	Slot: number, -- 1..4, or 5 = the main boss
+	Slot: number, -- 1..4, or 5 = a main boss
+	MinTier: number?, -- lair bosses: the first tier it can be drawn on (nil = every tier)
+	Tier: number?, -- main bosses: the tier it is the main boss of
 	Bodies: { string },
 	HP: number,
+	Fused: string?, -- THE 67 PRIME: the body its twins fuse into
+	FuseHP: number?, -- ... with HP x FuseHP
 	XP: number,
 	Coins: number,
 	Hint: string,
@@ -49,6 +62,7 @@ export type Boss = {
 	AoE: string,
 	Telegraphs: string,
 	Phases: { Phase },
+	FusePhase: { Name: string, Text: string }?,
 	WeakPoint: { After: string, Time: number, Mult: number, Text: string },
 	Relic: string?,
 	Death: string,
@@ -61,12 +75,14 @@ local BossData = {}
 -- Damage = the boss's damage multiplier (x the tier's BossDamage), fixed per slot: a boss hits
 -- as hard as its place in the run says, not harder when you meet it late
 BossData.Slots = {
-	{ Index = 1, At = 180, Zone = "Gardens", Level = 15, Damage = 0.95, Tests = "damage · movement · positioning", Pool = { "BigQuack", "TheGoober", "TheGiant" } },
-	{ Index = 2, At = 360, Zone = "Lot", Level = 28, Damage = 1.15, Tests = "area damage · pressure", Pool = { "Cartzilla", "TheMachine", "TickTock" } },
-	{ Index = 3, At = 540, Zone = "Strip", Level = 42, Damage = 1.3, Tests = "mobility · repositioning", Pool = { "JackpotJimmy", "TheGlitch", "King67" } },
-	{ Index = 4, At = 720, Zone = "Rift", Level = 55, Damage = 1.4, Tests = "the build itself", Pool = { "Twins", "TheVoid", "TheOverlord" } },
+	-- (the pool's harder-tier bosses are only drawn from their MinTier on)
+	{ Index = 1, At = 180, Zone = "Gardens", Level = 15, Damage = 0.95, Tests = "damage · movement · positioning", Pool = { "BigQuack", "TheGoober", "TheGiant", "SirSnailsalot", "Scarecrow" } },
+	{ Index = 2, At = 360, Zone = "Lot", Level = 28, Damage = 1.15, Tests = "area damage · pressure", Pool = { "Cartzilla", "TheMachine", "TickTock", "SelfCheckout", "Mannequin" } },
+	{ Index = 3, At = 540, Zone = "Strip", Level = 42, Damage = 1.3, Tests = "mobility · repositioning", Pool = { "JackpotJimmy", "TheGlitch", "King67", "DJDrop", "RouletteRoller" } },
+	{ Index = 4, At = 720, Zone = "Rift", Level = 55, Damage = 1.4, Tests = "the build itself", Pool = { "Twins", "TheVoid", "TheOverlord", "TheMirror", "EventHorizon" } },
 }
 
+-- the arena of the main bosses (all tiers); Key = the classic main boss (HUNT)
 BossData.Main = {
 	Key = "TheFinalOne",
 	At = 900, -- 15:00
@@ -78,6 +94,9 @@ BossData.Main = {
 	Damage = 1.15, -- lots of attacks at once: each one hurts a little less
 	Tests = "everything",
 }
+
+-- the main boss of each tier (shared/DifficultyData.lua index)
+BossData.Mains = { "MamaGoober", "TheFinalOne", "TheHordemaster", "TheDread", "TheFurnace", "TheEraser", "The67Prime" }
 
 BossData.WarnLead = 10 -- "BOSS 1 IN 10": marker, arrow and minimap before it spawns
 BossData.CompassLead = 20 -- extra warning with the Compass item
@@ -375,11 +394,195 @@ BossData.List = {
 		Relic = "OverlordBanner",
 		Death = "Its banner falls; the horde around it scatters.",
 	},
-	---------------------------------------------------------------- MAIN BOSS
+	---------------------------------------------------------------- THE HARDER TIERS: one more boss per slot from tier III, another from tier V
+	{
+		Key = "SirSnailsalot",
+		Title = "SIR SNAILSALOT",
+		Slot = 1,
+		MinTier = 3,
+		Bodies = { "SirSnailsalot" },
+		HP = 2600,
+		XP = 45,
+		Coins = 40,
+		Hint = "It rolls along the red line. Hit it when it peeks out of its shell.",
+		Concept = "A knight of a snail that guards the garden beds. Slow, until it isn't.",
+		Silhouette = "A huge spiral shell on a pale green slug body, two eye stalks on top.",
+		Movement = "Creeps after you, then tucks in and rolls its shell down a straight line.",
+		Basic = "Contact bump.",
+		Secondary = "Slime spit: a fan of five slow globs.",
+		Special = "Shell roll: a long straight charge; it takes half damage while tucked in.",
+		AoE = "The roll leaves a slime trail that slows you.",
+		Telegraphs = "Red line for every roll (1.1 s); slime stays visible (blue).",
+		Phases = TWO_PHASES("Rolls twice in a row, the slime lasts longer."),
+		WeakPoint = { After = "Peek", Time = 2.2, Mult = 1.6, Text = "PEEKING OUT" },
+		Death = "Its shell cracks open; it slides off into the grass.",
+	},
+	{
+		Key = "Scarecrow",
+		Title = "THE SCARECROW",
+		Slot = 1,
+		MinTier = 5,
+		Bodies = { "Scarecrow" },
+		HP = 2700,
+		XP = 45,
+		Coins = 40,
+		Hint = "Stand between its spinning arms. Its pumpkin head is soft after a spin.",
+		Concept = "The gardens' scarecrow. The crows stopped being scared of it; you shouldn't.",
+		Silhouette = "A wide cross of stick arms, a straw body and a glowing pumpkin head.",
+		Movement = "Hops after you on its single pole.",
+		Basic = "Contact bump.",
+		Secondary = "Spin: its stick arms sweep a wide fan, twice.",
+		Special = "Calls crows that circle and dive at you.",
+		AoE = "The fan covers half of the ground around it: find the gaps between the arms.",
+		Telegraphs = "Red fans (1.1 s), the second spin turned a little; crows show their dive line.",
+		Phases = TWO_PHASES("Four arms, more crows."),
+		WeakPoint = { After = "Spin", Time = 2.0, Mult = 1.6, Text = "PUMPKIN SOFT" },
+		Death = "The straw falls out, the pumpkin rolls away.",
+	},
+	{
+		Key = "SelfCheckout",
+		Title = "SELF-CHECKOUT",
+		Slot = 2,
+		MinTier = 3,
+		Bodies = { "SelfCheckout" },
+		HP = 7200,
+		XP = 70,
+		Coins = 60,
+		Hint = "Step off the scanner beams. UNEXPECTED ITEM: leave the circle. It errors after a scan.",
+		Concept = "The Horde Mart's self-checkout. Please place the item in the bagging area.",
+		Silhouette = "A white checkout pillar with a big blue screen and a scanner window.",
+		Movement = "Slides after you on its little base.",
+		Basic = "Contact bump.",
+		Secondary = "Scanner: parallel beams sweep across the lot, one after the other.",
+		Special = "UNEXPECTED ITEM: a mark under you explodes 1.5 s later and scatters items.",
+		AoE = "Beams cover lanes of the lot; the mark scatters shots in every direction.",
+		Telegraphs = "Red lines for the beams (1.1 s), a red circle for the mark (1.5 s).",
+		Phases = TWO_PHASES("Two scanners at once, marks come faster."),
+		WeakPoint = { After = "Error", Time = 2.0, Mult = 1.6, Text = "ERROR · SCREEN OPEN" },
+		Death = "\"Thank you for shopping.\" The screen goes blue.",
+	},
+	{
+		Key = "Mannequin",
+		Title = "THE MANNEQUIN",
+		Slot = 2,
+		MinTier = 5,
+		Bodies = { "Mannequin" },
+		HP = 7000,
+		XP = 70,
+		Coins = 60,
+		Hint = "Red light, green light: keep moving and it freezes. Stand still and it dashes. It topples after a dash.",
+		Concept = "A store mannequin that only moves when nobody is moving.",
+		Silhouette = "A tall faceless beige figure with black joints and a stiff pose.",
+		Movement = "Frozen while you move. The moment you stand still it lunges at you.",
+		Basic = "Contact bump.",
+		Secondary = "Pose change: a ring of shots when it strikes a new pose.",
+		Special = "The lunge: a long dash at you when you stop.",
+		AoE = "Pose rings fill the lot while you keep moving.",
+		Telegraphs = "Its plate says WATCHING / FROZEN; a red line before every lunge (1.0 s).",
+		Phases = TWO_PHASES("Lunges twice, poses more often."),
+		WeakPoint = { After = "Topple", Time = 2.2, Mult = 1.6, Text = "TOPPLED" },
+		Death = "It falls apart into stiff limbs.",
+	},
+	{
+		Key = "DJDrop",
+		Title = "DJ DROP",
+		Slot = 3,
+		MinTier = 3,
+		Bodies = { "DJDrop" },
+		HP = 12500,
+		XP = 100,
+		Coins = 90,
+		Hint = "Everything is on the beat: its speakers flash two beats before a ring. Stand in the gap. Hit it after the drop.",
+		Concept = "The Neon Strip's DJ. The beat never stops.",
+		Silhouette = "A dark DJ booth on legs with two big flashing speakers and headphones.",
+		Movement = "Bobs after you, always on the beat.",
+		Basic = "Contact bump.",
+		Secondary = "A ring of notes with one gap, every four beats; the gap turns a little every time.",
+		Special = "THE DROP: a build-up, then four rings in a row with their gaps lined up.",
+		AoE = "Rings cover the whole strip: you move with the music.",
+		Telegraphs = "The speakers flash two beats (1.0 s) before every ring; DROP IN 3-2-1 on its plate.",
+		Phases = TWO_PHASES("Faster tempo, more drops."),
+		WeakPoint = { After = "Drop", Time = 2.4, Mult = 1.6, Text = "OUT OF BREATH" },
+		Death = "The record scratches. Silence.",
+	},
+	{
+		Key = "RouletteRoller",
+		Title = "ROULETTE ROLLER",
+		Slot = 3,
+		MinTier = 5,
+		Bodies = { "RouletteRoller" },
+		HP = 13000,
+		XP = 100,
+		Coins = 90,
+		Hint = "It calls the safe colour before every spin: stand in a sector that does NOT burn. ZERO stuns it.",
+		Concept = "A roulette wheel that rolls the strip looking for players to bet on.",
+		Silhouette = "A big black-and-gold wheel standing on its edge with a ball on top.",
+		Movement = "Rolls after you, stops to spin.",
+		Basic = "Contact bump.",
+		Secondary = "The ball: shots bounce out of the wheel in a spiral.",
+		Special = "The spin: red or black, half of the sectors around it burn.",
+		AoE = "Sectors cover the ground all around it: read, then move.",
+		Telegraphs = "SAFE: RED / SAFE: BLACK on its plate (1.4 s), then the burning sectors fill red (1.3 s).",
+		Phases = TWO_PHASES("Twelve sectors, faster spins."),
+		WeakPoint = { After = "Zero", Time = 3.0, Mult = 2, Text = "ZERO! HIT IT" },
+		Death = "The ball drops into ZERO one last time; the wheel falls flat.",
+	},
+	{
+		Key = "TheMirror",
+		Title = "THE MIRROR",
+		Slot = 4,
+		MinTier = 3,
+		Bodies = { "TheMirror" },
+		HP = 23000,
+		XP = 140,
+		Coins = 134,
+		Hint = "It walks your path two seconds late and shoots along it: don't walk back. It cracks after its dash.",
+		Concept = "A mirror from the Rift that wants to be you.",
+		Silhouette = "A tall oval mirror on legs, a silver frame and a cyan glare.",
+		Movement = "Follows the exact path you walked, two seconds behind you.",
+		Basic = "A fan of three shards at you.",
+		Secondary = "Echo: circles drop along the path you just walked.",
+		Special = "The reflection dash: a long dash at you along a red line.",
+		AoE = "Your own path turns dangerous behind you.",
+		Telegraphs = "Circles along your path (1.1 s), a red line before the dash (1.1 s).",
+		Phases = {
+			{ At = 0.5, Name = "REFLECTED", Text = "Longer echoes, faster shards.", Speed = 1.2, Rate = 1.35 },
+			{ At = 0.2, Name = "SHATTERING", Text = "Everything at once.", Speed = 1.3, Rate = 1.6 },
+		},
+		WeakPoint = { After = "Crack", Time = 2.2, Mult = 1.6, Text = "CRACKED" },
+		Death = "It shatters into a thousand silver pieces.",
+	},
+	{
+		Key = "EventHorizon",
+		Title = "THE EVENT HORIZON",
+		Slot = 4,
+		MinTier = 5,
+		Bodies = { "EventHorizon" },
+		HP = 24500,
+		XP = 140,
+		Coins = 134,
+		Hint = "It pulls gently: walking away is slow. Waves come in from the edge with a gap. On COLLAPSE, stand in a white circle.",
+		Concept = "The edge of the Rift's black hole. Nothing that walks away walks fast.",
+		Silhouette = "A black sphere inside a wide pale-violet ring.",
+		Movement = "Drifts slowly after you; its pull pulses.",
+		Basic = "Contact bump.",
+		Secondary = "Ring waves roll in from the edge of its field, each with a gap.",
+		Special = "COLLAPSE: everything around it burns except a few white safe circles.",
+		AoE = "The pull + the waves + the collapse: you have to plan where to stand.",
+		Telegraphs = "The pull shows its ring; waves are slow; COLLAPSE shows the safe circles for 1.6 s.",
+		Phases = {
+			{ At = 0.5, Name = "SPAGHETTIFIED", Text = "Stronger pull, more waves.", Speed = 1.2, Rate = 1.35 },
+			{ At = 0.2, Name = "SINGULARITY", Text = "Fewer safe spots.", Speed = 1.3, Rate = 1.6 },
+		},
+		WeakPoint = { After = "Collapse", Time = 2.2, Mult = 1.6, Text = "CORE EXPOSED" },
+		Death = "It folds into itself and blinks out.",
+	},
+	---------------------------------------------------------------- MAIN BOSSES (one per tier: BossData.Mains)
 	{
 		Key = "TheFinalOne",
 		Title = "THE FINAL ONE",
 		Slot = 5,
+		Tier = 2,
 		Bodies = { "TheFinalOne" },
 		HP = 80000,
 		XP = 0, -- the run is won
@@ -401,6 +604,159 @@ BossData.List = {
 		Relic = "Fragment67",
 		Death = "The core bursts; golden 6s and 7s rain over the arena. VICTORY.",
 	},
+	{
+		Key = "MamaGoober",
+		Title = "MAMA GOOBER",
+		Slot = 5,
+		Tier = 1,
+		Bodies = { "MamaGoober" },
+		HP = 70000,
+		XP = 0, -- the run is won
+		Coins = 400,
+		Hint = "Leave the circle before she lands. Break her eggs before they hatch. Hit her while she wobbles.",
+		Concept = "The mother of every goober in 67 TOWN, waiting in the arena for whoever hurt her babies.",
+		Silhouette = "A huge round green blob with pink cheeks, a tiny golden crown and a nest of eggs.",
+		Movement = "Bounces after you, then belly-flops onto where you stand.",
+		Basic = "Belly-flop: lands on your spot and splashes goo drops out.",
+		Secondary = "Goober rain: goobers fall out of the sky all over the arena.",
+		Special = "The nest: three eggs hatch into goobers in 4 s unless you break them.",
+		AoE = "Phase 2: goo rings.",
+		Telegraphs = "Red circle under every flop (1.4 s); the eggs shake before they hatch.",
+		Phases = {
+			{ At = 0.5, Name = "PHASE 2 · MAMA'S MAD", Text = "Faster flops, goo rings.", Speed = 1.15, Rate = 1.35 },
+		},
+		WeakPoint = { After = "BellyFlop", Time = 2.2, Mult = 1.5, Text = "WOBBLING" },
+		Death = "She deflates with a long sigh; a hundred tiny goobers bounce away. VICTORY.",
+	},
+	{
+		Key = "TheHordemaster",
+		Title = "THE HORDEMASTER",
+		Slot = 5,
+		Tier = 3,
+		Bodies = { "TheHordemaster" },
+		HP = 80000,
+		XP = 0,
+		Coins = 400,
+		Hint = "Step off the stampede lanes. Leave the formation through its gap. Break the banner: the megaphone opens.",
+		Concept = "The general who shouts the horde into shape. Every wave you ever met was its order.",
+		Silhouette = "A broad red-and-gold commander with a megaphone for a head and a war banner.",
+		Movement = "Marches after you, stops to shout orders.",
+		Basic = "Slam on your position.",
+		Secondary = "Stampede lanes: herds of stampeders run down red lines.",
+		Special = "Banner call: a war banner makes the horde faster until you break it.",
+		AoE = "Phase 2: a shrinking ring of shielders with one gap. Phase 3: lanes from four sides, the cross in the middle is safe.",
+		Telegraphs = "Red lines for every lane (1.3 s); the gap of the formation is marked; the full charge shows its lanes (1.5 s).",
+		Phases = {
+			{ At = 0.66, Name = "PHASE 2 · FORMATION", Text = "The horde forms a wall around you. Find the gap.", Speed = 1.15, Rate = 1.3 },
+			{ At = 0.33, Name = "PHASE 3 · FULL CHARGE", Text = "Lanes from every side. The cross in the middle is safe.", Speed = 1.25, Rate = 1.55 },
+		},
+		WeakPoint = { After = "Banner", Time = 3.0, Mult = 1.6, Text = "MEGAPHONE OPEN" },
+		Death = "Its megaphone squeals one last order; the horde scatters. VICTORY.",
+	},
+	{
+		Key = "TheDread",
+		Title = "THE DREAD",
+		Slot = 5,
+		Tier = 4,
+		Bodies = { "TheDread" },
+		HP = 80000,
+		XP = 0,
+		Coins = 400,
+		Hint = "Shadow hands grab where you stand. Its eye sweeps the arena, then stays open. In the dark, trust the red.",
+		Concept = "The nightmare under 67 TOWN's bed. It eats the light first.",
+		Silhouette = "A tall indigo shadow with one pale yellow moon eye and long thin arms.",
+		Movement = "Glides after you, never in a hurry.",
+		Basic = "Shadow hands: circles grab at you.",
+		Secondary = "Eye sweep: a beam turns across the arena.",
+		Special = "Dread echoes: your own path is followed by shadows. Lights out: the arena goes dark.",
+		AoE = "Phase 3: doom rings with one gap.",
+		Telegraphs = "Every attack glows red even in the dark: hands (1.2 s), the sweep (1.2 s per line), echoes (1.2 s).",
+		Phases = {
+			{ At = 0.66, Name = "PHASE 2 · LIGHTS OUT", Text = "The arena goes dark. Your path is followed.", Speed = 1.15, Rate = 1.3 },
+			{ At = 0.33, Name = "PHASE 3 · THE DREAD", Text = "Doom rings. Find the gap.", Speed = 1.25, Rate = 1.55 },
+		},
+		WeakPoint = { After = "EyeSweep", Time = 2.0, Mult = 1.6, Text = "EYE OPEN" },
+		Death = "The moon eye closes; the lights come back on. VICTORY.",
+	},
+	{
+		Key = "TheFurnace",
+		Title = "THE FURNACE",
+		Slot = 5,
+		Tier = 5,
+		Bodies = { "TheFurnace" },
+		HP = 82000,
+		XP = 0,
+		Coins = 400,
+		Hint = "The arena heats one sector at a time: watch the colour, step into a cold one. The door opens after it vents steam.",
+		Concept = "The furnace that keeps the INFERNO burning. It brought the heat to the arena.",
+		Silhouette = "A black iron golem with a chimney crown and a glowing furnace door for a chest.",
+		Movement = "Stomps after you, heavy and slow.",
+		Basic = "Piston slam on your position.",
+		Secondary = "Ember rings with a gap.",
+		Special = "The arena is split in 8 sectors: some heat up (1.5 s warning), then burn. Safe sectors change.",
+		AoE = "Phase 2: a meteor shower. Phase 3: MELTDOWN, the sectors switch faster.",
+		Telegraphs = "Sectors fill red for 1.5 s before they burn; slams and meteors show their circles.",
+		Phases = {
+			{ At = 0.66, Name = "PHASE 2 · OVERHEAT", Text = "More sectors burn. Meteors fall.", Speed = 1.15, Rate = 1.3 },
+			{ At = 0.33, Name = "PHASE 3 · MELTDOWN", Text = "The door is open. Everything switches faster.", Speed = 1.25, Rate = 1.6 },
+		},
+		WeakPoint = { After = "Steam", Time = 2.4, Mult = 1.6, Text = "DOOR OPEN" },
+		Death = "The fire goes out with a hiss; the iron cools and cracks. VICTORY.",
+	},
+	{
+		Key = "TheEraser",
+		Title = "THE ERASER",
+		Slot = 5,
+		Tier = 6,
+		Bodies = { "TheEraser" },
+		HP = 82000,
+		XP = 0,
+		Coins = 400,
+		Hint = "White means erased: don't stand in it. Every phase eats the edge of the arena. Its tip wears out after a long swipe.",
+		Concept = "OBLIVION itself: it erases whatever it touches, the arena first, then you.",
+		Silhouette = "A giant white eraser with a graphite-smudged tip and sketchy lines around it.",
+		Movement = "Glides after you, swipes across the arena.",
+		Basic = "Erase swipe: a long wide line, then it slides along it.",
+		Secondary = "Erase: white circles stay on the floor.",
+		Special = "Redraw: sketched copies of elite enemies.",
+		AoE = "Each phase erases the edge of the arena. Phase 3+: doom rings with one gap.",
+		Telegraphs = "Swipes show their line (1.1 s), erasing circles fill first (1.2 s).",
+		Phases = {
+			{ At = 0.75, Name = "PHASE 2 · REDRAW", Text = "The edge is erased. Sketches join in.", Speed = 1.1, Rate = 1.2 },
+			{ At = 0.5, Name = "PHASE 3 · BLANK PAGE", Text = "Less arena. Doom rings.", Speed = 1.2, Rate = 1.4 },
+			{ At = 0.25, Name = "PHASE 4 · OBLIVION", Text = "Almost nothing left.", Speed = 1.3, Rate = 1.6 },
+		},
+		WeakPoint = { After = "Swipe", Time = 2.0, Mult = 1.6, Text = "TIP WORN" },
+		Death = "It rubs itself out, crumb by crumb. VICTORY.",
+	},
+	{
+		Key = "The67Prime",
+		Title = "THE 67 PRIME",
+		Slot = 5,
+		Tier = 7,
+		Bodies = { "PrimeSix", "PrimeSeven" },
+		Fused = "The67Prime", -- both down within 6.7 s: they fuse into this body
+		HP = 12000, -- SIX and SEVEN each; the fused 67 PRIME has HP x FuseHP
+		FuseHP = 4.67,
+		XP = 0,
+		Coins = 400,
+		Hint = "SIX and SEVEN must fall within 6.7 s of each other. Then they fuse: every boss you met, in one. Its 67 core opens after every series.",
+		Concept = "The end of THE 67: six and seven, fused into gold, with a piece of every boss in it.",
+		Silhouette = "A golden 6 and a black 7, then one huge fused golden 67 with a purple core.",
+		Movement = "Phase 1: two digits. Then one giant fused 67 that holds the centre.",
+		Basic = "Phase 1: fans of sixes and seven mines. Fused: belly-flops and stampede lanes.",
+		Secondary = "Phase 3: shadow hands, the eye sweep, the burning sectors and the dark.",
+		Special = "Phase 4: erasing, doom rings and the final 6... 7... series.",
+		AoE = "Every arena mechanic of the main bosses, one after the other.",
+		Telegraphs = "The same clear telegraphs as every main boss; the 6... 7... series is on a beat.",
+		Phases = {
+			{ At = 0.66, Name = "PHASE 3 · DARK FIRE", Text = "The dark and the burning sectors.", Speed = 1.15, Rate = 1.3 },
+			{ At = 0.33, Name = "PHASE 4 · 6... 7...", Text = "Erased edges, doom rings, the final series.", Speed = 1.25, Rate = 1.55 },
+		},
+		FusePhase = { Name = "PHASE 2 · 67 FUSED", Text = "Six and seven become one." },
+		WeakPoint = { After = "*", Time = 1.8, Mult = 1.5, Text = "67 CORE OPEN" },
+		Death = "The 67 cracks down the middle; golden digits rain over the arena. VICTORY.",
+	},
 } :: { Boss }
 
 BossData.ByKey = {} :: { [string]: Boss }
@@ -411,6 +767,9 @@ for _, def in BossData.List do
 	for _, body in def.Bodies do
 		BossData.ByBody[body] = def
 	end
+	if def.Fused then
+		BossData.ByBody[def.Fused] = def
+	end
 	BossData.BySlot[def.Slot] = BossData.BySlot[def.Slot] or {}
 	table.insert(BossData.BySlot[def.Slot], def)
 end
@@ -419,6 +778,28 @@ function BossData.Get(key: string): Boss
 	local def = BossData.ByKey[key]
 	assert(def, "unknown boss " .. tostring(key))
 	return def
+end
+
+-- the main boss of a tier (default: HUNT's)
+function BossData.MainFor(tier: number?): Boss
+	local key = BossData.Mains[math.clamp(math.floor(tier or 2), 1, #BossData.Mains)]
+	return BossData.Get(key)
+end
+
+-- can this boss be drawn on this tier?
+function BossData.OnTier(def: Boss, tier: number): boolean
+	return (def.MinTier or 1) <= tier
+end
+
+-- the pool of a slot on a tier
+function BossData.PoolFor(slot, tier: number): { string }
+	local out = {}
+	for _, key in slot.Pool do
+		if BossData.OnTier(BossData.Get(key), tier) then
+			table.insert(out, key)
+		end
+	end
+	return out
 end
 
 -- the slot of a zone (nil for the square)

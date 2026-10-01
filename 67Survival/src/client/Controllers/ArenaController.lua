@@ -7,13 +7,18 @@
 	  * a lair lights up (red ring + a column of light) while its boss is out for you
 	  * a 67 VAULT glows gold while it is awake; its ring fills while you crack it open
 	  * a 67 SPOT lights up when a boss waits on one
-	  * THE 67 ARENA: its pylons burn red while THE FINAL ONE is out; the SEAL (a ring wall of
+	  * THE 67 ARENA: its pylons burn red while the main boss is out; the SEAL (a ring wall of
 	    force field) becomes visible and solid for you while your arena is sealed
+	  * LIGHTS OUT (THE DREAD): the scene light drops, a soft light stays around you; the
+	    telegraphs glow (neon), so every attack still reads in the dark
 	The server decides all of it (Sim/ArenaDirector); this only draws what RunClient knows.
 ]]
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Modules")
@@ -218,6 +223,60 @@ function ArenaController:Refresh()
 	self.Lit.arena = (mainOut or sealed) or nil
 end
 
+-- LIGHTS OUT: the arena goes dark around you for `time` seconds (nil: until switched off)
+local DARK = {
+	Brightness = 0.35,
+	ExposureCompensation = -1.1,
+	Ambient = rgb(28, 24, 52),
+	OutdoorAmbient = rgb(36, 30, 66),
+}
+function ArenaController:SetDark(on: boolean, time: number?)
+	self.DarkToken = (self.DarkToken or 0) + 1
+	local token = self.DarkToken
+	if on then
+		if not self.Lights then
+			self.Lights = {
+				Brightness = Lighting.Brightness,
+				ExposureCompensation = Lighting.ExposureCompensation,
+				Ambient = Lighting.Ambient,
+				OutdoorAmbient = Lighting.OutdoorAmbient,
+			}
+		end
+		local goal = {}
+		for key, v in DARK do
+			goal[key] = if key == "Brightness" then self.Lights.Brightness * v else v
+		end
+		TweenService:Create(Lighting, TweenInfo.new(0.8), goal):Play()
+		-- a soft light around you
+		local character = Players.LocalPlayer.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and not self.Lamp then
+			local lamp = Instance.new("PointLight")
+			lamp.Name = "S67Lamp"
+			lamp.Range = 26
+			lamp.Brightness = 2.2
+			lamp.Color = rgb(255, 240, 210)
+			lamp.Shadows = false
+			lamp.Parent = root
+			self.Lamp = lamp
+		end
+		if time then
+			task.delay(time, function()
+				if self.DarkToken == token then
+					self:SetDark(false)
+				end
+			end)
+		end
+	elseif self.Lights then
+		TweenService:Create(Lighting, TweenInfo.new(1.2), self.Lights):Play()
+		self.Lights = nil
+		if self.Lamp then
+			self.Lamp:Destroy()
+			self.Lamp = nil
+		end
+	end
+end
+
 -- lit things pulse; a column of light is for finding the place from afar: it fades out as you
 -- get close (it would stand between the camera and the fight)
 local NEAR, FAR = 45, 90
@@ -276,6 +335,7 @@ function ArenaController:Start()
 		self:Refresh()
 	end)
 	self.C.RunClient.Ended:Connect(function()
+		self:SetDark(false)
 		self:Refresh()
 	end)
 	RunService.Heartbeat:Connect(function()

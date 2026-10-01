@@ -692,7 +692,9 @@ do
 		end
 	end
 	check("the bosses 2-4 the jump went past never came", main ~= nil and #run.Map.Encounters == 1 and run.BossNext == 5, #run.Map.Encounters)
-	check("THE FINAL ONE announced (client + HUD)", runClient.Encounters.TheFinalOne ~= nil and runClient.Encounters.TheFinalOne.Main == true and string.find(hud.BossLine.Text, "FINAL ONE", 1, true) ~= nil, hud.BossLine.Text)
+	-- (this run is on CALM: its main boss is MAMA GOOBER; every tier has its own)
+	local mainDef = BossData.MainFor(run.Difficulty)
+	check("the tier's main boss announced (client + HUD)", runClient.Encounters[mainDef.Key] ~= nil and runClient.Encounters[mainDef.Key].Main == true and string.find(hud.BossLine.Text, mainDef.Title, 1, true) ~= nil, hud.BossLine.Text)
 	hold(9, 70, 0)
 	local boss = main and main.Bodies[1]
 	check(
@@ -700,7 +702,7 @@ do
 		boss ~= nil and boss.HomeX == BossData.Main.X and boss.HomeZ == BossData.Main.Z and (boss.X - BossData.Main.X) ^ 2 + (boss.Z - BossData.Main.Z) ^ 2 < 1 and math.abs(main.SpawnedAt - BossData.Main.At) < 0.2,
 		boss and string.format("%.2f,%.2f", boss.X, boss.Z)
 	)
-	check("the top boss bar is THE FINAL ONE's", hud.BossPanel.Visible == true and runClient.Boss ~= nil and runClient.Boss.Key == "TheFinalOne")
+	check("the top boss bar is the main boss's", hud.BossPanel.Visible == true and runClient.Boss ~= nil and runClient.Boss.Key == mainDef.Bodies[1], runClient.Boss and runClient.Boss.Key)
 	local big = false
 	for _, t in minimap:Targets(os.clock()) do
 		big = big or (t.Glyph == "67" and t.Size >= 20)
@@ -711,13 +713,69 @@ do
 	hold(0.6, 10, 0)
 	check("you walked in: the arena is sealed (server + client ring)", run.Map.ArenaSealed ~= nil and runClient.Arena ~= nil and arenaC.ArenaSeals[1].CanCollide == true)
 	check("nobody walks out of the ring", Items.Blocked(run, BossData.Main.ArenaR + 6, 0) == true)
-	-- (the test run goes on: THE FINAL ONE leaves without a fight)
+	-- LIGHTS OUT (THE DREAD's arena mechanic) on the client: dark around you, then light again
+	local Lighting = alice.Game:GetService("Lighting")
+	local bright = Lighting.Brightness
+	run:Event("Arena", { Dark = true, Time = 1.5 })
+	Engine.Step(1)
+	check("lights out: the scene darkens, a lamp follows you", arenaC.Lights ~= nil and arenaC.Lamp ~= nil)
+	Engine.Step(3)
+	check("the lights come back", arenaC.Lights == nil and arenaC.Lamp == nil and math.abs(Lighting.Brightness - bright) < 0.05, Lighting.Brightness)
+	-- (the test run goes on: the main boss leaves without a fight)
 	if main then
 		MiniBosses.Finish(run, main, "Left", EnemyManager)
 	end
 	Engine.Step(0.5)
 	check("the seal is gone with it", run.Map.ArenaSealed == nil and runClient.Arena == nil and arenaC.ArenaSeals[1].CanCollide == false)
 	teleport(0, 20)
+	cd:Fire("Admin", "killall", "")
+	Engine.Step(0.5)
+
+	-- the harder tiers' enemies on the client: a shield that breaks, an elite in its affixes,
+	-- a sector telegraph, a sketch
+	local Bosses = Engine.Module(server, "ServerScriptService.Server.Sim.Bosses")
+	local weaponFx = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.WeaponFx")
+	local shielder = EnemyManager.Spawn(run, "Shielder", run.PX + 14, run.PZ, { Force = true })
+	shielder.HP, shielder.MaxHP = 1e6, 1e6 -- (your weapons keep firing: it must outlive the check)
+	hold(0.4)
+	local view = runClient.Enemies[shielder.Id]
+	local shieldPart = nil
+	for _, p in (view and view.Item and view.Item.Info.Parts) or {} do
+		if p.Name == "Shield" then
+			shieldPart = p
+		end
+	end
+	check("a Shielder carries its shield", shieldPart ~= nil and shieldPart.Transparency < 1)
+	EnemyManager.Damage(run, shielder, shielder.Guard / shielder.Def.Params.GuardCut * 1.01, 0, shielder.X - run.PX, shielder.Z - run.PZ, 0)
+	hold(0.4)
+	check("its shield breaks off (client)", shielder.Guard == nil and shieldPart ~= nil and shieldPart.Transparency == 1)
+	local Elites = Engine.Module(server, "ServerScriptService.Server.Sim.Elites")
+	Elites.Spawn(run, "Husk", run.PX + 16, run.PZ + 6, { "Gilded67" })
+	hold(0.6)
+	local gilded = nil
+	for _, e in run.Elites do
+		if e.Alive and e.CoinMult then
+			gilded = e
+		end
+	end
+	local gv = gilded and runClient.Enemies[gilded.Id]
+	check("a GILDED 67 elite: gold, two more affixes, a 67 over its head", gilded ~= nil and #gilded.Affixes == 3 and gv ~= nil and gv.Item ~= nil and gv.Item.Gui ~= nil and gv.Item.Recolored ~= nil)
+	local gItem = gv and gv.Item
+	if gilded then
+		EnemyManager.Damage(run, gilded, gilded.MaxHP * 20, 0, 0, 0, 0)
+	end
+	hold(0.8)
+	check("its gold comes off when it goes back to the pool", gItem == nil or (gItem.Gui == nil and gItem.Recolored == nil))
+	Bosses.Telegraph(run, nil, 7, run.PX, run.PZ, 0.5, 20, 0.4, 1.2, 1, "Sector", nil, { Burn = 1.2 })
+	Bosses.Telegraph(run, nil, 10, run.PX, run.PZ, 0.5 + math.pi, 20, 0.4, 1.2, 0)
+	hold(0.3)
+	check("sectors are drawn (a burning one and a safe one)", weaponFx.SectorTeles ~= nil and #weaponFx.SectorTeles == 2, weaponFx.SectorTeles and #weaponFx.SectorTeles)
+	hold(3)
+	check("they clear after their burn", #weaponFx.SectorTeles == 0)
+	local sketch = EnemyManager.Spawn(run, "Brute", run.PX - 14, run.PZ, { Force = true, Elite = true, Sketch = true, Life = 3 })
+	hold(0.4)
+	local sv = runClient.Enemies[sketch.Id]
+	check("a sketch looks like pencil on paper", sv ~= nil and sv.Item ~= nil and string.find(sv.Item.Key, "s", 1, true) ~= nil and sv.Item.Root.Transparency >= 0.25, sv and sv.Item and sv.Item.Key)
 	cd:Fire("Admin", "killall", "")
 	Engine.Step(0.5)
 end

@@ -14,7 +14,8 @@ local SoundController = {}
 local FILES = {
 	Click = "rbxasset://sounds/clickfast.wav",
 	Ping = "rbxasset://sounds/electronicpingshort.wav",
-	Swoosh = "rbxasset://sounds/swoosh.wav",
+	-- (the client ships no swoosh.wav: the soft whoosh of the jump sound stands in for it)
+	Swoosh = "rbxasset://sounds/action_jump.mp3",
 	Button = "rbxasset://sounds/button.wav",
 	Snap = "rbxasset://sounds/snap.mp3",
 	Thump = "rbxasset://sounds/action_jump_land.mp3",

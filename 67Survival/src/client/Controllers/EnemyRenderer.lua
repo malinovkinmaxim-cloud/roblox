@@ -6,7 +6,11 @@
 	burning), and ONE workspace:BulkMoveTo call for all enemy roots.
 	Killed enemies are launched into the air with a spin before going back to the pool.
 	Mini-bosses of 67 TOWN wear a name plate: name, HP bar and what they are up to (reels
-	spinning, SHIELDED, JACKPOT!, reviving, TICK TOCK's countdown...).
+	spinning, SHIELDED, JACKPOT!, reviving, TICK TOCK's countdown, a boss's cue: SAFE: RED,
+	KEEP MOVING...).
+	Elites wear their AFFIXES (spikes, a shield bubble, red eyes, gold...: dressAffixes), a
+	broken shield or a raging twin show through EState, a main boss changes its look with
+	every phase (parts tagged Phase / PhaseHide in Render/EnemyModels).
 ]]
 
 local RunService = game:GetService("RunService")
@@ -30,6 +34,7 @@ local FROZEN = Color3.fromRGB(150, 220, 255)
 local LIT = Color3.fromRGB(255, 60, 40)
 local STUNNED = Color3.fromRGB(255, 230, 120)
 local BURN = Color3.fromRGB(255, 140, 50)
+local RAGE = Color3.fromRGB(255, 236, 140)
 local ES = Protocol.EState
 local ELITE: Color3 -- set below (elite plates)
 local MAX_DYING = 40
@@ -47,6 +52,9 @@ local function poolKey(def, flags: number): string
 	end
 	if bit32.band(flags, FLAGS.Elite) ~= 0 then
 		v ..= "e"
+	end
+	if bit32.band(flags, FLAGS.Sketch) ~= 0 then
+		v ..= "s"
 	end
 	return def.Key .. ":" .. v
 end
@@ -92,17 +100,17 @@ function EnemyRenderer:Add(e)
 	local elite = self.PendingElites and self.PendingElites[e.Id]
 	if elite then
 		self.PendingElites[e.Id] = nil
-		self:MarkElite(e.Id, elite.Name, elite.Affixes)
+		self:MarkElite(e.Id, elite.Name, elite.Affixes, elite.Keys)
 	end
 end
 
 -- an elite: a purple name plate with its affixes (the Elite event may come before or after
--- the enemy itself)
-function EnemyRenderer:MarkElite(id: number, name: string, affixes: { string })
+-- the enemy itself), and the affixes on its body
+function EnemyRenderer:MarkElite(id: number, name: string, affixes: { string }, keys: { string }?)
 	local e = self.C.RunClient.Enemies[id]
 	if not e or not e.Item then
 		self.PendingElites = self.PendingElites or {}
-		self.PendingElites[id] = { Name = name, Affixes = affixes }
+		self.PendingElites[id] = { Name = name, Affixes = affixes, Keys = keys }
 		return
 	end
 	e.EliteName = name
@@ -113,6 +121,17 @@ function EnemyRenderer:MarkElite(id: number, name: string, affixes: { string })
 	e.Plate.Name.Text = name
 	e.Plate.Name.TextColor3 = ELITE
 	e.Plate.Fill.BackgroundColor3 = ELITE
+	if keys and #keys > 0 then
+		EnemyModels.DressAffixes(e.Item, keys)
+	end
+end
+
+-- a main boss enters a phase: its look changes (Render/EnemyModels Phase / PhaseHide tags)
+function EnemyRenderer:SetPhase(id: number, index: number)
+	local e = self.C.RunClient.Enemies[id]
+	if e and e.Item then
+		EnemyModels.SetPhase(e.Item, index)
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -211,6 +230,9 @@ function EnemyRenderer:PlateStatus(e, m, now: number): (string, Color3)
 	local flags = if m then m.Flags or 0 else 0
 	if m and m.ReviveUntil and now < m.ReviveUntil then
 		return string.format("REVIVING %s  %.1f", tostring(m.ReviveBody or ""), m.ReviveUntil - now), C.Gold
+	end
+	if m and m.Cue and m.CueUntil and now < m.CueUntil then
+		return tostring(m.Cue), C.Gold
 	end
 	if bit32.band(flags, MF.Shielded) ~= 0 then
 		return "SHIELDED · BREAK THE COIN STACKS", C.Gold
@@ -326,6 +348,7 @@ function EnemyRenderer:Remove(e, cause: number)
 		item.Root.Color = item.Info.BodyColor
 	end
 	fade(item, 0)
+	EnemyModels.Reset(item) -- affixes, toggled parts, phase looks: back to the pooled model
 	if cause == 0 and #self.Dying < MAX_DYING and self.C.EffectsController:Quality() then
 		-- launched off screen, spinning: goofy death
 		local away = Vector3.new(e.RX - (self.PX or e.RX), 0, e.RZ - (self.PZ or e.RZ))
@@ -358,8 +381,14 @@ function EnemyRenderer:SetState(e, state: number)
 	if not item then
 		return
 	end
-	item.Root.Color = if state == ES.Frozen then FROZEN elseif state == ES.Lit then LIT elseif state == ES.Stunned then item.Info.BodyColor:Lerp(STUNNED, 0.45) else item.Info.BodyColor
+	item.Root.Color = if state == ES.Frozen then FROZEN
+		elseif state == ES.Lit then LIT
+		elseif state == ES.Stunned then item.Info.BodyColor:Lerp(STUNNED, 0.45)
+		elseif state == ES.Enraged then item.Info.BodyColor:Lerp(RAGE, 0.55)
+		else item.Info.BodyColor
 	fade(item, if state == ES.Phased then 0.75 else 0)
+	-- parts that only show in some states (a Snoozer's eyelids, a Shielder's shield)
+	EnemyModels.Toggle(item, state)
 end
 
 -- the enemy burns for a few seconds (orange flicker)
@@ -375,6 +404,7 @@ function EnemyRenderer:Reskin(e)
 	end
 	old.Root.Color = old.Info.BodyColor
 	fade(old, 0)
+	EnemyModels.Reset(old)
 	self.Pool:Release(old)
 	e.Item = self.Pool:Acquire(poolKey(e.Def, e.Flags))
 	self.C.EffectsController:Poof(e.RX, e.RZ, Color3.fromRGB(200, 120, 255), 6)
@@ -386,6 +416,7 @@ function EnemyRenderer:Clear()
 	end
 	for _, e in self.List do
 		if e.Item then
+			EnemyModels.Reset(e.Item)
 			self.Pool:Release(e.Item)
 			e.Item = nil
 		end

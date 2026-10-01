@@ -7,7 +7,7 @@
 	  top left     HP (+ the Plating shield), the run's difficulty, your ITEMS with their level
 	               (I, II, III), your SYNERGIES and SOULS under them
 	  top right    coins (small) + pause; the minimap under them (MinimapController)
-	  right        THE FINAL ONE's HP under the minimap - only while it is out (bosses 1-4 have
+	  right        the main boss's HP under the minimap - only while it is out (bosses 1-4 have
 	               their bars over their heads)
 	  centre       "ITEM ACQUIRED" / "ITEM LEVEL UP  I -> II" card with the new mechanic
 	  bottom right DASH (only with the Rocket Skates item): charges, recharge, tap to dash
@@ -575,7 +575,8 @@ function HudController:UpdateBossLine(now: number)
 	end
 	if out then
 		if out.Main then
-			text = if out.Stage == "Warn" then "THE FINAL ONE IS COMING · 67 ARENA" else "THE FINAL ONE · 67 ARENA (CENTRE)"
+			local title = tostring(out.Title or "THE MAIN BOSS")
+			text = if out.Stage == "Warn" then title .. " IS COMING · 67 ARENA" else title .. " · 67 ARENA (CENTRE)"
 			color, pulse = C.Danger, true
 		else
 			local zone = ArenaData.ByKey[out.Zone]
@@ -596,7 +597,7 @@ function HudController:UpdateBossLine(now: number)
 			text = string.format("BOSS %d IN %s  ·  %s %s", nextSlot.Index, Format.Time(math.max(0, nextSlot.At - t)), zone.Name, string.rep("★", zone.Stars))
 			color = if nextSlot.At - t < 30 then zone.Color else C.TextDim
 		elseif t < BossData.Main.At then
-			text = "THE FINAL ONE IN " .. Format.Time(math.max(0, BossData.Main.At - t)) .. "  ·  67 ARENA"
+			text = BossData.MainFor(run.Difficulty).Title .. " IN " .. Format.Time(math.max(0, BossData.Main.At - t)) .. "  ·  67 ARENA"
 			color = if BossData.Main.At - t < 60 then C.Danger else C.TextDim
 		end
 	end

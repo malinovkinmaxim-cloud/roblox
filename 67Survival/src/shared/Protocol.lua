@@ -80,6 +80,7 @@ Protocol.Flags = {
 	Elite = 16,
 	Giant = 32, -- 67 MODE: GIANT
 	Champion = 64, -- a boss of 67 TOWN with a name plate
+	Sketch = 128, -- THE ERASER's redrawn sketch of an elite (no loot)
 	Paused = 1, -- State flags
 	Dead = 2,
 	Event67 = 4, -- a 67 event is running
@@ -97,6 +98,8 @@ Protocol.EState = {
 	Dormant = 5, -- Mimic: still pretending to be a loot box
 	Lit = 6, -- Bomber: fuse is burning
 	Stunned = 7, -- stunned by an ability or an item (stars)
+	Broken = 8, -- its shield / banner is broken (Shielder): the "Breakable" parts are gone
+	Enraged = 9, -- raging (SIXLET without its SEVENLET, BERSERK): glows
 }
 
 -- boss / elite flags (MiniHP record)
@@ -196,7 +199,15 @@ Protocol.Fx = {
 	Seal = 64, -- the 67 ARENA was sealed (p1 = radius)
 	EliteSpawn = 65, -- an elite appeared (p1 = radius)
 	EliteBlast = 66, -- a VOLATILE elite blew up
-	Pull = 67, -- THE FINAL ONE pulls you into its arena
+	Pull = 67, -- the main boss pulls you into its arena
+	-- the harder tiers
+	Lava = 68, -- an Eruptor's lava lob (x, z = from; angle; p1 = distance; p2 = flight time)
+	Gravity = 69, -- a gravity pulse (p1 = radius)
+	ShieldBreak = 70, -- a Shielder's shield / a SHIELDED elite's shield broke (p1 = radius)
+	Rage = 71, -- a SIXLET / SEVENLET / BERSERK elite goes mad (p1 = radius)
+	Hatch = 72, -- a goo egg hatched (p1 = radius)
+	Rally = 73, -- a war banner / bannerman rally pulse (p1 = radius)
+	Block = 74, -- a hit bounced off a shield (p1 = radius)
 }
 
 -- Zone record "weapon id" for the build's own pools (Sim/Perks.lua)
@@ -207,8 +218,14 @@ Protocol.ZoneStyle = { Puddle = 250, Void = 251, Cloud = 252, Spill = 253, Gravi
 	  1 circle   2 dash line (visual)   3 lingering void zone (width = duration)
 	  4 laser line   5 slippery puddle (lingering, slows you; width = duration)
 	  6 spill (lingering, small, hurts; width = duration)
+	  7 sector: a pie slice around (x, z) towards angle, radius = size, width = half its arc;
+	    it burns for SectorBurn seconds after it fills
+	  8 safe circle (white, visual): stand here when everything around burns
+	  9 erased floor (white, lingering, hurts; width = duration)
+	  10 safe sector (white, visual)
 ]]
-Protocol.Shapes = { Circle = 1, DashLine = 2, Void = 3, Laser = 4, Puddle = 5, Spill = 6 }
+Protocol.Shapes = { Circle = 1, DashLine = 2, Void = 3, Laser = 4, Puddle = 5, Spill = 6, Sector = 7, Safe = 8, Erase = 9, SafeSector = 10 }
+Protocol.SectorBurn = 1.2 -- seconds a sector keeps burning after its warning
 
 local SIZES = { u8 = 1, u16 = 2, u32 = 4, i16 = 2, f32 = 4, q = 2, a = 2, s = 2, v = 2 }
 

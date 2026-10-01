@@ -142,6 +142,10 @@ function Run.new(opts: Options)
 	self.EnemyProjectiles = {}
 	self.Telegraphs = {}
 	self.Hazards = {}
+	self.Echoes = {} -- ECHO elites: their attacks again a moment later ({ At, Fn })
+	self.Wells = {} -- gravity: walking away from one is slower ({ X, Z, R, Slow, Until })
+	self.Trail = {} -- where you walked, every TRAIL_EVERY s (THE MIRROR, THE DREAD's echoes)
+	self.TrailNext = 0
 	self.Zones = {}
 	self.Allies = {}
 	self.Drones = {}
@@ -499,7 +503,9 @@ function Run:SpeedFactor(): number
 	return Perks.SpeedFactor(self, self:SlowFactor())
 end
 
--- walk speed multiplier of the ground you stand on (THE BIG QUACK's puddles)
+-- walk speed multiplier of the ground you stand on (THE BIG QUACK's puddles) and of the
+-- gravity around you (GRAVITY elites, THE EVENT HORIZON): walking away from it is slower,
+-- you never lose control
 function Run:SlowFactor(): number
 	local f = 1
 	for _, h in self.Hazards do
@@ -510,7 +516,73 @@ function Run:SlowFactor(): number
 			end
 		end
 	end
+	local now = self.Time
+	for _, w in self.Wells do
+		if w.Until > now then
+			local dx, dz = self.PX - w.X, self.PZ - w.Z
+			local d2 = dx * dx + dz * dz
+			if d2 <= w.R * w.R and d2 > 0.01 then
+				local d = math.sqrt(d2)
+				if (self.FX * dx + self.FZ * dz) / d > 0.2 then
+					f = math.min(f, w.Slow)
+				end
+			end
+		end
+	end
 	return f
+end
+
+-- a gravity well (returns it: its owner keeps X / Z / Until up to date)
+function Run:AddWell(x: number, z: number, r: number, slow: number, duration: number)
+	local w = { X = x, Z = z, R = r, Slow = slow, Until = self.Time + duration }
+	table.insert(self.Wells, w)
+	return w
+end
+
+-- the points you walked through between `from` and `to` seconds ago (oldest first)
+local TRAIL_EVERY, TRAIL_KEEP = 0.2, 40
+function Run:TrailPoints(from: number, to: number): { { X: number, Z: number, T: number } }
+	local out = {}
+	local now = self.Time
+	for _, p in self.Trail do
+		local age = now - p.T
+		if age <= from and age >= to then
+			table.insert(out, p)
+		end
+	end
+	return out
+end
+
+-- where you were `ago` seconds ago (the closest recorded point; now when nothing is recorded)
+function Run:PathAt(ago: number): (number, number)
+	local best, bx, bz = math.huge, self.PX, self.PZ
+	local now = self.Time
+	for _, p in self.Trail do
+		local diff = math.abs(now - p.T - ago)
+		if diff < best then
+			best, bx, bz = diff, p.X, p.Z
+		end
+	end
+	return bx, bz
+end
+
+local function recordTrail(self)
+	if self.Time < self.TrailNext then
+		return
+	end
+	self.TrailNext = self.Time + TRAIL_EVERY
+	local trail = self.Trail
+	table.insert(trail, { X = self.PX, Z = self.PZ, T = self.Time })
+	if #trail > TRAIL_KEEP then
+		table.remove(trail, 1)
+	end
+	-- gravity wells that ran out
+	local wells = self.Wells
+	for i = #wells, 1, -1 do
+		if wells[i].Until <= self.Time then
+			table.remove(wells, i)
+		end
+	end
 end
 
 -- the DASH (Rocket Skates / Cart Wheel / Void Eye items): the client asks with the direction it holds
@@ -781,6 +853,7 @@ function Run:Step(dt: number)
 	else
 		self.StillFor = 0
 	end
+	recordTrail(self)
 	if regen > 0 and self.HP < self.Stats.MaxHP then
 		self.HP = math.min(self.Stats.MaxHP, self.HP + regen * dt)
 	end

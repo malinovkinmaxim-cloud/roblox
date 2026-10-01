@@ -10,9 +10,11 @@
 	  fragments <n>   +n fragments                  afk <min>    the AFK camp rested n minutes
 	  evolve          max abilities + their evolution passives
 	  boss <1-4|key>  that boss slot is announced now (its lair), or any enemy by key near you
-	  main            THE FINAL ONE comes to the 67 ARENA now
+	  main [key]      the main boss (of this tier, or any tier's by key) comes to the arena now
+	  spawn <key>     one enemy of that kind near you (any tier's)
 	  item <key>      an item at your feet (no key: a random one of the loot)
 	  elite <key>     an elite now                  chips <n>    +n CHIPS
+	  affix <key>     an elite with that affix now (SHIELDED, ECHO, Gilded67...)
 	  vault           a 67 VAULT wakes up           rush         a 67 RUSH starts
 	  unlockitems     every premium item / boss relic unlocked
 	  unlockall       unlock everything             reset        wipe your profile (Studio)
@@ -142,8 +144,8 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 		local def = arg and BossData.ByKey[arg]
 		local slot = if def then def.Slot else (n or run.BossNext)
 		if def and def.Slot == 5 then
-			if not BossDirector.ForceMain(run) then
-				say("THE FINAL ONE is already out")
+			if not BossDirector.ForceMain(run, def.Key) then
+				say("the main boss is already out")
 			end
 		elseif BossData.Slots[slot] then
 			BossDirector.Force(run, slot, if def then def.Key else nil, EnemyManager)
@@ -154,11 +156,38 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 			say("boss <1-4 | boss key | enemy key>")
 		end
 	elseif command == "main" then
-		if not BossDirector.ForceMain(run) then
-			say("THE FINAL ONE is already out")
+		if not BossDirector.ForceMain(run, arg) then
+			say("the main boss is already out")
+		end
+	elseif command == "spawn" then
+		if arg and EnemyData.ByKey[arg] then
+			local e = EnemyManager.Spawn(run, arg, run.PX + run.FX * 14, run.PZ + run.FZ * 14, { Force = true })
+			local pair = e and e.Def.Params.Pair
+			if pair then
+				local mate = EnemyManager.Spawn(run, pair, e.X + 2.4, e.Z, { Force = true })
+				if mate then
+					EnemyManager.Pair(e, mate)
+				end
+			end
+		else
+			say("spawn <enemy key>")
 		end
 	elseif command == "elite" then
 		if not Elites.Spawn(run, if arg and EnemyData.ByKey[arg] then arg else nil) then
+			say("no room for an elite here")
+		end
+	elseif command == "affix" then
+		-- an elite with that affix right in front of you (any tier's affix)
+		local key, keys = nil, {}
+		for _, a in EnemyData.EliteAffixes do
+			table.insert(keys, a.Key)
+			if arg and string.lower(a.Key) == string.lower(arg) then
+				key = a.Key
+			end
+		end
+		if not key then
+			say("affix <" .. table.concat(keys, " | ") .. ">")
+		elseif not Elites.Spawn(run, if key == "Echo" then "Spitter" else nil, run.PX + run.FX * 18, run.PZ + run.FZ * 18, { key }) then
 			say("no room for an elite here")
 		end
 	elseif command == "event" then
