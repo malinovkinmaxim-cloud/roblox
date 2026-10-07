@@ -14,6 +14,15 @@
         "$path": "src/server"
       }
     },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "_Backup_Enemies": {
+        "$path": "backup/enemies"
+      },
+      "_Backup_Scripts": {
+        "$path": "backup/scripts"
+      }
+    },
     "StarterPlayer": {
       "$className": "StarterPlayer",
       "$properties": {
