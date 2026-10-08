@@ -23,6 +23,7 @@ local Protocol = require(Shared.Protocol)
 
 local Pool = require(script.Parent.Parent.Render.Pool)
 local EnemyModels = require(script.Parent.Parent.Render.EnemyModels)
+local EnemyAnimator = require(script.Parent.Parent.Render.EnemyAnimator)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local EnemyData = require(Shared.EnemyData)
 
@@ -446,6 +447,15 @@ function EnemyRenderer:Update(dt: number)
 	self.PX, self.PZ = px, pz
 	local paused = run.Paused
 	local turn = math.min(1, 10 * dt)
+	-- procedural animation (Render/EnemyAnimator): a plain bob in a big crowd, parts only near you
+	local crowd = #self.List > EnemyAnimator.CROWD
+	local lodSq = EnemyAnimator.LOD_DIST * EnemyAnimator.LOD_DIST
+	local partBudget = EnemyAnimator.PART_BUDGET
+	self.LightClock = (self.LightClock or 0) + dt
+	if self.LightClock >= 0.25 then
+		self.LightClock = 0
+		EnemyAnimator.Lights(self.List, px, pz)
+	end
 	-- after a big wave (67 INVASION) hundreds of models can sit parked: free the extras
 	self.TrimClock = (self.TrimClock or 0) + dt
 	if self.TrimClock >= 2 then
@@ -475,7 +485,7 @@ function EnemyRenderer:Update(dt: number)
 			local info = item.Info
 			local scale = info.Scale
 			local y = ground + info.Height
-			local pitch, roll = 0, 0
+			local pitch, roll, spin = 0, 0, 0
 			local ox, oz = 0, 0
 			if state == ES.Stunned and not paused then
 				-- stunned: a dizzy wobble in place
@@ -493,6 +503,16 @@ function EnemyRenderer:Update(dt: number)
 				y += 0.2 * scale
 			elseif state == ES.Dash then
 				pitch = -0.45
+			elseif info.AnimType then
+				-- the bestiary: its own procedural animation, its parts move when it is near
+				local near = (x - px) ^ 2 + (z - pz) ^ 2 < lodSq
+				local ay
+				ay, pitch, roll, spin = EnemyAnimator.Pose(e, item, now, dt, math.sqrt(dx * dx + dz * dz), crowd or not near)
+				y += ay
+				if info.Anims and (e.Def.Boss or (near and not crowd and partBudget > 0)) then
+					partBudget -= 1
+					EnemyAnimator.Parts(item, now)
+				end
 			elseif info.Float then
 				local t = now * 3 + e.Phase
 				y += sin(t) * 0.5 * scale
@@ -524,7 +544,7 @@ function EnemyRenderer:Update(dt: number)
 			end
 			n += 1
 			parts[n] = item.Root
-			cframes[n] = CFrame.new(center.X + x + ox, y, center.Z + z + oz) * CFrame.Angles(0, e.Yaw, 0) * CFrame.Angles(pitch, 0, roll)
+			cframes[n] = CFrame.new(center.X + x + ox, y, center.Z + z + oz) * CFrame.Angles(0, e.Yaw + spin, 0) * CFrame.Angles(pitch, 0, roll)
 		end
 	end
 

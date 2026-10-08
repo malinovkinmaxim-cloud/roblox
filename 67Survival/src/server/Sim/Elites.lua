@@ -105,8 +105,14 @@ local function spawnPoint(run): (number?, number?)
 	return nil, nil
 end
 
--- a kind from the wave that is running now (the elite pool only; the tier's pools count)
+-- a kind from the wave that is running now (the elite pool only; the tier's pools count).
+-- Often (SignatureShare) it is the difficulty's own bestiary elite instead (King Gloop,
+-- Pumpkin Knight, Sand Golem...: shared/EnemyData.lua TierElite)
 local function pickKind(run): string
+	local own = EnemyData.TierElite[run.Difficulty or 2]
+	if own and run.Rng:NextNumber() < CFG.SignatureShare then
+		return own
+	end
 	local _, entry = WaveData.EntryAt(run.Time)
 	local weights = {}
 	for _, m in WaveData.Mix(entry, run.Difficulty, run.Time) do
@@ -346,6 +352,17 @@ function Elites.Step(run, dt: number)
 			end
 			if e.EliteRegen and e.HP < e.MaxHP then
 				e.HP = min(e.MaxHP, e.HP + e.MaxHP * e.EliteRegen * dt)
+			end
+			-- a bestiary elite below one of its Phases attacks faster (once per phase)
+			local phases = e.Def.Phases
+			if phases then
+				local k = (e.ElitePhase or 0) + 1
+				local ph = phases[k]
+				if ph and e.HP < e.MaxHP * ph.At then
+					e.ElitePhase = k
+					e.Rate = (e.Rate or 1) * ph.Rate
+					run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2.5, 0, GFX.Rage)
+				end
 			end
 			stepAffixes(run, e, now, dt)
 			i += 1

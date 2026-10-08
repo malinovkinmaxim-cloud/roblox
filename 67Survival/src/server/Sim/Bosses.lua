@@ -30,6 +30,7 @@ local BossData = require(Shared.BossData)
 local EnemyData = require(Shared.EnemyData)
 
 local Pickups = require(script.Parent.Pickups)
+local BossPatterns = require(script.Parent.BossPatterns)
 
 local Bosses = {}
 
@@ -774,6 +775,7 @@ end
 
 Bosses.Actions = ACTIONS
 Bosses.Telegraph = telegraph -- mini-bosses (Sim/MiniBosses) telegraph the same way
+BossPatterns.Install(Bosses) -- the bestiary's main bosses (Sim/BossPatterns.lua)
 
 -- movement intent for EnemyManager: dirX, dirZ, speed multiplier
 function Bosses.Step(run, e, dx: number, dz: number, d: number, dt: number, EM): (number, number, number)
@@ -783,6 +785,9 @@ function Bosses.Step(run, e, dx: number, dz: number, d: number, dt: number, EM):
 	local rate = e.Rate or 1
 	if not e.Encounter then
 		Bosses.RunQueue(run, e, EM) -- (an encounter's body runs its queue in Sim/MiniBosses)
+	end
+	if e.Moon then
+		BossPatterns.Step(run, e, dt, EM) -- what lasts (COUNT SEVEN's BLOOD MOON)
 	end
 
 	-- the doom ring fires (everything but the gap)
@@ -855,7 +860,7 @@ function Bosses.Step(run, e, dx: number, dz: number, d: number, dt: number, EM):
 	if e.Dashing then
 		local speed = e.DashSpd or p.DashSpeed
 		e.DashLeft -= speed * dt
-		if e.DashLeft <= 0 then
+		if e.DashLeft <= 0 and not BossPatterns.NextLeg(e) then -- (a belly slide bounces on)
 			e.Dashing = false
 			e.DashLen, e.DashSpd = nil, nil
 			state(run, e, ES.Normal)

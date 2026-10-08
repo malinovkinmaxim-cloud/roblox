@@ -15,9 +15,11 @@
 
 	TIERS (shared/DifficultyData.lua index): a boss with MinTier joins its slot's pool from that
 	tier on (tier III adds one new boss per slot, tier V another; tiers I-II keep the classic
-	three). Every tier has its OWN main boss (Mains / MainFor, the entry's Tier):
-	  I CALM MAMA GOOBER · II HUNT THE FINAL ONE · III HORDE THE HORDEMASTER · IV NIGHTMARE
-	  THE DREAD · V INFERNO THE FURNACE · VI OBLIVION THE ERASER · VII THE 67 THE 67 PRIME
+	three). Every tier has its OWN main boss from the BESTIARY (Mains / MainFor, the entry's Tier):
+	  I CALM MEGA SIX · II HUNT COUNT SEVEN · III HORDE PHARAOH SIXSEVEN · IV NIGHTMARE EMPEROR
+	  PENGUIN PRIME · V INFERNO DRAKO 67 · VI OBLIVION OVERCLOCK-6 · VII THE 67 THE 67
+	(the main bosses before it - MAMA GOOBER, THE FINAL ONE, THE HORDEMASTER, THE DREAD, THE
+	FURNACE, THE ERASER, THE 67 PRIME - are still defined: a roll-back is one line in Mains)
 	They share the arena, 15:00, the seal and the pull (Main).
 
 	Every boss tests something different (Slots[i].Tests) and has:
@@ -96,7 +98,9 @@ BossData.Main = {
 }
 
 -- the main boss of each tier (shared/DifficultyData.lua index)
-BossData.Mains = { "MamaGoober", "TheFinalOne", "TheHordemaster", "TheDread", "TheFurnace", "TheEraser", "The67Prime" }
+-- (the bestiary; the older main bosses stay in the list below for a roll-back:
+--  { "MamaGoober", "TheFinalOne", "TheHordemaster", "TheDread", "TheFurnace", "TheEraser", "The67Prime" })
+BossData.Mains = { "MegaSix", "CountSeven", "PharaohSixseven", "PenguinPrime", "Drako67", "Overclock6", "Final67" }
 
 BossData.WarnLead = 10 -- "BOSS 1 IN 10": marker, arrow and minimap before it spawns
 BossData.CompassLead = 20 -- extra warning with the Compass item
@@ -756,6 +760,176 @@ BossData.List = {
 		FusePhase = { Name = "PHASE 2 · 67 FUSED", Text = "Six and seven become one." },
 		WeakPoint = { After = "*", Time = 1.8, Mult = 1.5, Text = "67 CORE OPEN" },
 		Death = "The 67 cracks down the middle; golden digits rain over the arena. VICTORY.",
+	},
+	---------------------------------------------------------------- THE BESTIARY's MAIN BOSSES (BossData.Mains)
+	{
+		Key = "MegaSix",
+		Title = "MEGA SIX",
+		Slot = 5,
+		Tier = 1,
+		Bodies = { "MegaSix" },
+		HP = 70000,
+		XP = 0, -- the run is won
+		Coins = 400,
+		Hint = "Leave the circle before it lands. Knock out the three orbiting slimes: while they live it takes 30% less damage.",
+		Concept = "The king of the Meadow slimes, grown so big it curled into a 6.",
+		Silhouette = "A huge green slime shaped like a fat 6, a curled tail on top, three little slimes circling it.",
+		Movement = "Bounces after you, crouches, then jumps onto where you stand.",
+		Basic = "Belly slam: lands on your spot, a ring of slime drops splashes out.",
+		Secondary = "Slime fan: five slime balls in a fan.",
+		Special = "Orbiting slimes: -30% damage taken while any of the three lives (they come back).",
+		AoE = "Phase 2: SWELL: faster, calls six Gloopies.",
+		Telegraphs = "Red circle under every slam (1.3 s); it crouches and flashes before a fan (1 s).",
+		Phases = {
+			{ At = 0.5, Name = "PHASE 2 · SWELL", Text = "It swells up: faster, and the Gloopies come.", Speed = 1.2, Rate = 1.3 },
+		},
+		WeakPoint = { After = "BellyFlop", Time = 2.2, Mult = 1.5, Text = "WOBBLING" },
+		Death = "It pops like a balloon; a shower of tiny slimes bounces away. VICTORY.",
+	},
+	{
+		Key = "CountSeven",
+		Title = "COUNT SEVEN",
+		Slot = 5,
+		Tier = 2,
+		Bodies = { "CountSeven" },
+		HP = 80000,
+		XP = 0,
+		Coins = 400,
+		Hint = "When it fades, it comes back BEHIND you: keep moving. Under the BLOOD MOON the bats stop only when you hurt it enough.",
+		Concept = "The vampire count of the Graveyard: the 7 on his chest is the last thing his guests see.",
+		Silhouette = "A huge pale chibi head, black hair swoop, a tall collar and a red-lined cape.",
+		Movement = "Glides after you; vanishes into bats and steps out of the night behind you.",
+		Basic = "Night step: a cape strike in an arc behind you.",
+		Secondary = "Bat swarm: a ring of twelve Buzz Bats.",
+		Special = "BLOOD MOON: the arena turns red, bats keep coming until you deal enough damage.",
+		AoE = "Cape arcs and slams.",
+		Telegraphs = "The arc of the cape strike (1.1 s), slams (1.1 s).",
+		Phases = {
+			{ At = 0.5, Name = "PHASE 2 · BLOOD MOON", Text = "The moon turns red. Hurt him to make it set.", Speed = 1.15, Rate = 1.3 },
+		},
+		WeakPoint = { After = "NightStep", Time = 1.8, Mult = 1.5, Text = "CAPE OPEN" },
+		Death = "He bursts into a cloud of bats that flutter off into the morning. VICTORY.",
+	},
+	{
+		Key = "PharaohSixseven",
+		Title = "PHARAOH SIXSEVEN",
+		Slot = 5,
+		Tier = 3,
+		Bodies = { "PharaohSixseven" },
+		HP = 80000,
+		XP = 0,
+		Coins = 400,
+		Hint = "Dodge the whirlwinds, step out of the clap. When the tile ring spins fast, the tiles come one by one.",
+		Concept = "The golden ruler of the Desert: a mask with no body, two hands and a ring of 6 and 7 tiles.",
+		Silhouette = "A floating golden mask with black-and-turquoise stripes, two giant hands under it, a ring of tiles.",
+		Movement = "Floats after you; the hands follow it.",
+		Basic = "Clap: the hands slam together where you stand, twice.",
+		Secondary = "Sandstorm: three whirlwinds sweep the arena.",
+		Special = "Raises three small Sand Golems.",
+		AoE = "Phase 2: the tile ring fires its tiles at you one after another.",
+		Telegraphs = "Each clap shows its circle (1.1 s); the whirlwinds are visible.",
+		Phases = {
+			{ At = 0.5, Name = "PHASE 2 · THE RING SPINS", Text = "The tiles fly one by one.", Speed = 1.15, Rate = 1.35 },
+		},
+		WeakPoint = { After = "Clap", Time = 1.6, Mult = 1.5, Text = "HANDS DOWN" },
+		Death = "The mask cracks; the tiles fall into the sand like dominoes. VICTORY.",
+	},
+	{
+		Key = "PenguinPrime",
+		Title = "EMPEROR PENGUIN PRIME",
+		Slot = 5,
+		Tier = 4,
+		Bodies = { "PenguinPrime" },
+		HP = 80000,
+		XP = 0,
+		Coins = 400,
+		Hint = "The slide shows its whole path, bounces included. Step between the spikes. Icy patches slow you down.",
+		Concept = "The emperor of the Frostbite: a penguin with an ice crown and a very slippery belly.",
+		Silhouette = "A giant round black penguin, white belly with a blue 6, yellow beak, a crown of ice crystals.",
+		Movement = "Waddles after you; slides on its belly across the arena.",
+		Basic = "Belly slide: a long strip across the arena, bouncing off the edge twice.",
+		Secondary = "Ice spikes in a grid.",
+		Special = "FREEZE: icy patches on the ground and Snowy Pals at the edge.",
+		AoE = "Spike grids and long slides.",
+		Telegraphs = "The slide shows every leg (1.2 s); spikes fill their circles (1.2 s).",
+		Phases = {
+			{ At = 0.5, Name = "PHASE 2 · FREEZE", Text = "The arena freezes over.", Speed = 1.15, Rate = 1.3 },
+		},
+		WeakPoint = { After = "BellySlide", Time = 2.0, Mult = 1.5, Text = "DIZZY" },
+		Death = "Its crown shatters; it slides away into the snow, spinning. VICTORY.",
+	},
+	{
+		Key = "Drako67",
+		Title = "DRAKO 67",
+		Slot = 5,
+		Tier = 5,
+		Bodies = { "Drako67" },
+		HP = 82000,
+		XP = 0,
+		Coins = 400,
+		Hint = "Get out of the cone before it breathes. Meteors land 1.2 s after their circle. When it takes off, it lands on you.",
+		Concept = "The dragon of the Volcano, with 67 scorched into its scales.",
+		Silhouette = "A chibi red dragon: a huge head, three horns, small wings, a yellow belly and a fiery tail tip.",
+		Movement = "Stomps after you; takes off and lands on you.",
+		Basic = "Fire breath in a 90° cone.",
+		Secondary = "Meteor rain all around you.",
+		Special = "Take-off: lands where you stand with a shockwave ring.",
+		AoE = "Phase 2: Imp Pops join, everything speeds up.",
+		Telegraphs = "The cone fills before the breath (1 s), meteor circles (1.2 s), the landing circle (1.6 s).",
+		Phases = {
+			{ At = 0.5, Name = "PHASE 2 · WILDFIRE", Text = "Imps join the fight. Everything gets faster.", Speed = 1.25, Rate = 1.4 },
+		},
+		WeakPoint = { After = "Takeoff", Time = 2.0, Mult = 1.5, Text = "GROUNDED" },
+		Death = "It lets out one last puff of smoke and topples over. VICTORY.",
+	},
+	{
+		Key = "Overclock6",
+		Title = "OVERCLOCK-6",
+		Slot = 5,
+		Tier = 6,
+		Bodies = { "Overclock6" },
+		HP = 82000,
+		XP = 0,
+		Coins = 400,
+		Hint = "Follow the turning laser. Columns light up before the pixels fall. Only one OVERCLOCK has a green core: the red ones are fakes.",
+		Concept = "The machine at the heart of the Cyber Glitch, running at 67 GHz.",
+		Silhouette = "A giant chibi robot with a square screen face, neon ring antennas and a floating diamond core.",
+		Movement = "Walks after you; teleports when it makes its holograms.",
+		Basic = "Laser sweep: a line that turns round the arena.",
+		Secondary = "Digital rain: a grid of columns, then falling pixels.",
+		Special = "Holograms: two fakes with red cores; the real one has a green core.",
+		AoE = "OVERCLOCK at 50%: +40% attack speed, the screen turns red.",
+		Telegraphs = "Every laser line shows first (1.1 s), every column (1.2 s).",
+		Phases = {
+			{ At = 0.5, Name = "PHASE 2 · OVERCLOCK", Text = "Attack speed +40%.", Speed = 1.15, Rate = 1.4 },
+		},
+		WeakPoint = { After = "LaserSweep", Time = 2.0, Mult = 1.5, Text = "CORE COOLING" },
+		Death = "Its screen shows a blue error, then a smiley; it powers down. VICTORY.",
+	},
+	{
+		Key = "Final67",
+		Title = "THE 67",
+		Slot = 5,
+		Tier = 7,
+		Bodies = { "Final67" },
+		HP = 140000,
+		XP = 0,
+		Coins = 400,
+		Hint = "The 6 smashes, the 7 shoots beams, black holes pull at the edge. Then every boss comes back as an echo. At the end the digits fuse and the arena shrinks.",
+		Concept = "The end of everything: the two digits that started it all, and the void face between them.",
+		Silhouette = "Two giant floating digits, a 6 and a 7, around a crowned dark sphere face with huge eyes.",
+		Movement = "Holds the centre; the digits drift around it.",
+		Basic = "Six smash: the 6 slams where you stand.",
+		Secondary = "Seven beams: lines from the 7.",
+		Special = "Black holes at the edge (walking away from them is slower). Phase 2: echoes of the earlier bosses.",
+		AoE = "Phase 3: the digits fuse into 67, every attack at once, the arena shrinks.",
+		Telegraphs = "Every smash and beam shows first (1.1-1.2 s); the edge is erased before it hurts.",
+		Phases = {
+			{ At = 0.66, Name = "PHASE 2 · ECHOES", Text = "Every boss you beat comes back.", Speed = 1.1, Rate = 1.25 },
+			{ At = 0.33, Name = "PHASE 3 · 67", Text = "The digits fuse. The arena shrinks.", Speed = 1.25, Rate = 1.5 },
+		},
+		WeakPoint = { After = "SixSmash", Time = 1.8, Mult = 1.5, Text = "67 CORE OPEN" },
+		Death = "The digits crack apart; golden 6s and 7s rain over the arena. VICTORY.",
 	},
 } :: { Boss }
 

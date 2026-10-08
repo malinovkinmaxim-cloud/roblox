@@ -38,6 +38,7 @@ local MiniBosses = require(script.Parent.MiniBosses)
 local ArenaDirector = require(script.Parent.ArenaDirector)
 local Perks = require(script.Parent.Perks)
 local Elites = require(script.Parent.Elites)
+local Bestiary = require(script.Parent.Bestiary)
 
 local EnemyManager = {}
 
@@ -235,6 +236,9 @@ function EnemyManager.Spawn(run, key: string, x: number, z: number, opts: SpawnO
 		e.Angle = atan2(z - run.PZ, x - run.PX)
 	elseif b == "Mimic" then
 		e.Dormant = true
+	end
+	if def.Role then
+		Bestiary.Init(run, e) -- the bestiary: its timers, shields, death effects (Sim/Bestiary)
 	end
 	table.insert(run.Enemies, e)
 	e.Index = #run.Enemies
@@ -461,13 +465,17 @@ function EnemyManager.Kill(run, e)
 	if def.ItemChance > 0 and rng:NextNumber() < GameConfig.Drops.BaseItemChance * def.ItemChance * luck then
 		Pickups.SpawnItem(run, EnemyManager.RollItem(run), e.X, e.Z)
 	end
+	if e.Died then
+		Bestiary.Died(run, e) -- bandages, ice rings, pops
+	end
 	if e.Elite then
 		Elites.OnKilled(run, e, EnemyManager)
 	end
 	if params.SplitInto and not e.Tiny then
 		for i = 1, params.SplitCount do
 			local a = (i / params.SplitCount) * TAU
-			EnemyManager.Spawn(run, params.SplitInto, e.X + cos(a) * 1.5, e.Z + sin(a) * 1.5)
+			local child = EnemyManager.Spawn(run, params.SplitInto, e.X + cos(a) * 1.5, e.Z + sin(a) * 1.5)
+			Bestiary.Fling(e, child, a) -- a King Gloop's gloopies fly out in an arc
 		end
 	end
 	if e.Lit then
@@ -557,6 +565,9 @@ function EnemyManager.Damage(run, e, dmg: number, hitFlags: number, kx: number, 
 		return
 	end
 	e.LastHitAt = now
+	if e.Hurt then
+		dmg, knock = Bestiary.Hurt(run, e, dmg, kx, kz, knock) -- front shields, shells, orbiters
+	end
 	if e.ArmorCut then
 		dmg *= 1 - e.ArmorCut -- an ARMORED elite
 	end
@@ -1400,6 +1411,9 @@ EnemyManager.Behaviors = Behaviors
 ---------------------------------------------------------------------------
 -- step
 ---------------------------------------------------------------------------
+-- the bestiary's behaviours (Sim/Bestiary.lua)
+Bestiary.Install(Behaviors, EnemyManager, Bosses)
+
 function EnemyManager.RebuildGrid(run)
 	local grid = run.Grid
 	SpatialGrid.Clear(grid)
@@ -1408,8 +1422,8 @@ function EnemyManager.RebuildGrid(run)
 	end
 end
 
-local STILL = { Static = true, Egg = true, Rally = true } -- never pushed around by the crowd
-local NO_RELOCATE = { March = true, Static = true, Flee = true, Sixty = true, Mimic = true, Boss = true, Champion = true, Egg = true, Rally = true, Converge = true }
+local STILL = { Static = true, Egg = true, Rally = true, Orbit = true, Roam = true } -- never pushed around by the crowd
+local NO_RELOCATE = { March = true, Static = true, Flee = true, Sixty = true, Mimic = true, Boss = true, Champion = true, Egg = true, Rally = true, Converge = true, Orbit = true, Roam = true, Holo = true, EchoBoss = true }
 local RIFT = ArenaData.ByKey.Rift.Rect
 
 local function inRift(x: number, z: number): boolean
@@ -1567,8 +1581,9 @@ function EnemyManager.Step(run, dt: number)
 		e.KX *= knockDecay
 		e.KZ *= knockDecay
 
-		-- obstacles: push out, then slide along the wall around the obstacle
-		if not e.Air then
+		-- obstacles: push out, then slide along the wall around the obstacle (ghosts and
+		-- flyers of the bestiary float over them)
+		if not e.Air and not e.Ghost then
 			local nx, nz = pushOut(run, e)
 			if nx ~= 0 or nz ~= 0 then
 				local sx, sz = -nz * e.Side, nx * e.Side

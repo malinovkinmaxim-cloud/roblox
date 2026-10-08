@@ -88,6 +88,7 @@ GameConfig.Elite = {
 	XP = 14, -- x its normal XP, as a burst of gems
 	Coins = 12,
 	FragmentChance = 0.25,
+	SignatureShare = 0.5, -- how often the elite is the difficulty's own (shared/EnemyData.lua TierElite)
 }
 
 GameConfig.Lobby = {

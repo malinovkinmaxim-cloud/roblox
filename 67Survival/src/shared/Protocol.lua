@@ -208,6 +208,14 @@ Protocol.Fx = {
 	Hatch = 72, -- a goo egg hatched (p1 = radius)
 	Rally = 73, -- a war banner / bannerman rally pulse (p1 = radius)
 	Block = 74, -- a hit bounced off a shield (p1 = radius)
+	-- the bestiary
+	Phantom = 75, -- a Pixel Bit glitched away: a ghost of it stays a moment (angle, p1 = distance)
+	Bats = 76, -- COUNT SEVEN turns into / out of a flock of bats (p1 = radius)
+	Swell = 77, -- MEGA SIX swells up (p1 = radius)
+	Breath = 78, -- DRAKO 67 breathes fire (angle, p1 = radius, p2 = half arc)
+	Holo = 79, -- OVERCLOCK-6 splits into holograms (p1 = radius)
+	EchoIn = 80, -- an echo of an earlier boss appears (p1 = radius)
+	BlackHole = 81, -- THE 67's black hole opens (p1 = radius, p2 = seconds)
 }
 
 -- Zone record "weapon id" for the build's own pools (Sim/Perks.lua)

@@ -21,11 +21,14 @@
 	  15+    the tier's MAIN BOSS; OVERTIME if it is still standing at 17:00
 
 	TIER POOLS: the timeline above is the classic horde of every tier. On top of it, each
-	tier from its MinTier on mixes in the enemies of TierPools from `From` seconds (Weight next
-	to the entry's Mix weights; Pack = a group; Pair = spawns together with that kind); all of
-	them together weigh at most TierShare of the classic mix.
+	tier from its MinTier on mixes in the BESTIARY's regulars (shared/EnemyData.lua Spawn) from
+	`From` seconds (Weight next to the entry's Mix weights; Pack = a group; Pair = spawns
+	together with that kind); an earlier difficulty's enemies weigh TierFalloff less per
+	difficulty, and all of them together weigh at most TierShare of the classic mix.
 	WaveData.Mix(entry, tier, t) is the merged list every spawn picks from.
 ]]
+
+local EnemyData = require(script.Parent.EnemyData)
 
 local WaveData = {}
 
@@ -129,20 +132,19 @@ WaveData.Timeline = {
 }
 
 -- the enemies of the harder tiers, on top of the classic Mix (shared/EnemyData.lua MinTier)
-WaveData.TierPools = {
-	{ Key = "Snoozer", MinTier = 1, From = 40, Weight = 0.8 },
-	{ Key = "Shielder", MinTier = 2, From = 130, Weight = 0.5 },
-	{ Key = "Stampeder", MinTier = 3, From = 90, Weight = 0.3, Pack = 3 },
-	{ Key = "Bannerman", MinTier = 3, From = 240, Weight = 0.18 },
-	{ Key = "Wailer", MinTier = 4, From = 180, Weight = 0.45 },
-	{ Key = "Hexer", MinTier = 4, From = 300, Weight = 0.35 },
-	{ Key = "Cinder", MinTier = 5, From = 150, Weight = 0.55 },
-	{ Key = "Eruptor", MinTier = 5, From = 330, Weight = 0.28 },
-	{ Key = "Predator", MinTier = 6, From = 210, Weight = 0.45 },
-	{ Key = "Warden", MinTier = 6, From = 390, Weight = 0.18 },
-	{ Key = "Sixlet", MinTier = 7, From = 240, Weight = 0.3, Pair = "Sevenlet" },
-}
-WaveData.TierShare = 0.15 -- the most the tier pools may weigh next to the classic mix
+-- built from shared/EnemyData.lua: every enemy with a Spawn entry (the bestiary's regulars);
+-- its MinTier is its home difficulty. (The older tier enemies - Snoozer, Shielder, Stampeder,
+-- Bannerman, Wailer, Hexer, Cinder, Eruptor, Predator, Warden, Sixlet - are still in EnemyData
+-- without a Spawn entry: give one back to bring it into the horde again.)
+WaveData.TierPools = {} :: { { Key: string, MinTier: number, From: number, Weight: number, Pack: number?, Pair: string? } }
+for _, def in EnemyData.List do
+	local spawn = (def :: any).Spawn
+	if spawn then
+		table.insert(WaveData.TierPools, { Key = def.Key, MinTier = def.MinTier or 1, From = spawn.From, Weight = spawn.Weight, Pack = spawn.Pack, Pair = spawn.Pair })
+	end
+end
+WaveData.TierShare = 0.35 -- the most the tier pools may weigh next to the classic mix
+WaveData.TierFalloff = 0.5 -- an earlier difficulty's enemies weigh this much per difficulty below
 WaveData.TierPoolByKey = {}
 for _, pool in WaveData.TierPools do
 	WaveData.TierPoolByKey[pool.Key] = pool
@@ -165,7 +167,8 @@ function WaveData.Mix(entry, tier: number?, t: number?): { { any } }
 		byEntry = {}
 		mixCache[entry] = byEntry
 	end
-	local cached = byEntry[mask]
+	local cacheKey = mask * 8 + tierN
+	local cached = byEntry[cacheKey]
 	if cached then
 		return cached
 	end
@@ -175,23 +178,25 @@ function WaveData.Mix(entry, tier: number?, t: number?): { { any } }
 		table.insert(list, { key, weight })
 		classic += weight
 	end
-	-- the tier's enemies never take more than TierShare of the spawns (a pack / a pair counts
-	-- for all of its members): every kind still shows up, the horde stays readable
+	-- the difficulty's own enemies first, the earlier difficulties' fade (TierFalloff); all of
+	-- them together never take more than TierShare of the spawns (a pack / a pair counts for
+	-- all of its members): every kind still shows up, the horde stays readable
 	local pools, total = {}, 0
 	for i, pool in WaveData.TierPools do
 		if mask // 2 ^ (i - 1) % 2 == 1 and not entry.Mix[pool.Key] then
-			table.insert(pools, pool)
-			total += pool.Weight * (pool.Pack or 1) * (if pool.Pair then 2 else 1)
+			local w = pool.Weight * WaveData.TierFalloff ^ (tierN - pool.MinTier)
+			table.insert(pools, { pool.Key, w })
+			total += w * (pool.Pack or 1) * (if pool.Pair then 2 else 1)
 		end
 	end
 	local k = if total > 0 then math.min(1, WaveData.TierShare * classic / total) else 1
 	for _, pool in pools do
-		table.insert(list, { pool.Key, pool.Weight * k })
+		table.insert(list, { pool[1], pool[2] * k })
 	end
 	table.sort(list, function(a, b)
 		return a[1] < b[1]
 	end)
-	byEntry[mask] = list
+	byEntry[cacheKey] = list
 	return list
 end
 

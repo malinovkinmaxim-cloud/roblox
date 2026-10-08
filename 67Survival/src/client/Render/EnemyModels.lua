@@ -48,10 +48,12 @@ type Builder = {
 	Root: BasePart?,
 	Scale: number,
 	Parts: { BasePart },
+	Anims: { any }, -- parts on a Motor6D that Render/EnemyAnimator moves (anim)
+	Regrow: boolean?, -- its "Broken" parts come back (an Obsidian Crab's shell)
 }
 
-local function newPart(b: Builder, name: string, size: Vector3, color: Color3, offset: CFrame, shape: Enum.PartType?, material: Enum.Material?): BasePart
-	local p = Instance.new("Part")
+local function newPart(b: Builder, name: string, size: Vector3, color: Color3, offset: CFrame, shape: Enum.PartType?, material: Enum.Material?, className: string?): BasePart
+	local p = Instance.new(className or "Part") :: any
 	p.Name = name
 	p.Size = size * b.Scale
 	p.Color = color
@@ -112,9 +114,77 @@ local function disc(b: Builder, name: string, diameter: number, thickness: numbe
 	return cyl(b, name, thickness, diameter, color, CFrame.new(pos) * FLAT, material)
 end
 
+-- a wedge (WedgePart): the slope runs from the top of its back (+Z) down to the bottom of its
+-- front (-Z); horns, fangs, ears, flames, wings
+local function wedge(b: Builder, name: string, size: Vector3, color: Color3, cf: CFrame, material: Enum.Material?): BasePart
+	return newPart(b, name, size, color, cf, nil, material, "WedgePart")
+end
+
 local function tag(p: BasePart, attribute: string, value: number): BasePart
 	p:SetAttribute(attribute, value)
 	return p
+end
+
+-- a part that moves on its own (Render/EnemyAnimator.lua): its weld becomes a Motor6D whose C0
+-- the animator offsets every frame. kind: Flap (rolls round its own Z: wings), Sway (pitches
+-- round its own X: capes, arms, tails), Jaw (opens downwards), Spin (turns round Y), Orbit
+-- (circles the root round Y), Bob (up and down), Pulse (neon brightens), Jitter (shakes)
+local function anim(b: Builder, p: BasePart, kind: string, amp: number, freq: number, phase: number?): BasePart
+	local root = b.Root :: BasePart
+	local weld = p:FindFirstChildOfClass("WeldConstraint")
+	if weld then
+		weld:Destroy()
+	end
+	local m = Instance.new("Motor6D")
+	m.Name = "Anim"
+	m.Part0 = root
+	m.Part1 = p
+	m.C0 = root.CFrame:ToObjectSpace(p.CFrame)
+	m.Parent = p
+	table.insert(b.Anims, { Motor = m, Part = p, Base = m.C0, Kind = kind, Amp = amp, Freq = freq, Phase = phase or 0, Color = p.Color })
+	return p
+end
+
+-- a big "6" or "7" painted on one face of a part (the 67 mark): u, v = the centre of the text on
+-- the face (0..1), size = its share of the face
+local function mark(part: BasePart, text: string, color: Color3, face: Enum.NormalId, u: number?, v: number?, size: number?)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Mark"
+	gui.Face = face
+	gui.LightInfluence = 0
+	gui.CanvasSize = Vector2.new(100, 100)
+	gui.Parent = part
+	local k = size or 0.5
+	local label = Instance.new("TextLabel")
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(u or 0.5, v or 0.5)
+	label.Size = UDim2.fromScale(k, k)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextScaled = true
+	label.Font = Enum.Font.FredokaOne
+	label.TextColor3 = color
+	label.Parent = gui
+end
+
+-- big cartoon eyes: a white oval, a black pupil and a small white highlight (the heroes' eyes)
+local function cartoonEyes(b: Builder, size: number, spread: number, y: number, z: number, x: number?, highlight: boolean?)
+	local cx = x or 0
+	for _, side in { -1, 1 } do
+		local ex = cx + side * spread
+		ball(b, "Eye", Vector3.new(size * 0.82, size, size * 0.45), WHITE, Vector3.new(ex, y, z))
+		ball(b, "Pupil", size * 0.46, BLACK, Vector3.new(ex + side * size * 0.06, y - size * 0.06, z - size * 0.16))
+		if highlight ~= false then
+			ball(b, "Shine", size * 0.17, WHITE, Vector3.new(ex + side * size * 0.06 + size * 0.1, y + size * 0.08, z - size * 0.36))
+		end
+	end
+end
+
+-- two glowing ovals (neon eyes)
+local function glowEyes(b: Builder, size: Vector3, spread: number, y: number, z: number, color: Color3, x: number?)
+	for _, side in { -1, 1 } do
+		ball(b, "Eye", size, color, Vector3.new((x or 0) + side * spread, y, z), NEON)
+	end
 end
 
 local function googlyEyes(b: Builder, size: number, spread: number, y: number, z: number, x: number?)
@@ -1230,6 +1300,7 @@ end
 
 -- floating models bob in the air instead of hopping
 local FLOAT = { Diver = true, Ghost = true, The67 = true, VoidBoss = true, Crow = true, Horizon = true, Wailer = true }
+local FLOAT_ANIM = { Float = true, Flap = true, Spin = true } -- (the bestiary: shared/EnemyData.lua AnimType)
 
 local SKETCH = rgb(236, 236, 240)
 local ELITE_GOLD = GOLD
@@ -1250,7 +1321,7 @@ function EnemyModels.Build(def, variant: string?): (Model, BasePart, any)
 	if elite then
 		scale *= 1.3
 	end
-	local b: Builder = { Model = model, Root = nil, Scale = scale, Parts = {} }
+	local b: Builder = { Model = model, Root = nil, Scale = scale, Parts = {}, Anims = {} }
 	local color, accent = def.Color, def.Accent
 	if string.find(v, "g", 1, true) then
 		color, accent = rgb(255, 205, 50), rgb(255, 245, 170)
@@ -1265,10 +1336,13 @@ function EnemyModels.Build(def, variant: string?): (Model, BasePart, any)
 	if elite then
 		-- elites: a glowing ring at their feet and a crest over their head
 		disc(b, "EliteRing", 3.8, 0.25, ELITE_GOLD, Vector3.new(0, -height + 0.15, 0), NEON)
-		local crestY = math.min(top, 7) + 1.3
-		box(b, "EliteCrest", Vector3.new(0.9, 0.9, 0.9), ELITE_PURPLE, CFrame.new(0, crestY, 0) * CFrame.Angles(0, math.pi / 4, math.pi / 4), NEON)
-		box(b, "EliteWingL", Vector3.new(0.7, 0.25, 0.25), ELITE_GOLD, CFrame.new(-0.85, crestY, 0) * CFrame.Angles(0, 0, 0.4))
-		box(b, "EliteWingR", Vector3.new(0.7, 0.25, 0.25), ELITE_GOLD, CFrame.new(0.85, crestY, 0) * CFrame.Angles(0, 0, -0.4))
+		if def.Role ~= "Elite" then
+			-- (a bestiary elite is an elite by its looks: the ring is enough)
+			local crestY = math.min(top, 7) + 1.3
+			box(b, "EliteCrest", Vector3.new(0.9, 0.9, 0.9), ELITE_PURPLE, CFrame.new(0, crestY, 0) * CFrame.Angles(0, math.pi / 4, math.pi / 4), NEON)
+			box(b, "EliteWingL", Vector3.new(0.7, 0.25, 0.25), ELITE_GOLD, CFrame.new(-0.85, crestY, 0) * CFrame.Angles(0, 0, 0.4))
+			box(b, "EliteWingR", Vector3.new(0.7, 0.25, 0.25), ELITE_GOLD, CFrame.new(0.85, crestY, 0) * CFrame.Angles(0, 0, -0.4))
+		end
 	end
 	if def.Champion then
 		-- a mini-boss stands in a red ring (readable in any crowd, from any zoom)
@@ -1309,9 +1383,13 @@ function EnemyModels.Build(def, variant: string?): (Model, BasePart, any)
 		BodyColor = root.Color,
 		Scale = scale,
 		Parts = b.Parts,
-		Float = FLOAT[def.Model] == true,
+		Float = FLOAT[def.Model] == true or FLOAT_ANIM[def.AnimType or ""] == true,
 		Toggles = if #toggles > 0 then toggles else nil,
 		Phased = if #phased > 0 then phased else nil,
+		Anims = if #b.Anims > 0 then b.Anims else nil,
+		AnimType = def.AnimType,
+		Regrow = b.Regrow,
+		Light = model:FindFirstChildWhichIsA("PointLight", true), -- (Render/EnemyAnimator lights the nearest)
 	}
 	local item = { Root = root, Info = info }
 	EnemyModels.Toggle(item, 0)
@@ -1332,7 +1410,7 @@ function EnemyModels.Toggle(item, state: number)
 	-- (a broken shield stays broken until the model goes back to the pool)
 	if state == 8 then
 		item.Info.Broken = true
-	elseif item.Info.Broken then
+	elseif item.Info.Broken and not item.Info.Regrow then
 		for _, t in toggles do
 			if t.HideIn == 8 then
 				t.Part.Transparency = 1
@@ -1343,6 +1421,7 @@ end
 
 -- a main boss's look in phase n
 function EnemyModels.SetPhase(item, phase: number)
+	item.Info.PhaseNow = phase -- (Render/EnemyAnimator: some parts move faster later in the fight)
 	local phased = item.Info.Phased
 	if not phased then
 		return
@@ -1505,8 +1584,43 @@ function EnemyModels.Reset(item)
 	item.Info.Broken = nil
 	EnemyModels.Toggle(item, 0)
 	EnemyModels.SetPhase(item, 1)
+	if item.Info.Anims then
+		for _, a in item.Info.Anims do
+			a.Motor.C0 = a.Base
+			a.Part.Color = a.Color
+		end
+	end
+	if item.Info.Mesh then
+		item.Info.Mesh.Scale = Vector3.one -- (a hop's squash)
+	end
+	if item.Info.Light then
+		item.Info.Light.Enabled = false
+	end
 end
 
 EnemyModels.Styles = STYLES
+
+-- the builders the bestiary's models use (Render/BestiaryModels.lua)
+EnemyModels.Kit = {
+	ball = ball,
+	box = box,
+	cyl = cyl,
+	disc = disc,
+	wedge = wedge,
+	tag = tag,
+	anim = anim,
+	mark = mark,
+	paint = paint,
+	cartoonEyes = cartoonEyes,
+	glowEyes = glowEyes,
+	googlyEyes = googlyEyes,
+	WHITE = WHITE,
+	BLACK = BLACK,
+	GOLD = GOLD,
+	NEON = NEON,
+	FLAT = FLAT,
+	FRONT = FRONT,
+}
+require(script.Parent.BestiaryModels).Register(STYLES, EnemyModels.Kit)
 
 return EnemyModels

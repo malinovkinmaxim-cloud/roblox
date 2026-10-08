@@ -310,6 +310,7 @@ local function finish(run, enc: Encounter, outcome: string, EM)
 		run.Map.MainOut = nil
 		run.Map.DarkUntil = nil
 		run.ShotRoom = nil
+		run:Event("Arena", { Tint = false }) -- a BLOOD MOON / OVERCLOCK tint is over
 	end
 	if outcome == "Defeated" then
 		reward(run, enc, EM)

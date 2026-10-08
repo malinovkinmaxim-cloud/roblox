@@ -25,6 +25,8 @@ end
 local function shapeOf(d): string
 	if d:IsA("Part") then
 		return d.Shape.Name
+	elseif d:IsA("WedgePart") then
+		return "Wedge"
 	end
 	return "Block"
 end

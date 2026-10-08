@@ -1,6 +1,13 @@
 --[[
-	EnemyData - the horde (15 classic enemy types + 12 that join on harder tiers), rare
-	specials, ELITE affixes and the bodies of every boss (who and when: shared/BossData.lua).
+	EnemyData - THE ENEMY CONFIG: the horde (15 classic enemy types), the BESTIARY of every
+	difficulty (2 regulars + 1 elite + 1 main boss per difficulty, at the end of the list), the
+	older tier enemies, rare specials, ELITE affixes and the bodies of every boss (who and when:
+	shared/BossData.lua). One place for every number: the AI reads its Params, the waves read
+	Spawn (shared/WaveData.lua TierPools), the client reads Model / AnimType / colours.
+	  config name    field here
+	  Health         HP            ContactDamage  Damage       Coins  CoinChance (+ boss Coins)
+	  SpawnWeight    Spawn.Weight  MinTime        Spawn.From   Size   Scale (model) / Radius
+	  attacks        Attacks (+ Params)            phase thresholds  Phases (elites) / BossData
 	Lair bosses have Champion = true (their fights: Sim/MiniBosses.lua), classic bosses and the
 	MAIN bosses use Behavior "Boss" (attack patterns: Sim/Bosses.lua).
 
@@ -44,6 +51,12 @@ export type EnemyDef = {
 	Rare: boolean?,
 	Secret: boolean?,
 	MinTier: number?, -- first difficulty tier it appears on (nil = every tier)
+	Role: string?, -- the bestiary: "Regular" / "Elite" / "Boss" / "Minion"
+	Theme: string?, -- the bestiary: the difficulty's theme (Meadow, Graveyard...)
+	AnimType: string?, -- client procedural animation (Render/EnemyAnimator.lua)
+	Spawn: { Weight: number, From: number, Pack: number?, Pair: string? }?, -- a bestiary regular in the horde
+	Attacks: { string }?, -- what an elite / a boss does (the collection book shows it)
+	Phases: { { At: number, Rate: number, Name: string } }?, -- an elite: below At of its HP it attacks Rate x faster
 	NoContact: boolean?,
 	Collection: boolean?,
 	Params: { [string]: any },
@@ -889,6 +902,469 @@ local LIST: { EnemyDef } = ({
 			Coins = 400,
 		},
 	}),
+	---------------------------------------------------------------------------------------------
+	-- THE BESTIARY: every difficulty's own enemies (appended: the list order is the network id).
+	-- Per difficulty: 2 regulars (Spawn = { Weight next to the classic mix, From seconds, Pack };
+	-- shared/WaveData.lua builds its TierPools from these), 1 ELITE (Role = "Elite": only the
+	-- elite director brings it, Sim/Elites) and its MAIN BOSS (shared/BossData.lua Mains).
+	-- Their AI: Sim/Bestiary.lua (horde, elites) and Sim/BossPatterns.lua (the bosses).
+	-- AnimType: the client's procedural animation (Render/EnemyAnimator.lua).
+	-- Attacks / Phases: what an elite or a boss does (Phases: HP fraction -> attacks speed up).
+	---------------------------------------------------------------- I CALM · Meadow
+	enemy({
+		Key = "Gloopy",
+		Name = "Gloopy",
+		Desc = "A wobbly little slime. Hops at you in a swarm.",
+		HP = 9, Speed = 9, Damage = 5, XP = 1, Radius = 1.4,
+		Model = "Gloopy", Color = rgb(123, 224, 106), Accent = rgb(58, 140, 50),
+		Behavior = "Hop", MinTier = 1, Role = "Regular", Theme = "Meadow", AnimType = "Hop",
+		Spawn = { Weight = 1.4, From = 20, Pack = 3 },
+		Params = { HopEvery = 0.8, HopTime = 0.4, HopBoost = 2.1, Rest = 0.15 },
+	}),
+	enemy({
+		Key = "BuzzBat",
+		Name = "Buzz Bat",
+		Desc = "Zigzags through the air, flashes, then darts at you.",
+		HP = 7, Speed = 12, Damage = 4, XP = 1, Radius = 1.1,
+		Model = "BuzzBat", Color = rgb(139, 92, 246), Accent = rgb(91, 52, 196),
+		Behavior = "Zigzag", Mass = 0.7, MinTier = 1, Role = "Regular", Theme = "Meadow", AnimType = "Flap",
+		Spawn = { Weight = 0.7, From = 75 },
+		Params = { Fly = true, Weave = 0.85, WeaveSpeed = 3.4, Every = 5, Trigger = 15, Windup = 0.7, DashTime = 0.35, DashSpeed = 32, Rest = 0.5 },
+	}),
+	enemy({
+		Key = "KingGloop",
+		Name = "King Gloop",
+		Desc = "ELITE. A royal slime with a paper crown. Jumps onto you (red circle), and pops into three Gloopies.",
+		HP = 40, Speed = 6, Damage = 9, XP = 4, Radius = 2.4,
+		Model = "KingGloop", Color = rgb(123, 224, 106), Accent = rgb(250, 204, 21),
+		Behavior = "Jumper", Mass = 3, CoinChance = 0.05, ItemChance = 2, MinTier = 1, Role = "Elite", Theme = "Meadow", AnimType = "Hop",
+		Attacks = { "Jump slam every 6 s: red circle 0.8 s, a shockwave where it lands", "Pops into 3 Gloopies that fly out" },
+		Phases = { { At = 0.5, Rate = 1.3, Name = "ANGRY" } },
+		Params = {
+			Every = 6, Trigger = 28, Windup = 0.8, JumpTime = 0.55, JumpRadius = 6.5, JumpDamage = 14, Rest = 0.8,
+			SplitInto = "Gloopy", SplitCount = 3, SplitFling = 16,
+		},
+	}),
+	enemy({
+		Key = "MiniGloop",
+		Name = "Mini Gloop",
+		Desc = "MEGA SIX's orbiting slimes. While any of them is alive, MEGA SIX takes 30% less damage.",
+		HP = 60, Speed = 0, Damage = 8, XP = 2, Radius = 1.7,
+		Model = "MiniGloop", Color = rgb(182, 245, 160), Accent = rgb(58, 140, 50),
+		Behavior = "Orbit", Mass = 999, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Meadow", AnimType = "Hop", Collection = false,
+		Params = {},
+	}),
+	enemy({
+		Key = "MegaSix",
+		Name = "MEGA SIX",
+		Desc = "Main boss of I CALM. A giant slime shaped like a 6: belly slams, slime fans, three orbiting slimes that shield it.",
+		HP = 70000, Speed = 7, Damage = 18, XP = 1000, Radius = 7.5,
+		Model = "MegaSix", Color = rgb(123, 224, 106), Accent = rgb(58, 140, 50),
+		Behavior = "Boss", Mass = 120, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 1, Role = "Boss", Theme = "Meadow", AnimType = "Boss",
+		Attacks = { "Jump slam + a ring of slime drops", "Slime fan: 5 balls", "SWELL at 50%: faster, 6 Gloopies", "3 orbiting slimes: -30% damage while any lives" },
+		Params = {
+			Title = "MEGA SIX",
+			Final = true,
+			ShotRoom = 60, -- (Sim/EnemyManager.Shoot: room for its rings)
+			Patterns = { "Orbiters", "BellyFlop", "SlimeFan" },
+			PhasePatterns = { [2] = { "Swell" } },
+			BellyFlopEvery = 6.5, FlopDelay = 1.3, FlopRadius = 11, FlopDamage = 24, FlopDrops = 12, FlopDropSpeed = 13, FlopDropDamage = 8,
+			SlimeFanEvery = 4.5, FanDelay = 1.0, FanShots = 5, FanSpread = 0.9, FanSpeed = 17, FanDamage = 10,
+			OrbitersEvery = 3, OrbitBack = 20, OrbitKey = "MiniGloop", OrbitCount = 3, OrbitRadius = 12, OrbitSpin = 1.1, OrbitCut = 0.3,
+			SwellEvery = 999, SwellKey = "Gloopy", SwellCount = 6,
+			Coins = 400,
+		},
+	}),
+	---------------------------------------------------------------- II HUNT · Graveyard
+	enemy({
+		Key = "BooSheet",
+		Name = "Boo Sheet",
+		Desc = "A shy ghost in a sheet. Floats through walls. Face it and it slows down; turn your back and it speeds up.",
+		HP = 16, Speed = 8, Damage = 6, XP = 2, Radius = 1.5,
+		Model = "BooSheet", Color = rgb(232, 241, 255), Accent = rgb(96, 130, 200),
+		Behavior = "Shy", MinTier = 2, Role = "Regular", Theme = "Graveyard", AnimType = "Float",
+		Spawn = { Weight = 0.8, From = 45 },
+		Params = { Seen = 0.6, Behind = 1.35, SeenArc = 0.52, BehindArc = 2.0, Ghost = true },
+	}),
+	enemy({
+		Key = "BonkSkull",
+		Name = "Bonk Skull",
+		Desc = "Rolls at you. Every few seconds it stops, opens its jaw (a line on the ground) and bonks straight ahead, bouncing off walls.",
+		HP = 18, Speed = 8.5, Damage = 7, XP = 2, Radius = 1.4,
+		Model = "BonkSkull", Color = rgb(245, 240, 224), Accent = rgb(70, 58, 58),
+		Behavior = "Bonk", Mass = 1.5, MinTier = 2, Role = "Regular", Theme = "Graveyard", AnimType = "Roll",
+		Spawn = { Weight = 0.7, From = 110 },
+		Params = { Every = 5, Trigger = 24, Windup = 0.7, DashLength = 18, DashSpeed = 34, Bounces = 1, Rest = 0.6 },
+	}),
+	enemy({
+		Key = "PumpkinKnight",
+		Name = "Pumpkin Knight",
+		Desc = "ELITE. Its round shield blocks hits from the front: go round it. Throws a fan of three sparks.",
+		HP = 45, Speed = 6.5, Damage = 10, XP = 5, Radius = 2.1,
+		Model = "PumpkinKnight", Color = rgb(249, 115, 22), Accent = rgb(107, 33, 168),
+		Behavior = "Knight", Mass = 3, CoinChance = 0.05, ItemChance = 2, MinTier = 2, Role = "Elite", Theme = "Graveyard", AnimType = "Bob",
+		Attacks = { "Front shield: blocks 85% of a hit from the front", "Spark fan: 3 sparks every 7 s after a 0.8 s flash" },
+		Phases = { { At = 0.5, Rate = 1.3, Name = "FURIOUS" } },
+		Params = { BlockArc = 1.0, BlockCut = 0.85, Every = 7, Windup = 0.8, FanShots = 3, FanSpread = 0.45, ProjSpeed = 17, ProjDamage = 9, ProjRadius = 1.1, ProjLife = 2.2 },
+	}),
+	enemy({
+		Key = "CountSeven",
+		Name = "COUNT SEVEN",
+		Desc = "Main boss of II HUNT. A chibi vampire: steps out of the night behind you, sends bat swarms, and at half HP raises the BLOOD MOON.",
+		HP = 80000, Speed = 8.5, Damage = 22, XP = 1000, Radius = 6.5,
+		Model = "CountSeven", Color = rgb(241, 228, 243), Accent = rgb(185, 28, 28),
+		Behavior = "Boss", Mass = 120, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 2, Role = "Boss", Theme = "Graveyard", AnimType = "Boss",
+		Attacks = { "Night step: fades out, reappears behind you, cape strike in an arc", "Bat swarm: a ring of 12 Buzz Bats", "BLOOD MOON at 50%: bats keep coming until you deal enough damage" },
+		Params = {
+			Title = "COUNT SEVEN",
+			Final = true,
+			ShotRoom = 60,
+			Patterns = { "NightStep", "BatSwarm", "Slam" },
+			PhasePatterns = { [2] = { "BloodMoon" } },
+			NightStepEvery = 7, StepFade = 0.3, StepBehind = 7, CapeDelay = 1.1, CapeRadius = 13, CapeArc = 1.1, CapeDamage = 26,
+			BatSwarmEvery = 11, BatCount = 12, BatKey = "BuzzBat",
+			SlamEvery = 6, SlamRadius = 9, SlamDelay = 1.1, SlamDamage = 22,
+			BloodMoonEvery = 999, MoonShare = 0.12, MoonBats = 4, MoonBatEvery = 3.5,
+			Coins = 400,
+		},
+	}),
+	---------------------------------------------------------------- III HORDE · Desert
+	enemy({
+		Key = "Wrappy",
+		Name = "Wrappy",
+		Desc = "A mummy that never stops walking. When it falls it unwraps: stepping on its bandages slows you.",
+		HP = 24, Speed = 7.5, Damage = 7, XP = 3, Radius = 1.4,
+		Model = "Wrappy", Color = rgb(231, 217, 176), Accent = rgb(74, 222, 128),
+		Behavior = "Chase", MinTier = 3, Role = "Regular", Theme = "Desert", AnimType = "Bob",
+		Spawn = { Weight = 0.9, From = 40 },
+		Params = { Unwrap = { Count = 4, Radius = 2.4, Spread = 3.5, Time = 1.5, Slow = 0.8 } },
+	}),
+	enemy({
+		Key = "Scorp",
+		Name = "Scorp",
+		Desc = "Keeps its distance; its tail flashes, then it shoots a slow stinger.",
+		HP = 22, Speed = 8.5, Damage = 6, XP = 3, Radius = 1.4,
+		Model = "Scorp", Color = rgb(217, 119, 6), Accent = rgb(120, 60, 10),
+		Behavior = "Stinger", MinTier = 3, Role = "Regular", Theme = "Desert", AnimType = "Bob",
+		Spawn = { Weight = 0.55, From = 130 },
+		Params = { Keep = 12, Every = 3.4, Windup = 0.7, ProjSpeed = 14, ProjDamage = 8, ProjRadius = 1.0, ProjLife = 2.4 },
+	}),
+	enemy({
+		Key = "SandGolem",
+		Name = "Sand Golem",
+		Desc = "ELITE. Floating sandstone blocks. Raises its fists and slams an 8-stud circle; the ground stays cracked.",
+		HP = 60, Speed = 5, Damage = 12, XP = 6, Radius = 2.4,
+		Model = "SandGolem", Color = rgb(194, 163, 107), Accent = rgb(45, 212, 191),
+		Behavior = "Golem", Mass = 5, CoinChance = 0.05, ItemChance = 2, MinTier = 3, Role = "Elite", Theme = "Desert", AnimType = "Float",
+		Attacks = { "Fist slam every 6 s: an 8-stud circle (1 s), cracked ground for 3 s" },
+		Phases = { { At = 0.5, Rate = 1.3, Name = "CRUMBLING" } },
+		Params = { Every = 6, Trigger = 18, Windup = 1.0, SlamRadius = 8, SlamDamage = 16, Crack = { Count = 3, Radius = 2.6, Time = 3, Damage = 4 } },
+	}),
+	enemy({
+		Key = "SandSpout",
+		Name = "Sand Spout",
+		Desc = "PHARAOH SIXSEVEN's whirlwinds. They sweep the arena for a few seconds.",
+		HP = 120, Speed = 9, Damage = 8, XP = 1, Radius = 2.2,
+		Model = "SandSpout", Color = rgb(222, 196, 140), Accent = rgb(160, 120, 70),
+		Behavior = "Roam", Mass = 999, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Desert", AnimType = "Spin", Collection = false,
+		Params = { Fly = true, Lifetime = 9 },
+	}),
+	enemy({
+		Key = "PharaohSixseven",
+		Name = "PHARAOH SIXSEVEN",
+		Desc = "Main boss of III HORDE. A floating golden mask with two giant hands and a ring of 6 and 7 tiles.",
+		HP = 80000, Speed = 7.5, Damage = 22, XP = 1000, Radius = 7,
+		Model = "PharaohSixseven", Color = rgb(250, 204, 21), Accent = rgb(20, 184, 166),
+		Behavior = "Boss", Mass = 140, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 3, Role = "Boss", Theme = "Desert", AnimType = "Boss",
+		Attacks = { "Sandstorm: 3 whirlwinds sweep the arena", "Clap: the hands slam where you stand, twice", "3 small Sand Golems rise", "Phase 2: the tile ring fires its tiles one by one" },
+		Params = {
+			Title = "PHARAOH SIXSEVEN",
+			Final = true,
+			ShotRoom = 60,
+			Patterns = { "Sandstorm", "Clap", "RaiseGolems" },
+			PhasePatterns = { [2] = { "TileVolley" } },
+			SandstormEvery = 13, SpoutCount = 3, SpoutKey = "SandSpout",
+			ClapEvery = 5.5, ClapDelay = 1.1, ClapRadius = 7, ClapDamage = 26, ClapGap = 0.6,
+			RaiseGolemsEvery = 16, GolemCount = 3, GolemKey = "SandGolem",
+			TileVolleyEvery = 7, TileCount = 6, TileGap = 0.35, TileSpeed = 22, TileDamage = 12,
+			Coins = 400,
+		},
+	}),
+	---------------------------------------------------------------- IV NIGHTMARE · Frostbite
+	enemy({
+		Key = "SnowyPal",
+		Name = "Snowy Pal",
+		Desc = "A friendly-looking snowman that throws snowballs from afar, and rolls into you up close.",
+		HP = 22, Speed = 7.5, Damage = 7, XP = 3, Radius = 1.5,
+		Model = "SnowyPal", Color = rgb(244, 248, 252), Accent = rgb(239, 68, 68),
+		Behavior = "Lobber", MinTier = 4, Role = "Regular", Theme = "Frostbite", AnimType = "Bob",
+		Spawn = { Weight = 0.7, From = 60 },
+		Params = { Keep = 14, Every = 3.4, Windup = 0.7, ProjSpeed = 15, ProjDamage = 7, ProjRadius = 1.2, ProjLife = 1.5, RollTrigger = 5, RollTime = 0.45, RollSpeed = 22, Rest = 0.6 },
+	}),
+	enemy({
+		Key = "FrostWisp",
+		Name = "Frost Wisp",
+		Desc = "A fast ice crystal. Its trail slows you; it bursts into a ring of ice when it breaks.",
+		HP = 14, Speed = 13.5, Damage = 6, XP = 2, Radius = 1.1,
+		Model = "FrostWisp", Color = rgb(125, 211, 252), Accent = rgb(224, 242, 254),
+		Behavior = "Wisp", Mass = 0.8, MinTier = 4, Role = "Regular", Theme = "Frostbite", AnimType = "Spin",
+		Spawn = { Weight = 0.6, From = 150 },
+		Params = { Fly = true, TrailEvery = 0.45, TrailRadius = 2.2, TrailTime = 1.5, Slow = 0.7, BurstCount = 8, BurstSpeed = 11, BurstDamage = 5, BurstLife = 1.1 },
+	}),
+	enemy({
+		Key = "YetiChonk",
+		Name = "Yeti Chonk",
+		Desc = "ELITE. A big fluffy yeti with an ice club. Crouches, charges, and smashes a line of ice spikes ahead of it.",
+		HP = 70, Speed = 5.5, Damage = 12, XP = 7, Radius = 2.6,
+		Model = "YetiChonk", Color = rgb(248, 250, 252), Accent = rgb(56, 189, 248),
+		Behavior = "Yeti", Mass = 5, CoinChance = 0.05, ItemChance = 2, MinTier = 4, Role = "Elite", Theme = "Frostbite", AnimType = "Bob",
+		Attacks = { "Charge every 5 s after a 0.9 s crouch", "Ice spikes: a 14-stud line ahead (0.8 s)" },
+		Phases = { { At = 0.5, Rate = 1.3, Name = "FURIOUS" } },
+		Params = { Every = 5, Trigger = 22, Windup = 0.9, DashTime = 0.45, DashSpeed = 26, SpikeLength = 14, SpikeWidth = 4, SpikeDelay = 0.8, SpikeDamage = 16, Rest = 0.8 },
+	}),
+	enemy({
+		Key = "PenguinPrime",
+		Name = "EMPEROR PENGUIN PRIME",
+		Desc = "Main boss of IV NIGHTMARE. A giant penguin with an ice crown: belly slides that bounce off the arena, ice spikes in a grid, a frozen arena.",
+		HP = 80000, Speed = 7.5, Damage = 22, XP = 1000, Radius = 7,
+		Model = "PenguinPrime", Color = rgb(30, 41, 59), Accent = rgb(125, 211, 252),
+		Behavior = "Boss", Mass = 140, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 4, Role = "Boss", Theme = "Frostbite", AnimType = "Boss",
+		Attacks = { "Belly slide across the arena, bouncing off the edge twice", "Ice spikes in a grid", "FREEZE at 50%: icy patches and Snowy Pals at the edge" },
+		Params = {
+			Title = "EMPEROR PENGUIN PRIME",
+			Final = true,
+			ShotRoom = 60,
+			Patterns = { "BellySlide", "SpikeGrid" },
+			PhasePatterns = { [2] = { "IceArena" } },
+			BellySlideEvery = 7.5, SlideWindup = 1.2, SlideWidth = 9, SlideSpeed = 46, SlideBounces = 2, SlideDamage = 28,
+			SpikeGridEvery = 6, GridSize = 5, GridStep = 7, GridRadius = 2.8, GridDelay = 1.2, GridDamage = 22, GridFill = 0.45,
+			IceArenaEvery = 18, IcePatches = 6, IceRadius = 7, IceTime = 14, IceSlow = 0.6, IcePals = 4, IcePalKey = "SnowyPal",
+			Coins = 400,
+		},
+	}),
+	---------------------------------------------------------------- V INFERNO · Volcano
+	enemy({
+		Key = "MagmaBun",
+		Name = "Magma Bun",
+		Desc = "A cracked lava bun. Leaves little fire puddles behind it: don't follow it.",
+		HP = 26, Speed = 8, Damage = 7, XP = 3, Radius = 1.5,
+		Model = "MagmaBun", Color = rgb(63, 29, 20), Accent = rgb(251, 146, 60),
+		Behavior = "Cinder", MinTier = 5, Role = "Regular", Theme = "Volcano", AnimType = "Bob",
+		Spawn = { Weight = 0.8, From = 50 },
+		Params = { TrailEvery = 0.9, TrailRadius = 2.3, TrailTime = 2, TrailDamage = 4 },
+	}),
+	enemy({
+		Key = "ImpPop",
+		Name = "Imp Pop",
+		Desc = "A little red imp with a trident. Shoots fireballs one at a time, and pops when it dies (step out of the circle).",
+		HP = 18, Speed = 10, Damage = 6, XP = 2, Radius = 1.3,
+		Model = "ImpPop", Color = rgb(239, 68, 68), Accent = rgb(30, 20, 24),
+		Behavior = "Imp", MinTier = 5, Role = "Regular", Theme = "Volcano", AnimType = "Hop",
+		Spawn = { Weight = 0.55, From = 150 },
+		Params = { Keep = 13, Every = 2.8, Windup = 0.7, ProjSpeed = 19, ProjDamage = 6, ProjRadius = 0.9, ProjLife = 2, PopRadius = 6, PopDelay = 0.7, PopDamage = 9 },
+	}),
+	enemy({
+		Key = "ObsidianCrab",
+		Name = "Obsidian Crab",
+		Desc = "ELITE. Walks sideways. Its shell takes 60% off every hit until it cracks open (10 hits): then 5 s of full damage.",
+		HP = 70, Speed = 6, Damage = 12, XP = 7, Radius = 2.6,
+		Model = "ObsidianCrab", Color = rgb(24, 24, 27), Accent = rgb(251, 146, 60),
+		Behavior = "Crab", Mass = 6, CoinChance = 0.05, ItemChance = 2, MinTier = 5, Role = "Elite", Theme = "Volcano", AnimType = "Bob",
+		Attacks = { "Obsidian shell: -60% damage, breaks after 10 hits for 5 s", "Claw pinch up close (0.75 s)" },
+		Phases = { { At = 0.5, Rate = 1.3, Name = "SNAPPY" } },
+		Params = { Side = 0.8, ShellHits = 10, ShellCut = 0.6, ShellBroken = 5, Every = 4, Trigger = 6, Windup = 0.75, PinchRadius = 4.5, PinchDamage = 15 },
+	}),
+	enemy({
+		Key = "Drako67",
+		Name = "DRAKO 67",
+		Desc = "Main boss of V INFERNO. A chibi dragon: fire breath in a cone, meteor rain, take-off and a shockwave landing.",
+		HP = 82000, Speed = 7.5, Damage = 24, XP = 1000, Radius = 7,
+		Model = "Drako67", Color = rgb(220, 38, 38), Accent = rgb(250, 204, 21),
+		Behavior = "Boss", Mass = 140, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 5, Role = "Boss", Theme = "Volcano", AnimType = "Boss",
+		Attacks = { "Fire breath: a 90° cone (1 s)", "Meteor rain: 8 circles, 1.2 s", "Take-off: lands on you with a shockwave ring", "Phase 2: Imp Pops, everything faster" },
+		Params = {
+			Title = "DRAKO 67",
+			Final = true,
+			ShotRoom = 60,
+			Patterns = { "FireBreath", "Meteors", "Takeoff" },
+			PhasePatterns = { [2] = { "Summon" } },
+			FireBreathEvery = 5.5, BreathDelay = 1.0, BreathRadius = 24, BreathHalf = 0.785, BreathDamage = 26,
+			MeteorsEvery = 9, MeteorCount = 8, MeteorRadius = 5, MeteorSpread = 20, MeteorDelay = 1.2, MeteorDamage = 22,
+			TakeoffEvery = 11, TakeoffTime = 1.6, LandRadius = 10, LandDamage = 28, LandRing = 18, LandRingSpeed = 15, LandRingDamage = 10,
+			SummonEvery = 13, SummonCount = 4, SummonKey = "ImpPop",
+			Coins = 400,
+		},
+	}),
+	---------------------------------------------------------------- VI OBLIVION · Cyber Glitch
+	enemy({
+		Key = "PixelBit",
+		Name = "Pixel Bit",
+		Desc = "Eight neon cubes in a trench coat. Glitches 5 studs sideways every 2 s.",
+		HP = 16, Speed = 9, Damage = 6, XP = 2, Radius = 1.3,
+		Model = "PixelBit", Color = rgb(34, 211, 238), Accent = rgb(244, 114, 182),
+		Behavior = "Glitchy", MinTier = 6, Role = "Regular", Theme = "Cyber", AnimType = "Jitter",
+		Spawn = { Weight = 0.8, From = 50 },
+		Params = { Every = 2, Jump = 5 },
+	}),
+	enemy({
+		Key = "DronePod",
+		Name = "Drone Pod",
+		Desc = "Hovers out of reach, draws a thin red line at you, then fires a laser down it.",
+		HP = 20, Speed = 9, Damage = 5, XP = 3, Radius = 1.3,
+		Model = "DronePod", Color = rgb(241, 245, 249), Accent = rgb(59, 130, 246),
+		Behavior = "Sniper", MinTier = 6, Role = "Regular", Theme = "Cyber", AnimType = "Float",
+		Spawn = { Weight = 0.5, From = 160 },
+		Params = { Fly = true, Keep = 14, Every = 4, Aim = 0.8, ProjSpeed = 60, ProjRadius = 0.8, ProjDamage = 9 },
+	}),
+	enemy({
+		Key = "FirewallBot",
+		Name = "Firewall Bot",
+		Desc = "ELITE. A monitor-headed robot behind a holo shield that blocks your shots from the front. Calls Pixel Bits.",
+		HP = 70, Speed = 5.5, Damage = 11, XP = 7, Radius = 2.6,
+		Model = "FirewallBot", Color = rgb(30, 41, 59), Accent = rgb(45, 212, 191),
+		Behavior = "Firewall", Mass = 5, CoinChance = 0.05, ItemChance = 2, MinTier = 6, Role = "Elite", Theme = "Cyber", AnimType = "Bob",
+		Attacks = { "Holo shield in front: blocks 90% until it breaks", "Calls 4 Pixel Bits every 8 s" },
+		Phases = { { At = 0.5, Rate = 1.3, Name = "ANGRY" } },
+		Params = { GuardHP = 1.6, GuardCut = 0.9, GuardArc = 1.1, Every = 8, SummonKey = "PixelBit", SummonCount = 4 },
+	}),
+	enemy({
+		Key = "OverclockHolo",
+		Name = "Hologram",
+		Desc = "OVERCLOCK-6's decoys: a red core means fake. One hit pops them.",
+		HP = 1, Speed = 6, Damage = 8, XP = 0, Radius = 3.2,
+		Model = "OverclockHolo", Color = rgb(150, 220, 255), Accent = rgb(255, 80, 90),
+		Behavior = "Holo", Mass = 999, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Cyber", AnimType = "Float", Collection = false,
+		Params = { Fly = true, Lifetime = 9, Every = 2.4, Count = 10, ProjSpeed = 14, ProjDamage = 9 },
+	}),
+	enemy({
+		Key = "Overclock6",
+		Name = "OVERCLOCK-6",
+		Desc = "Main boss of VI OBLIVION. A giant screen-faced robot: a laser that sweeps the arena, digital rain, hologram decoys, then OVERCLOCK.",
+		HP = 82000, Speed = 7.5, Damage = 24, XP = 1000, Radius = 7,
+		Model = "Overclock6", Color = rgb(51, 65, 85), Accent = rgb(34, 211, 238),
+		Behavior = "Boss", Mass = 140, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 6, Role = "Boss", Theme = "Cyber", AnimType = "Boss",
+		Attacks = { "Laser sweep: lines turn round the arena", "Digital rain: columns light up, then pixels fall", "Holograms: two fakes with red cores", "OVERCLOCK at 50%: +40% attack speed" },
+		Params = {
+			Title = "OVERCLOCK-6",
+			Final = true,
+			ShotRoom = 60,
+			Patterns = { "LaserSweep", "DigitalRain", "Hologram" },
+			PhasePatterns = { [2] = { "Overclock" } },
+			LaserSweepEvery = 8, LaserLines = 8, LaserStep = 0.42, LaserGap = 0.28, LaserDelay = 1.1, LaserLength = 60, LaserWidth = 4.5, LaserDamage = 26,
+			DigitalRainEvery = 7, RainCols = 4, RainRows = 4, RainStep = 8, RainRadius = 3.4, RainDelay = 1.2, RainDamage = 22,
+			HologramEvery = 16, HoloCount = 2, HoloKey = "OverclockHolo",
+			OverclockEvery = 999, OverclockRate = 1.4,
+			Coins = 400,
+		},
+	}),
+	---------------------------------------------------------------- VII THE 67 · Void
+	enemy({
+		Key = "Voidling",
+		Name = "Voidling",
+		Desc = "A fast little piece of the void. Up close it pulls at you: walking away is slower.",
+		HP = 22, Speed = 12.5, Damage = 8, XP = 3, Radius = 1.3,
+		Model = "Voidling", Color = rgb(15, 10, 31), Accent = rgb(192, 132, 252),
+		Behavior = "Voidling", MinTier = 7, Role = "Regular", Theme = "Void", AnimType = "Float",
+		Spawn = { Weight = 0.8, From = 40 },
+		Params = { Fly = true, PullRadius = 9, PullSlow = 0.86 },
+	}),
+	enemy({
+		Key = "StarEater",
+		Name = "Star Eater",
+		Desc = "A one-eyed black planet with three moons. Throws its moons at you; each one flies back 3 s later.",
+		HP = 34, Speed = 7, Damage = 7, XP = 4, Radius = 1.8,
+		Model = "StarEater", Color = rgb(17, 24, 39), Accent = rgb(168, 85, 247),
+		Behavior = "Moons", Mass = 2, MinTier = 7, Role = "Regular", Theme = "Void", AnimType = "Float",
+		Spawn = { Weight = 0.5, From = 170 },
+		Params = { Fly = true, Keep = 15, Every = 2.2, Moons = 3, Return = 3, Windup = 0.7, ProjSpeed = 14, ProjDamage = 8, ProjRadius = 1.2, ProjLife = 1.6 },
+	}),
+	enemy({
+		Key = "EclipseKnight",
+		Name = "Eclipse Knight",
+		Desc = "ELITE. A dark knight with a golden halo. Eclipses the ground around it (you walk slower inside) and lunges with its spear.",
+		HP = 75, Speed = 7, Damage = 12, XP = 8, Radius = 2.4,
+		Model = "EclipseKnight", Color = rgb(46, 16, 101), Accent = rgb(250, 204, 21),
+		Behavior = "Eclipse", Mass = 4, CoinChance = 0.05, ItemChance = 2, MinTier = 7, Role = "Elite", Theme = "Void", AnimType = "Bob",
+		Attacks = { "Eclipse every 6 s: a 10-stud dark circle, -25% speed inside for 4 s", "Spear lunge (0.75 s line)" },
+		Phases = { { At = 0.5, Rate = 1.3, Name = "TOTALITY" } },
+		Params = {
+			EclipseEvery = 6, EclipseRadius = 10, EclipseDelay = 0.8, EclipseTime = 4, EclipseSlow = 0.75,
+			Every = 4, Trigger = 18, Windup = 0.75, DashTime = 0.45, DashSpeed = 34, Rest = 0.6,
+		},
+	}),
+	enemy({
+		Key = "Final67",
+		Name = "THE 67",
+		Desc = "The final boss of VII THE 67: two giant floating digits and a crowned void face. Every boss you met comes back as an echo.",
+		HP = 140000, Speed = 7, Damage = 26, XP = 1000, Radius = 8,
+		Model = "Final67", Color = rgb(15, 10, 31), Accent = rgb(192, 132, 252),
+		Behavior = "Boss", Mass = 160, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 7, Role = "Boss", Theme = "Void", AnimType = "Boss",
+		Attacks = {
+			"Phase 1: the 6 smashes where you stand, the 7 fires beams, black holes pull at the edge",
+			"Phase 2 (<66%): echoes of the earlier bosses, star meteors",
+			"Phase 3 (<33%): the digits fuse into 67; everything at once, the arena shrinks",
+		},
+		Params = {
+			Title = "THE 67",
+			Final = true,
+			ShotRoom = 70,
+			Patterns = { "SixSmash", "SevenBeams", "BlackHoles" },
+			PhasePatterns = { [2] = { "EchoCall", "Meteors" } },
+			PhaseSets = { [3] = { "SixSmash", "SevenBeams", "BlackHoles", "EchoCall", "Meteors", "DoomRing" } },
+			EdgeErase = 6, EdgeFrom = 3,
+			SixSmashEvery = 6, SmashDelay = 1.2, SmashRadius = 12, SmashDamage = 30, SmashDrops = 16, SmashDropSpeed = 13, SmashDropDamage = 9,
+			SevenBeamsEvery = 7, BeamCount = 3, BeamLength = 70, BeamWidth = 5, BeamDelay = 1.1, BeamGap = 0.35, BeamDamage = 26,
+			BlackHolesEvery = 14, HoleCount = 2, HoleRadius = 22, HoleSlow = 0.7, HoleTime = 9,
+			EchoCallEvery = 14, EchoKeys = { "EchoMegaSix", "EchoCount", "EchoPharaoh", "EchoPenguin", "EchoDrako", "EchoOverclock" },
+			MeteorsEvery = 10, MeteorCount = 9, MeteorRadius = 5, MeteorSpread = 20, MeteorDelay = 1.2, MeteorDamage = 24,
+			DoomRingEvery = 8, DoomCount = 40, DoomGap = 5, DoomSpeed = 14, DoomDamage = 22, DoomDelay = 1.3,
+			EraseDamage = 12,
+			Coins = 400,
+		},
+	}),
+	-- the echoes THE 67 calls back in its phase 2: shrunken earlier bosses, one signature move each
+	enemy({
+		Key = "EchoMegaSix", Name = "Echo of MEGA SIX", Desc = "An echo of MEGA SIX: it jumps onto you.",
+		HP = 260, Speed = 8, Damage = 12, XP = 4, Radius = 3,
+		Model = "MegaSix", Scale = 0.36, Color = rgb(150, 236, 136), Accent = rgb(58, 140, 50),
+		Behavior = "EchoBoss", Mass = 20, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Void", AnimType = "Hop", Collection = false,
+		Params = { Echo = "Jump", Every = 5, Windup = 1.0, AttackRadius = 7, AttackDamage = 20, Lifetime = 22 },
+	}),
+	enemy({
+		Key = "EchoCount", Name = "Echo of COUNT SEVEN", Desc = "An echo of COUNT SEVEN: it calls bats.",
+		HP = 260, Speed = 8, Damage = 12, XP = 4, Radius = 2.8,
+		Model = "CountSeven", Scale = 0.36, Color = rgb(241, 228, 243), Accent = rgb(185, 28, 28),
+		Behavior = "EchoBoss", Mass = 20, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Void", AnimType = "Float", Collection = false,
+		Params = { Echo = "Bats", Every = 6, Count = 5, Key = "BuzzBat", Lifetime = 22 },
+	}),
+	enemy({
+		Key = "EchoPharaoh", Name = "Echo of PHARAOH SIXSEVEN", Desc = "An echo of PHARAOH SIXSEVEN: its hands clap.",
+		HP = 260, Speed = 7, Damage = 12, XP = 4, Radius = 3,
+		Model = "PharaohSixseven", Scale = 0.36, Color = rgb(250, 204, 21), Accent = rgb(20, 184, 166),
+		Behavior = "EchoBoss", Mass = 20, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Void", AnimType = "Float", Collection = false,
+		Params = { Echo = "Clap", Every = 4.5, Windup = 1.0, AttackRadius = 6, AttackDamage = 20, Lifetime = 22 },
+	}),
+	enemy({
+		Key = "EchoPenguin", Name = "Echo of EMPEROR PENGUIN PRIME", Desc = "An echo of the penguin: it slides at you.",
+		HP = 260, Speed = 7, Damage = 12, XP = 4, Radius = 3,
+		Model = "PenguinPrime", Scale = 0.36, Color = rgb(30, 41, 59), Accent = rgb(125, 211, 252),
+		Behavior = "EchoBoss", Mass = 20, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Void", AnimType = "Bob", Collection = false,
+		Params = { Echo = "Slide", Every = 4.5, Windup = 1.0, DashTime = 0.6, DashSpeed = 36, AttackDamage = 18, Lifetime = 22 },
+	}),
+	enemy({
+		Key = "EchoDrako", Name = "Echo of DRAKO 67", Desc = "An echo of DRAKO 67: it breathes fire.",
+		HP = 260, Speed = 7, Damage = 12, XP = 4, Radius = 3,
+		Model = "Drako67", Scale = 0.36, Color = rgb(220, 38, 38), Accent = rgb(250, 204, 21),
+		Behavior = "EchoBoss", Mass = 20, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Void", AnimType = "Bob", Collection = false,
+		Params = { Echo = "Breath", Every = 5, Windup = 1.0, AttackRadius = 15, Half = 0.6, AttackDamage = 20, Lifetime = 22 },
+	}),
+	enemy({
+		Key = "EchoOverclock", Name = "Echo of OVERCLOCK-6", Desc = "An echo of OVERCLOCK-6: it fires a laser.",
+		HP = 260, Speed = 7, Damage = 12, XP = 4, Radius = 3,
+		Model = "Overclock6", Scale = 0.36, Color = rgb(51, 65, 85), Accent = rgb(34, 211, 238),
+		Behavior = "EchoBoss", Mass = 20, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Void", AnimType = "Float", Collection = false,
+		Params = { Echo = "Laser", Every = 4.5, Windup = 1.0, Length = 50, Width = 4, AttackDamage = 20, Lifetime = 22 },
+	}),
 } :: any)
 
 local EnemyData = {}
@@ -919,9 +1395,20 @@ EnemyData.ElitePool = {
 	"Husk", "Charger", "Spitter", "Splitter", "Blinker", "Brute", "Diver", "Leaper", "Summoner", "Ghost", "Sniper",
 	-- harder tiers (only when they are in the wave)
 	"Shielder", "Stampeder", "Wailer", "Hexer", "Cinder", "Eruptor", "Predator", "Warden",
+	-- the bestiary's regulars (only when they are in the wave)
+	"BooSheet", "BonkSkull", "Wrappy", "Scorp", "SnowyPal", "MagmaBun", "ImpPop", "DronePod", "StarEater",
 }
 
-local ECHO_KINDS = { "Charger", "Spitter", "Diver", "Leaper", "Sniper", "Stampeder", "Wailer", "Hexer", "Eruptor", "Predator" }
+-- the bestiary's own ELITE of a difficulty (Role = "Elite", its MinTier): the elite director
+-- brings it next to the affix elites of the pool above (Sim/Elites)
+EnemyData.TierElite = {} :: { [number]: string }
+for _, def in LIST do
+	if def.Role == "Elite" and def.MinTier then
+		EnemyData.TierElite[def.MinTier] = def.Key
+	end
+end
+
+local ECHO_KINDS = { "Charger", "Spitter", "Diver", "Leaper", "Sniper", "Stampeder", "Wailer", "Hexer", "Eruptor", "Predator", "Scorp", "SnowyPal", "ImpPop", "DronePod", "StarEater" }
 
 EnemyData.EliteAffixes = {
 	{ Key = "Swift", Name = "SWIFT", Desc = "Much faster", Speed = 1.45, MinTier = 1 },
