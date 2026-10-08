@@ -20,6 +20,8 @@ local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local CosmeticData = require(ReplicatedStorage:WaitForChild("Modules").CosmeticData)
 local GameConfig = require(ReplicatedStorage:WaitForChild("Modules").GameConfig)
+local AbilityConfig = require(ReplicatedStorage:WaitForChild("Modules").AbilityConfig)
+local TweenService = game:GetService("TweenService")
 
 local EffectsController = {}
 
@@ -106,15 +108,18 @@ function EffectsController:Init(controllers)
 	end
 	self.Emitters = {
 		Poof = emitter("Poof", SPARKLE, {}),
+		-- (the one effect style, shared/AbilityConfig.lua: soft round puffs, no smoke clouds;
+		-- every particle gone within MaxParticleLife)
 		Smoke = emitter("Smoke", SMOKE, {
-			Speed = NumberRange.new(4, 10),
-			Lifetime = NumberRange.new(0.5, 0.9),
-			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 2), NumberSequenceKeypoint.new(1, 4) }),
-			LightEmission = 0,
+			Speed = NumberRange.new(6, 12),
+			Lifetime = NumberRange.new(0.3, AbilityConfig.MaxParticleLife),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.6), NumberSequenceKeypoint.new(1, 2.6) }),
+			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) }),
+			LightEmission = 0.15,
 		}),
 		Big = emitter("Big", SPARKLE, {
 			Speed = NumberRange.new(30, 60),
-			Lifetime = NumberRange.new(0.6, 1.2),
+			Lifetime = NumberRange.new(0.35, AbilityConfig.MaxParticleLife),
 			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 3), NumberSequenceKeypoint.new(1, 0) }),
 		}),
 		Pixel = emitter("Pixel", "rbxasset://textures/particles/explosion01_core_main.dds", {
@@ -128,6 +133,9 @@ function EffectsController:Init(controllers)
 
 	-- rings
 	self.Rings = {}
+	self.Flashes = {}
+	self.FlashFree = {}
+	self.Anchor = anchor
 	self.RingFree = {}
 	for _ = 1, MAX_RINGS do
 		local ring = Instance.new("Part")
@@ -205,7 +213,8 @@ function EffectsController:Emit(kind: string, pos: Vector3, color: Color3, count
 	local att = e.Parent :: Attachment
 	att.Position = pos
 	e.Color = ColorSequence.new(color)
-	e:Emit(math.ceil(count * self:ParticleScale()))
+	-- few particles: never more than MaxParticles for one effect
+	e:Emit(math.ceil(math.min(count, AbilityConfig.MaxParticles) * self:ParticleScale()))
 end
 
 function EffectsController:Poof(x: number, z: number, color: Color3, count: number?)
@@ -300,6 +309,32 @@ function EffectsController:DamageNumber(e, damage: number, flags: number)
 		size *= 1.3
 	end
 	self:WorldText(pos, short(damage) .. (if crit then "!" else ""), color, size)
+	self:HitFlash(run:World(e.RX or e.X1, e.RZ or e.Z1, (e.Item and e.Item.Info.Height or 2)), if crit or weak or big then color else nil)
+end
+
+-- every hit: a small neon flash on the enemy (AbilityConfig.HitFlash), a few at a time
+function EffectsController:HitFlash(pos: Vector3, color: Color3?)
+	local cfg = AbilityConfig.HitFlash
+	local flashes = self.Flashes
+	if #flashes >= cfg.PerFrame then
+		return
+	end
+	local ball = table.remove(self.FlashFree)
+	if not ball then
+		ball = Instance.new("Part")
+		ball.Name = "HitFlash"
+		ball.Shape = Enum.PartType.Ball
+		ball.Material = Enum.Material.Neon
+		ball.Anchored = true
+		ball.CanCollide = false
+		ball.CanQuery = false
+		ball.CanTouch = false
+		ball.CastShadow = false
+		ball.Parent = self.Anchor
+	end
+	ball.Color = color or rgb(255, 255, 240)
+	ball.CFrame = CFrame.new(pos)
+	table.insert(flashes, { Part = ball, T = 0 })
 end
 
 local function playerPos(): Vector3?
@@ -564,11 +599,34 @@ function EffectsController:Update(dt: number)
 			rings[i] = rings[#rings]
 			rings[#rings] = nil
 		else
-			local ease = 1 - (1 - t) ^ 3
-			local radius = r.From + (r.To - r.From) * ease
+			-- appear with a little overshoot (Back), fade out (Quad): shared/AbilityConfig.lua Ease
+			local ein, eout = AbilityConfig.Ease.In, AbilityConfig.Ease.Out
+			local radius = r.From + (r.To - r.From) * TweenService:GetValue(t, ein.Style, ein.Direction)
 			r.Part.Size = Vector3.new(0.3, radius * 2, radius * 2)
 			r.Part.CFrame = CFrame.new(r.Pos) * CFrame.Angles(0, 0, math.rad(90))
-			r.Part.Transparency = 0.2 + 0.8 * t
+			r.Part.Transparency = 0.2 + 0.8 * TweenService:GetValue(t, eout.Style, eout.Direction)
+			i += 1
+		end
+	end
+
+	-- hit flashes: a quick neon pop
+	local flashes = self.Flashes
+	local life = AbilityConfig.HitFlash.Time
+	local size = AbilityConfig.HitFlash.Size
+	i = 1
+	while i <= #flashes do
+		local f = flashes[i]
+		f.T += dt
+		local t = f.T / life
+		if t >= 1 then
+			f.Part.CFrame = PARK
+			table.insert(self.FlashFree, f.Part)
+			flashes[i] = flashes[#flashes]
+			flashes[#flashes] = nil
+		else
+			local d = size * (0.6 + 0.6 * t)
+			f.Part.Size = Vector3.new(d, d, d)
+			f.Part.Transparency = 0.15 + 0.85 * t
 			i += 1
 		end
 	end

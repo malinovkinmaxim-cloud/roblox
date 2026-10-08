@@ -111,7 +111,16 @@ end
 local function pickKind(run): string
 	local own = EnemyData.TierElite[run.Difficulty or 2]
 	if own and run.Rng:NextNumber() < CFG.SignatureShare then
-		return own
+		-- (one of them at a time: a second elite is a classic one)
+		local out = false
+		for _, e in run.Elites do
+			if e.Alive and e.Key == own then
+				out = true
+			end
+		end
+		if not out then
+			return own
+		end
 	end
 	local _, entry = WaveData.EntryAt(run.Time)
 	local weights = {}

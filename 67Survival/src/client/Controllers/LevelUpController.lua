@@ -220,6 +220,9 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 	})
 	Kit.Corner(button, 16)
 	local stroke = Kit.Stroke(button, if rare then 2.5 else 1.5, rarity, if rare then 0.1 else 0.55)
+	if card.Rarity == "Mythic" or card.Type == "Evolution" then
+		Cards.RarityBorder(button, "Mythic") -- the animated pink -> cyan -> gold border with its shine
+	end
 	local scale = Kit.New("UIScale", { Parent = button })
 
 	if not Kit.IsTouch() then
@@ -259,7 +262,7 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 	})
 	Kit.Label({
 		Name = "CardTitle",
-		Text = card.Title,
+		Text = string.upper(card.Title),
 		Size = UDim2.new(1, -24, 0, 26),
 		Position = UDim2.fromOffset(12, 154),
 		Font = F.Title,

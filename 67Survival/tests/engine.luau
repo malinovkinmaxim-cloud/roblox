@@ -772,6 +772,30 @@ local function makeStubs(world)
 			function tween.Pause() end
 			return tween
 		end,
+		-- the easing curves (the "in" curve of each style; Out / InOut mirror it like Roblox)
+		GetValue = function(_self, alpha, style, direction)
+			local c1 = 1.70158
+			local curves = {
+				Linear = function(t) return t end,
+				Quad = function(t) return t * t end,
+				Cubic = function(t) return t * t * t end,
+				Quart = function(t) return t ^ 4 end,
+				Quint = function(t) return t ^ 5 end,
+				Sine = function(t) return 1 - math.cos(t * math.pi / 2) end,
+				Back = function(t) return (c1 + 1) * t * t * t - c1 * t * t end,
+				Exponential = function(t) return if t == 0 then 0 else 2 ^ (10 * t - 10) end,
+				Circular = function(t) return 1 - math.sqrt(1 - t * t) end,
+			}
+			local f = curves[style.Name] or curves.Linear
+			local t = math.clamp(alpha, 0, 1)
+			local d = direction.Name
+			if d == "In" then
+				return f(t)
+			elseif d == "Out" then
+				return 1 - f(1 - t)
+			end
+			return if t < 0.5 then f(2 * t) / 2 else 1 - f(2 - 2 * t) / 2
+		end,
 	}
 	stubs.PhysicsService = {
 		RegisterCollisionGroup = function() end,

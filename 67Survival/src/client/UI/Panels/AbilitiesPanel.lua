@@ -28,7 +28,7 @@ local Panel = {}
 Panel.Kind = "Screen"
 Panel.Title = "ABILITIES"
 
-local CARD = Vector2.new(250, 196)
+local CARD = Vector2.new(230, 300) -- the hero cards' layout: the preview on top
 local TABS = { "PROJECTILE", "AREA", "MELEE", "SUMMON", "DEFENSIVE", "SPECIAL", "PASSIVE", "EVOLUTIONS" }
 local LABELS = {
 	PROJECTILE = "PROJECTILE",
@@ -67,13 +67,13 @@ function Panel.Build(body: Frame, controllers)
 		local page = if def.Evolution then state.Pages.EVOLUTIONS else state.Pages[def.Category]
 		if page then
 			local ui = Cards.Item(page, {
-				Name = def.Name,
+				Name = string.upper(def.Name),
 				Desc = def.Desc,
 				Rarity = def.Rarity,
 				Order = order,
-				PictureHeight = 72,
-				Side = true,
+				PictureHeight = 96,
 				ButtonWidth = 112,
+				RarityBorder = true,
 				OnClick = function()
 					Panel.Click(state, def)
 				end,
@@ -85,7 +85,7 @@ function Panel.Build(body: Frame, controllers)
 				Name = "Stats",
 				Text = Cards.WeaponStats(def),
 				Size = UDim2.new(1, -24, 0, 16),
-				Position = UDim2.fromOffset(12, 132),
+				Position = UDim2.fromOffset(12, 214),
 				Font = F.Bold,
 				TextScaled = false,
 				TextSize = 13,
@@ -104,13 +104,13 @@ function Panel.Build(body: Frame, controllers)
 	for _, def in UpgradeData.Passives do
 		order += 1
 		local ui = Cards.Item(state.Pages.PASSIVE, {
-			Name = def.Name,
+			Name = string.upper(def.Name),
 			Desc = def.Desc,
 			Rarity = def.Rarity,
 			Order = order,
-			PictureHeight = 72,
-			Side = true,
+			PictureHeight = 96,
 			ButtonWidth = 112,
+			RarityBorder = true,
 		})
 		Icons.Make(ui.Picture, "Stat", def.Key, 56, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
 		ui.Passive = def
@@ -153,7 +153,7 @@ function Panel.Refresh(state, data)
 			if def.Evolution then
 				-- evolutions: the recipe; ??? until reached once
 				local reached = seenEvo[def.Key] == true
-				ui.Name.Text = if reached then def.Name else "???"
+				ui.Name.Text = if reached then string.upper(def.Name) else "???"
 				ui.Desc.Text = ui.Recipe
 				Cards.Set(ui, if reached then "OWNED" else "", nil)
 				ui.Need.Text = if reached then "Reached" else "Evolve it in a run"
@@ -165,7 +165,7 @@ function Panel.Refresh(state, data)
 					Cards.Set(ui, "OWNED", "SET START", C.Neutral)
 				end
 				ui.Need.Text = def.MaxLevel .. " levels"
-				ui.Name.Text = def.Name
+				ui.Name.Text = string.upper(def.Name)
 				ui.Preview.ImageColor3 = Color3.new(1, 1, 1)
 			elseif def.Unlock.Secret then
 				ui.Name.Text = "???"
@@ -189,7 +189,7 @@ function Panel.Refresh(state, data)
 			ui.Desc.Text = "A secret passive. Find the secret."
 			Cards.Set(ui, "LOCKED", nil)
 		else
-			ui.Name.Text = def.Name
+			ui.Name.Text = string.upper(def.Name)
 			ui.Desc.Text = def.Desc
 			Cards.Set(ui, "", nil)
 			ui.Need.Text = def.Category .. "  ·  " .. def.MaxLevel .. (if def.MaxLevel == 1 then " level" else " levels")

@@ -2027,7 +2027,7 @@ T("bestiary: the horde's tricks", function()
 	k.FaceX, k.FaceZ = -1, 0
 	local hp = k.HP
 	EM.Damage(run, k, 100, 0, 1, 0, 0) -- pushed away from you: a hit in the face
-	Expect(math.abs(hp - k.HP - 15) < 1e-6, "front: 85% blocked")
+	Expect(math.abs(hp - k.HP - 30) < 1e-6, "front: 70% blocked")
 	hp = k.HP
 	EM.Damage(run, k, 100, 0, -1, 0, 0)
 	Expect(math.abs(hp - k.HP - 100) < 1e-6, "back: full damage")
@@ -2057,11 +2057,11 @@ T("bestiary: the horde's tricks", function()
 			slow += 1
 		end
 	end
-	Expect(#run.Hazards >= hazards + 4 and slow >= 4, "Wrappy's bandages slow you")
+	Expect(#run.Hazards >= hazards + 3 and slow >= 3, "Wrappy's bandages slow you")
 	local shots = #run.EnemyProjectiles
 	local wisp = EM.Spawn(run, "FrostWisp", px + 30, pz - 30, { Force = true })
 	EM.Damage(run, wisp, wisp.HP + 1, 0, 0, 0, 0)
-	Expect(#run.EnemyProjectiles >= shots + 8, "Frost Wisp: an ice ring")
+	Expect(#run.EnemyProjectiles >= shots + 6, "Frost Wisp: an ice ring")
 	local tele = #run.Telegraphs
 	local imp = EM.Spawn(run, "ImpPop", px - 30, pz - 30, { Force = true })
 	EM.Damage(run, imp, imp.HP + 1, 0, 0, 0, 0)

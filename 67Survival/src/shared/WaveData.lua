@@ -143,7 +143,7 @@ for _, def in EnemyData.List do
 		table.insert(WaveData.TierPools, { Key = def.Key, MinTier = def.MinTier or 1, From = spawn.From, Weight = spawn.Weight, Pack = spawn.Pack, Pair = spawn.Pair })
 	end
 end
-WaveData.TierShare = 0.35 -- the most the tier pools may weigh next to the classic mix
+WaveData.TierShare = 0.25 -- the most the tier pools may weigh next to the classic mix
 WaveData.TierFalloff = 0.5 -- an earlier difficulty's enemies weigh this much per difficulty below
 WaveData.TierPoolByKey = {}
 for _, pool in WaveData.TierPools do

@@ -15,9 +15,13 @@
 	  buttonText = nil hides the button.
 ]]
 
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Kit = require(script.Parent.Kit)
 local Theme = require(script.Parent.Theme)
 local Widgets = require(script.Parent.Widgets)
+local AbilityConfig = require(ReplicatedStorage:WaitForChild("Modules").AbilityConfig)
 
 local Cards = {}
 
@@ -33,6 +37,7 @@ export type ItemOptions = {
 	Side: boolean?, -- picture on the left of the name (compact cards)
 	ButtonWidth: number?, -- small button bottom-right (the unlock hint sits on its left)
 	Width: number?, -- the grid cell width: a long unlock hint under a wide button gets 2 lines
+	RarityBorder: boolean?, -- a thin border in the rarity colour (abilities); Mythic: animated + a shine
 	OnClick: (() -> ())?,
 }
 
@@ -59,6 +64,9 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 	card.BackgroundColor3 = C.Surface
 	card.BackgroundTransparency = Theme.Glass
 	local rarityColor = if options.Rarity then Theme.Rarity[options.Rarity] or Theme.Rarity.Common else nil
+	if options.RarityBorder and rarityColor then
+		Cards.RarityBorder(card, options.Rarity :: string)
+	end
 	local pad = 12
 	local side = options.Side == true
 	local ph = options.PictureHeight or 120
@@ -199,6 +207,35 @@ function Cards.Item(parent: Instance, options: ItemOptions): ItemCard
 		Button = button,
 		ButtonLabel = label,
 	}
+end
+
+-- a thin border in the rarity colour; a Mythic card's border is an animated pink -> cyan -> gold
+-- gradient with a shine running round it (shared/AbilityConfig.lua MythicColors)
+function Cards.RarityBorder(card: GuiObject, rarity: string)
+	local stroke = card:FindFirstChildOfClass("UIStroke") or Kit.Stroke(card)
+	if rarity == "Mythic" then
+		local colors = AbilityConfig.MythicColors
+		stroke.Color = Color3.new(1, 1, 1)
+		stroke.Thickness = 2.5
+		stroke.Transparency = 0
+		local gradient = Kit.New("UIGradient", {
+			Name = "MythicShine",
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, colors[1]),
+				ColorSequenceKeypoint.new(0.33, colors[2]),
+				ColorSequenceKeypoint.new(0.45, Color3.new(1, 1, 1)), -- the shine
+				ColorSequenceKeypoint.new(0.55, colors[2]),
+				ColorSequenceKeypoint.new(0.75, colors[3]),
+				ColorSequenceKeypoint.new(1, colors[1]),
+			}),
+			Parent = stroke,
+		})
+		TweenService:Create(gradient, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), { Rotation = 360 }):Play()
+	else
+		stroke.Color = Theme.Rarity[rarity] or Theme.Rarity.Common
+		stroke.Thickness = 1.5
+		stroke.Transparency = 0.3
+	end
 end
 
 -- "12 damage x2 · every 0.85 s": what an ability does in numbers (its level 1 stats)

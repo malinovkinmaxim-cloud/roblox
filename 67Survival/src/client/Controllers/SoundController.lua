@@ -8,6 +8,8 @@
 ]]
 
 local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local AbilityConfig = require(ReplicatedStorage:WaitForChild("Modules").AbilityConfig)
 
 local SoundController = {}
 
@@ -107,6 +109,36 @@ function SoundController:Init(controllers)
 		self.Pools[name] = pool
 		self.Index[name] = 1
 	end
+	-- ability sounds: placeholders (shared/AbilityConfig.lua Sounds, SoundId "" -- TODO); an
+	-- empty one plays nothing and the built-in cue plays instead
+	local abilities = Instance.new("Folder")
+	abilities.Name = "S67AbilitySounds"
+	abilities.Parent = SoundService
+	self.AbilitySounds = {}
+	for key, ids in AbilityConfig.Sounds do
+		for kind, id in ids do
+			local sound = Instance.new("Sound")
+			sound.Name = key .. "_" .. kind
+			sound.SoundId = id -- TODO: your sound id (AbilityConfig.Sounds)
+			sound.Volume = 0.5
+			sound.Parent = abilities
+			self.AbilitySounds[sound.Name] = sound
+		end
+	end
+end
+
+-- an ability's own sound (kind "Cast" / "Hit"); false when it has none yet (its id is empty)
+function SoundController:PlayAbility(key: string, kind: string): boolean
+	if not self:Enabled() then
+		return true
+	end
+	local sound = self.AbilitySounds[key .. "_" .. kind] or self.AbilitySounds["Default_" .. kind]
+	if not sound or sound.SoundId == "" then
+		return false
+	end
+	sound.TimePosition = 0
+	sound:Play()
+	return true
 end
 
 function SoundController:Start() end

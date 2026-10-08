@@ -84,6 +84,16 @@ local function keepAway(e, dx: number, dz: number, d: number, keep: number): (nu
 	return -dz / d * e.Side, dx / d * e.Side, 0.6
 end
 
+-- a shield bearer turns to face you, but only so fast (`rate` rad/s): you can go round it
+local function turnFace(e, dx: number, dz: number, rate: number, dt: number)
+	local want = atan2(dz, dx)
+	local cur = e.FaceA or want
+	local diff = ((want - cur + math.pi) % TAU) - math.pi
+	cur += math.clamp(diff, -rate * dt, rate * dt)
+	e.FaceA = cur
+	e.FaceX, e.FaceZ = cos(cur), sin(cur)
+end
+
 -- the attack timer of e (elites below a phase count down faster)
 local function tick(e, dt: number): number
 	e.T -= dt * (e.Rate or 1)
@@ -315,7 +325,7 @@ end
 
 function B.Knight(run, e, dx, dz, d, dt)
 	local p = e.Def.Params
-	e.FaceX, e.FaceZ = dx / d, dz / d
+	turnFace(e, dx, dz, p.Turn, dt)
 	if e.State == 1 then
 		e.T -= dt
 		if e.T <= 0 then
@@ -569,7 +579,7 @@ end
 
 function B.Firewall(run, e, dx, dz, d, dt)
 	local p = e.Def.Params
-	e.FaceX, e.FaceZ = dx / d, dz / d
+	turnFace(e, dx, dz, p.Turn, dt)
 	if tick(e, dt) <= 0 then
 		e.T = p.Every
 		run:Write("Fx", 0, e.X, e.Z, 0, e.Radius * 2, 0, GFX.Rally)

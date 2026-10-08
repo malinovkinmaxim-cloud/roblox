@@ -16,9 +16,15 @@
 	from the Loadout every frame, with the same formulas as the server.
 
 	ABILITY SKINS (cosmetic): one colour for every effect, or a rainbow.
+
+	ONE EFFECT STYLE (shared/AbilityConfig.lua): an effect's main colour is its RARITY colour
+	(a Mythic evolution cycles pink -> cyan -> gold), every level makes it a little bigger and
+	brighter (a second ring from level 4), and at its max level it takes its MAX FORM (its own
+	colour, a crown ring around the always-on ones, a longer trail).
 ]]
 
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,6 +37,7 @@ local ItemData = require(Shared.ItemData)
 local Rarity = require(Shared.Rarity)
 local HeroModels = require(Shared.HeroModels)
 local GameConfig = require(Shared.GameConfig)
+local AbilityConfig = require(Shared.AbilityConfig)
 
 local WeaponFx = {}
 
@@ -40,6 +47,12 @@ local FLAT = CFrame.Angles(0, 0, math.rad(90))
 local TAU = math.pi * 2
 local GFX = Protocol.Fx
 local SHAPES = Protocol.Shapes
+
+-- the easing of every effect (shared/AbilityConfig.lua Ease: In = appear, Out = fade, Soft)
+local function ease(t: number, kind: string): number
+	local e = AbilityConfig.Ease[kind]
+	return TweenService:GetValue(math.clamp(t, 0, 1), e.Style, e.Direction)
+end
 
 local function newPart(name: string, size: Vector3, color: Color3, material: Enum.Material?, shape: Enum.PartType?): Part
 	local p = Instance.new("Part")
@@ -169,6 +182,7 @@ function WeaponFx:Init(controllers)
 	self.Zones = {}
 	self.Always = {} -- [weapon key] = { Parts, Spec, Kind }
 	self.Loadout = nil
+	self.Levels = {} -- [weapon key] = { Level, MaxLevel } (shared/AbilityConfig.lua: level looks)
 	self.CloneModel = nil
 end
 
@@ -221,7 +235,8 @@ function WeaponFx:Transient(duration: number, update: (number) -> (), done: (() 
 	table.insert(self.Transients, { T = 0, Duration = duration, Update = update, Done = done })
 end
 
--- the colour of an ability's effects (ABILITY SKIN cosmetic)
+-- the colour of an ability's effects: an ABILITY SKIN (cosmetic) if one is on, else its rarity
+-- colour (shared/AbilityConfig.lua), its MAX FORM's colour at max level
 function WeaponFx:ColorOf(def): Color3
 	local data = self.C.ClientData.Data
 	local style = CosmeticData.Style(data and data.Cosmetics and data.Cosmetics.Equipped, "WeaponSkin")
@@ -232,7 +247,25 @@ function WeaponFx:ColorOf(def): Color3
 	if skin and skin.Color then
 		return skin.Color
 	end
-	return def.Color
+	local color = AbilityConfig.EffectColor(def, os.clock())
+	if self:IsMax(def) then
+		local form = AbilityConfig.MaxForms[def.Kind]
+		if form then
+			color = color:Lerp(form.Color, 0.55)
+		end
+	end
+	return color
+end
+
+-- an ability's level in this run (1 if unknown) and whether it is at its max (not an evolution)
+function WeaponFx:LevelOf(def): number
+	local l = self.Levels[def.Key]
+	return if l then l.Level else 1
+end
+
+function WeaponFx:IsMax(def): boolean
+	local l = self.Levels[def.Key]
+	return l ~= nil and not def.Evolution and l.MaxLevel > 1 and l.Level >= l.MaxLevel
 end
 
 ---------------------------------------------------------------------------
@@ -253,12 +286,18 @@ end
 function WeaponFx:SetLoadout(loadout)
 	self.Loadout = loadout
 	local keep = {}
+	self.Levels = {}
+	for _, w in loadout.Weapons or {} do
+		self.Levels[w.Key] = { Level = w.Level or 1, MaxLevel = w.MaxLevel or 1 }
+	end
 	for _, w in loadout.Weapons or {} do
 		local def = WeaponData.ByKey[w.Key]
 		if def and ALWAYS_KINDS[def.Kind] then
 			keep[w.Key] = true
 			local a = self.Always[w.Key]
-			local count = if def.Kind == "Orbit" or def.Kind == "Drone" then w.Amount else 2
+			-- an area: its disc and edge, a second ring from level 4, a crown ring at max level
+			local extra = (if (w.Level or 1) >= AbilityConfig.Level.RingAt then 1 else 0) + (if self:IsMax(def) then 1 else 0)
+			local count = if def.Kind == "Orbit" or def.Kind == "Drone" then w.Amount else 2 + extra
 			if not a or #a.Parts ~= count then
 				self:ReleaseAlways(w.Key)
 				a = { Parts = {}, Kind = def.Kind, Def = def }
@@ -275,14 +314,20 @@ function WeaponFx:SetLoadout(loadout)
 			end
 			a.Spec = w
 			local color = self:ColorOf(def)
+			local level = w.Level or 1
 			for i, entry in a.Parts do
 				local p = entry[2]
 				p.Color = color
 				if def.Kind == "Orbit" and entry[1] == "Orb" then
 					local r = w.Radius
 					p.Size = Vector3.new(r * 2, r * 2, r * 2)
+				elseif def.Kind == "Orbit" and entry[1] == "Blade" then
+					local k = AbilityConfig.LevelScale(level)
+					p.Size = Vector3.new(0.3 * k, 0.3 * k, 3 * k)
 				elseif def.Kind == "Aura" or def.Kind == "FireRing" or def.Kind == "Field" then
-					p.Transparency = self:Fade(if i == 1 then (if def.Kind == "Field" then 0.75 else 0.82) else 0.45)
+					-- brighter with every level
+					local bright = (level - 1) * 0.025
+					p.Transparency = self:Fade(if i == 1 then (if def.Kind == "Field" then 0.75 else 0.82) - bright elseif i == 2 then 0.45 - bright else 0.7)
 				end
 			end
 		end
@@ -324,7 +369,17 @@ function WeaponFx:Projectile(id: number, weaponId: number, x: number, z: number,
 		base = part.Size
 		part:SetAttribute("BaseSize", base)
 	end
-	part.Size = if def.Evolution then base * 1.35 else base -- evolved: bigger
+	-- bigger every level, evolved bigger still; a longer trail too (shared/AbilityConfig.lua)
+	local level = self:LevelOf(def)
+	part.Size = base * AbilityConfig.LevelScale(level) * (if def.Evolution then 1.35 elseif self:IsMax(def) then 1.15 else 1)
+	if trail then
+		local baseLife = part:GetAttribute("TrailLife")
+		if not baseLife then
+			baseLife = trail.Lifetime
+			part:SetAttribute("TrailLife", baseLife)
+		end
+		trail.Lifetime = baseLife * (1 + AbilityConfig.Level.Trail * (level - 1)) * (if self:IsMax(def) or def.Evolution then 1.5 else 1)
+	end
 	self.Projectiles[id] = {
 		Style = style,
 		Part = part,
@@ -339,7 +394,7 @@ function WeaponFx:Projectile(id: number, weaponId: number, x: number, z: number,
 		T = 0,
 		Target = target,
 	}
-	if style == "Bolt" or style == "Arrow" then
+	if not self.C.SoundController:PlayAbility(def.Key, "Cast") and (style == "Bolt" or style == "Arrow") then
 		self.C.SoundController:Play("Blast", 1 + math.random() * 0.2, 0.5)
 	end
 end
@@ -664,13 +719,15 @@ function WeaponFx:Bolt(from: Vector3, to: Vector3, color: Color3, thickness: num
 		local a, b = points[k], points[k + 1]
 		local seg = self:Take("Seg")
 		seg.Color = color
-		seg.Size = Vector3.new(thickness, thickness, (b - a).Magnitude)
+		local w = math.max(thickness, AbilityConfig.MinLineWidth)
+		seg.Size = Vector3.new(w, w, (b - a).Magnitude)
 		seg.CFrame = CFrame.lookAt((a + b) / 2, b)
 		table.insert(parts, seg)
 	end
 	self:Transient(duration, function(t)
+		local fade = ease(t, "Out")
 		for _, seg in parts do
-			seg.Transparency = t
+			seg.Transparency = fade
 		end
 	end, function()
 		for _, seg in parts do
@@ -687,11 +744,13 @@ function WeaponFx:Beam(x: number, z: number, angle: number, length: number, half
 	local beam = self:Take("Beam")
 	beam.Color = color
 	local look = CFrame.lookAt(base, base + dir)
+	local full = math.max(halfWidth * 2, AbilityConfig.MinLineWidth)
 	self:Transient(duration or 0.28, function(t)
-		local w = halfWidth * 2 * (1 - t * 0.7)
-		beam.Size = Vector3.new(w, w * 0.6, length)
+		-- it snaps open (Back), then thins out and fades (Quad)
+		local w = full * (if t < 0.3 then ease(t / 0.3, "In") else 1 - 0.7 * ease((t - 0.3) / 0.7, "Out"))
+		beam.Size = Vector3.new(math.max(0.1, w), math.max(0.1, w * 0.6), length)
 		beam.CFrame = look * CFrame.new(0, 0, -length / 2)
-		beam.Transparency = t * 0.9
+		beam.Transparency = 0.9 * ease(t, "Out")
 	end, function()
 		self:Give("Beam", beam)
 	end)
@@ -711,7 +770,8 @@ function WeaponFx:Drop(x: number, z: number, radius: number, fall: number, color
 	self:Transient(math.max(0.15, fall), function(t)
 		local y = (1 - t * t) * 45 + size / 2
 		p.CFrame = CFrame.new(ground + Vector3.new((1 - t) * 8, y, 0)) * CFrame.Angles(t * 3, 0, t * 2)
-		shadow.Size = Vector3.new(0.12, radius * 2 * t, radius * 2 * t)
+		local grow = ease(t, "Soft")
+		shadow.Size = Vector3.new(0.12, radius * 2 * grow, radius * 2 * grow)
 		shadow.CFrame = CFrame.new(ground + Vector3.new(0, 0.3, 0)) * FLAT
 		shadow.Transparency = 1 - t * 0.5
 	end, function()
@@ -740,14 +800,14 @@ function WeaponFx:Slash(x: number, z: number, angle: number, reach: number, arc:
 		table.insert(parts, seg)
 	end
 	self:Transient(if big then 0.28 else 0.18, function(t)
-		local sweep = angle - arc / 2 + arc * math.min(1, t * 1.6)
+		local sweep = angle - arc / 2 + arc * ease(math.min(1, t * 1.6), "In")
 		for i, seg in parts do
 			local a = sweep - (i - 1) * (arc / n) * 0.5
 			local r = reach * (0.55 + 0.45 * (i % 2))
 			local pos = center + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
 			seg.Size = Vector3.new(if big then 1 else 0.6, 0.3, reach * 0.45)
 			seg.CFrame = CFrame.lookAt(pos, pos + Vector3.new(-math.sin(a), 0, math.cos(a)))
-			seg.Transparency = t
+			seg.Transparency = ease(t, "Out")
 		end
 	end, function()
 		for _, seg in parts do
@@ -1354,6 +1414,17 @@ function WeaponFx:Update(dt: number)
 				if color then
 					disc.Color = color
 					edge.Color = color
+				end
+				-- level 4+: a second ring that breathes; max level: a wide crown ring
+				for k = 3, #a.Parts do
+					local ring = a.Parts[k][2]
+					local grow = if k == 3 then 1.12 + math.sin(clock * 3) * 0.04 else 1.28 + math.sin(clock * 2 + 1) * 0.06
+					ring.Size = Vector3.new(0.1, r * 2 * grow, r * 2 * grow)
+					ring.CFrame = (base + Vector3.new(0, 0.04 * k, 0)) * FLAT
+					ring.Transparency = self:Fade(if k == 3 then 0.72 else 0.6 + math.sin(clock * 4) * 0.12)
+					if color then
+						ring.Color = color
+					end
 				end
 			end
 		end
