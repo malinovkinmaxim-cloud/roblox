@@ -605,7 +605,7 @@ BossData.List = {
 			{ At = 0.33, Name = "PHASE 3 · THE END", Text = "Doom rings. Find the gap.", Speed = 1.3, Rate = 1.6 },
 		},
 		WeakPoint = { After = "Slam", Time = 1.6, Mult = 1.4, Text = "CORE EXPOSED" },
-		Relic = "Fragment67",
+		-- (its 67 FRAGMENT drops from HUNT's main boss now: shared/ItemData.lua Fragment67.Boss)
 		Death = "The core bursts; golden 6s and 7s rain over the arena. VICTORY.",
 	},
 	{
@@ -808,6 +808,7 @@ BossData.List = {
 			{ At = 0.5, Name = "PHASE 2 · BLOOD MOON", Text = "The moon turns red. Hurt him to make it set.", Speed = 1.15, Rate = 1.3 },
 		},
 		WeakPoint = { After = "NightStep", Time = 1.8, Mult = 1.5, Text = "CAPE OPEN" },
+		Relic = "Fragment67", -- (it breaks off in phase 2, like it did from THE FINAL ONE)
 		Death = "He bursts into a cloud of bats that flutter off into the morning. VICTORY.",
 	},
 	{

@@ -6,6 +6,9 @@
       "$className": "ReplicatedStorage",
       "Modules": {
         "$path": "src/shared"
+      },
+      "Enemies": {
+        "$path": "models/Enemies"
       }
     },
     "ServerScriptService": {
@@ -21,6 +24,9 @@
       },
       "_Backup_Scripts": {
         "$path": "backup/scripts"
+      },
+      "_Tools": {
+        "$path": "studio"
       }
     },
     "StarterPlayer": {

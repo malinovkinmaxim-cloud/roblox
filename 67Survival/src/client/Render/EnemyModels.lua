@@ -1326,8 +1326,13 @@ function EnemyModels.Build(def, variant: string?): (Model, BasePart, any)
 	if string.find(v, "g", 1, true) then
 		color, accent = rgb(255, 205, 50), rgb(255, 245, 170)
 	end
-	local style = STYLES[def.Model] or STYLES.Blob
-	local height = style(b, color, accent)
+	-- a hand-made / hand-tweaked Model in ReplicatedStorage/Enemies (when switched on), else the
+	-- model built here in code
+	local height = EnemyModels.FromStudio(b, def)
+	if not height then
+		local style = STYLES[def.Model] or STYLES.Blob
+		height = style(b, color, accent)
+	end
 	local top = 0
 	local root0 = b.Root :: BasePart
 	for _, p in b.Parts do
@@ -1430,6 +1435,138 @@ function EnemyModels.SetPhase(item, phase: number)
 		local visible = (t.Phase == nil or phase >= t.Phase) and not (t.PhaseHide ~= nil and phase >= t.PhaseHide)
 		t.Part.Transparency = if visible then t.Base else 1
 	end
+end
+
+---------------------------------------------------------------------------- studio models
+--[[
+	STUDIO MODELS: every model of the bestiary also exists as a real Model in
+	ReplicatedStorage/Enemies/<difficulty>/<Key>, to open, look at and tweak by hand in Studio
+	(ServerStorage/_Tools/EnemyBuilder rebuilds them from this code; tools/export_models.luau
+	writes them for the Rojo build). Each one carries what the game needs as attributes: the model
+	Key / Height (root above the ground) / Scale / Regrow, a moving part Anim / AnimAmp /
+	AnimFreq / AnimPhase, a part ShowIn / HideIn / Phase / PhaseHide.
+	The game builds its enemies in code. Set the attribute UseInGame = true on the
+	ReplicatedStorage/Enemies folder and it uses the Models in there instead (yours: tweak the
+	colours, sizes, add a part...; keep the root as the PrimaryPart).
+]]
+local function studioFolder(): Instance?
+	local ok, rs = pcall(function()
+		return game:GetService("ReplicatedStorage")
+	end)
+	local folder = ok and rs and rs:FindFirstChild("Enemies")
+	if folder and folder:GetAttribute("UseInGame") == true then
+		return folder
+	end
+	return nil
+end
+
+local function findModel(folder: Instance, key: string): Model?
+	for _, d in folder:GetDescendants() do
+		if d:IsA("Model") and d.Name == key then
+			return d
+		end
+	end
+	return nil
+end
+
+-- the Model of def from ReplicatedStorage/Enemies, rebuilt into b at b.Scale (its parts welded to its
+-- root again, the moving ones on Motor6Ds). Returns the root's height above the ground, or nil
+function EnemyModels.FromStudio(b: Builder, def): number?
+	local folder = studioFolder()
+	local src = folder and findModel(folder, def.Key)
+	if not src or not src.PrimaryPart then
+		return nil
+	end
+	local copy = src:Clone()
+	local root0 = copy.PrimaryPart :: BasePart
+	local k = b.Scale / ((src:GetAttribute("Scale") :: number?) or 1)
+	-- where every part sits on its root, then free them all
+	local offsets = {}
+	for _, d in copy:GetDescendants() do
+		if d:IsA("JointInstance") or d:IsA("WeldConstraint") then
+			d:Destroy()
+		end
+	end
+	for _, d in copy:GetDescendants() do
+		if d:IsA("BasePart") and d ~= root0 then
+			offsets[d] = root0.CFrame:ToObjectSpace(d.CFrame)
+		end
+	end
+	local root = root0
+	root.Anchored = true
+	root.Size *= k
+	root.CFrame = CFrame.new(0, -400, 0)
+	root.Parent = b.Model
+	b.Root = root
+	table.insert(b.Parts, root)
+	for p, off in offsets do
+		p.Anchored = false
+		p.Massless = true
+		p.CanCollide, p.CanQuery, p.CanTouch = false, false, false
+		p.Size *= k
+		p.CFrame = root.CFrame * CFrame.new(off.Position * k) * off.Rotation
+		p.Parent = b.Model
+		table.insert(b.Parts, p)
+		local kind = p:GetAttribute("Anim")
+		if kind then
+			local m = Instance.new("Motor6D")
+			m.Name = "Anim"
+			m.Part0 = root
+			m.Part1 = p
+			m.C0 = root.CFrame:ToObjectSpace(p.CFrame)
+			m.Parent = p
+			table.insert(b.Anims, {
+				Motor = m,
+				Part = p,
+				Base = m.C0,
+				Kind = kind,
+				Amp = p:GetAttribute("AnimAmp") or 0,
+				Freq = p:GetAttribute("AnimFreq") or 1,
+				Phase = p:GetAttribute("AnimPhase") or 0,
+				Color = p.Color,
+			})
+		else
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = root
+			weld.Part1 = p
+			weld.Parent = p
+		end
+	end
+	b.Regrow = src:GetAttribute("Regrow") == true
+	copy:Destroy()
+	return (src:GetAttribute("Height") :: number?) or 1
+end
+
+-- a bestiary model as a Studio Model: built here, standing on the ground at the origin, with the
+-- attributes FromStudio reads back (ServerStorage/_Tools/EnemyBuilder, tools/export_models.luau)
+function EnemyModels.Export(def): Model
+	local model, root, info = EnemyModels.Build(def, "")
+	model:SetAttribute("Key", def.Key)
+	model:SetAttribute("Height", info.Height / info.Scale)
+	model:SetAttribute("Scale", info.Scale)
+	if info.Regrow then
+		model:SetAttribute("Regrow", true)
+	end
+	for _, a in info.Anims or {} do
+		a.Part:SetAttribute("Anim", a.Kind)
+		a.Part:SetAttribute("AnimAmp", a.Amp)
+		a.Part:SetAttribute("AnimFreq", a.Freq)
+		a.Part:SetAttribute("AnimPhase", a.Phase)
+	end
+	-- stand it on the ground at the origin (every part placed by hand: the same in Studio, where
+	-- the welds would carry them, and offline, where nothing does)
+	local target = CFrame.new(0, info.Height, 0)
+	local offsets = {}
+	for _, p in info.Parts do
+		offsets[p] = root.CFrame:ToObjectSpace(p.CFrame)
+	end
+	root.CFrame = target
+	for p, off in offsets do
+		if p ~= root then
+			p.CFrame = target * off
+		end
+	end
+	return model
 end
 
 ---------------------------------------------------------------------------- elite affixes

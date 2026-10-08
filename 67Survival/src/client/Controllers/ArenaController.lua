@@ -230,6 +230,29 @@ local DARK = {
 	Ambient = rgb(28, 24, 52),
 	OutdoorAmbient = rgb(36, 30, 66),
 }
+-- a main boss tints the whole screen for a while: COUNT SEVEN's BLOOD MOON (red), OVERCLOCK-6's
+-- OVERCLOCK (a red alert); false = back to normal. Its own colour correction (the camera's
+-- difficulty grade is left alone)
+local TINTS = {
+	Blood = { TintColor = rgb(255, 170, 170), Saturation = 0.15, Contrast = 0.08 },
+	Overclock = { TintColor = rgb(255, 200, 200), Saturation = -0.05, Contrast = 0.12 },
+}
+local NO_TINT = { TintColor = rgb(255, 255, 255), Saturation = 0, Contrast = 0 }
+function ArenaController:SetTint(name: string | false)
+	local goal = (name and TINTS[name]) or NO_TINT
+	local cc = self.Tint
+	if not cc then
+		if goal == NO_TINT then
+			return
+		end
+		cc = Instance.new("ColorCorrectionEffect")
+		cc.Name = "S67BossTint"
+		cc.Parent = Lighting
+		self.Tint = cc
+	end
+	TweenService:Create(cc, TweenInfo.new(if goal == NO_TINT then 1.2 else 0.8), goal):Play()
+end
+
 function ArenaController:SetDark(on: boolean, time: number?)
 	self.DarkToken = (self.DarkToken or 0) + 1
 	local token = self.DarkToken
@@ -336,6 +359,7 @@ function ArenaController:Start()
 	end)
 	self.C.RunClient.Ended:Connect(function()
 		self:SetDark(false)
+		self:SetTint(false)
 		self:Refresh()
 	end)
 	RunService.Heartbeat:Connect(function()

@@ -525,6 +525,10 @@ function RunClient:BuildEventHandlers()
 			-- THE DREAD: lights out around you for a while
 			C.ArenaController:SetDark(p.Dark, p.Time)
 		end
+		if p.Tint ~= nil then
+			-- COUNT SEVEN's BLOOD MOON, OVERCLOCK-6's OVERCLOCK
+			C.ArenaController:SetTint(p.Tint)
+		end
 	end
 	-- what a boss wants you to do now: on its plate, or a toast for a main boss
 	function e.BossCue(p)

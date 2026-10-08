@@ -956,8 +956,12 @@ T("bosses: 4 slots (3:00 / 6:00 / 9:00 / 12:00, zones by danger) + THE FINAL ONE
 		end
 		Expect(def.WeakPoint and def.WeakPoint.Mult > 1 and def.WeakPoint.Time > 0 and #def.WeakPoint.Text > 2, def.Key .. " weak point")
 		-- the classic bosses (tiers I-II) have a BOSS RELIC; the harder tiers' bosses have none
+		-- (the main bosses before the bestiary stay defined for a roll-back: skipped here)
+		local retired = def.Slot == 5 and table.find(BossData.Mains, def.Key) == nil
 		local classic = def.MinTier == nil and (def.Tier == nil or def.Tier == 2)
-		if classic then
+		if retired then
+			Expect(def.Relic == nil, def.Key .. " (retired) has no relic")
+		elseif classic then
 			local relic = ItemData.ByKey[def.Relic]
 			Expect(relic and relic.Type == "BossRelic" and relic.Boss == def.Key, def.Key .. " has its relic")
 		else
@@ -1054,8 +1058,8 @@ T("the boss timeline: each boss once, on time, in its zone; THE FINAL ONE in the
 	Eq(run.BossNext, 5, "no boss is left to come")
 	local main = run.Map.Encounters[1]
 	Expect(main and main.Main and #run.Map.Encounters == 1, "only THE FINAL ONE is out")
-	-- the top boss bar is THE FINAL ONE's
-	Expect(run.Boss and run.Boss.Key == "TheFinalOne", "main boss bar")
+	-- the top boss bar is the main boss's (HUNT: COUNT SEVEN)
+	Expect(run.Boss and run.Boss.Key == BossData.MainFor(2).Key, "main boss bar")
 end)
 
 T("a boss fight: warning at its lair, engage, weak point, loot on the map, pickup", function()
@@ -1207,7 +1211,7 @@ T("JACKPOT JIMMY tilts: shielded until its coin stacks break", function()
 	Expect(not jimmy.Shielded, "shield down")
 end)
 
-T("THE FINAL ONE: arena seal, phases, 67 FRAGMENT, victory", function()
+T("the HUNT main boss (COUNT SEVEN): arena seal, phases, 67 FRAGMENT, victory", function()
 	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
 	local BossDirector = R("ServerScriptService.Server.Sim.BossDirector")
 	local run = townRun(615, { ItemUnlocks = { Fragment67 = true } })
@@ -1237,7 +1241,7 @@ T("THE FINAL ONE: arena seal, phases, 67 FRAGMENT, victory", function()
 	end
 	Expect(quack and math.sqrt(quack.X ^ 2 + quack.Z ^ 2) > 100, "the seal keeps other bosses at their lairs")
 	-- phase 2: announced, the fragment breaks off into the arena
-	EnemyManager.Damage(run, boss, boss.MaxHP * 0.4, 0, 0, 0, 0)
+	EnemyManager.Damage(run, boss, boss.MaxHP * 0.55, 0, 0, 0, 0)
 	steps(run, 0.2, 10, 0)
 	Expect(boss.Phase >= 2, "phase 2")
 	local fragment = nil
@@ -1252,7 +1256,7 @@ T("THE FINAL ONE: arena seal, phases, 67 FRAGMENT, victory", function()
 	EnemyManager.Damage(run, boss, boss.HP + 1, 0, 0, 0, 0)
 	Expect(run.Result.MainBoss and run.VictoryAt, "victory")
 	Expect(not run.Map.ArenaSealed, "the seal breaks")
-	steps(run, 4, 10, 0)
+	steps(run, 8, 10, 0) -- (the level ups of the kill's XP come first)
 	Expect(run.Ended and run.Victory, "the run is won")
 end)
 
@@ -1301,7 +1305,7 @@ T("items: 40+, levels 2-5 with mechanics, prices by class, a relic per boss", fu
 	end
 	Eq(withRelic, 13, "the 13 classic bosses keep their relics")
 	Eq(relics, withRelic, "a relic for every classic boss")
-	Eq(ItemData.ByKey.Fragment67.Boss, "TheFinalOne", "the main boss drops the 67 FRAGMENT")
+	Eq(ItemData.ByKey.Fragment67.Boss, BossData.MainFor(2).Key, "HUNT's main boss drops the 67 FRAGMENT")
 	for _, key in { "MagneticBolt", "RedButton", "Fang", "Compass", "RustyToken", "BlackWire" } do
 		Eq(ItemData.ByKey[key] and ItemData.ByKey[key].Type, "Base", key)
 	end
@@ -1593,7 +1597,7 @@ end)
 Harness.Section("harder tiers")
 ---------------------------------------------------------------------------
 T("tiers: the new horde joins tier by tier, on top of the classic mix", function()
-	Eq(#WaveData.TierPools, 11, "11 pools (Sevenlet comes with Sixlet)")
+	Eq(#WaveData.TierPools, 14, "14 pools: two regulars per difficulty")
 	for _, pool in WaveData.TierPools do
 		local def = EnemyData.ByKey[pool.Key]
 		Expect(def and def.MinTier == pool.MinTier, pool.Key .. " tier")
@@ -1615,18 +1619,20 @@ T("tiers: the new horde joins tier by tier, on top of the classic mix", function
 		Eq(keys(7, 800)[key], w, "classic " .. key)
 	end
 	local calm, hunt, top = keys(1, 800), keys(2, 800), keys(7, 800)
-	Expect(calm.Snoozer and not calm.Shielder, "CALM: Snoozer only")
-	Expect(hunt.Snoozer and hunt.Shielder and not hunt.Stampeder, "HUNT: + Shielder")
+	Expect(calm.Gloopy and calm.BuzzBat and not calm.BooSheet, "CALM: Gloopy and Buzz Bat")
+	Expect(hunt.BooSheet and hunt.BonkSkull and not hunt.Wrappy, "HUNT: + Boo Sheet, Bonk Skull")
+	Expect(hunt.BooSheet > hunt.Gloopy / 3, "a difficulty's own enemies weigh the most")
 	for _, pool in WaveData.TierPools do
 		Expect(top[pool.Key], "THE 67 has " .. pool.Key)
 	end
-	Expect(not keys(7, 30).Snoozer, "nothing before its minute")
+	Expect(top.Voidling > top.Gloopy, "THE 67: its own Voidlings over CALM's Gloopies")
+	Expect(not keys(1, 10).Gloopy, "nothing before its minute")
 	-- every new enemy has its numbers and its behaviour
 	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
 	for _, def in EnemyData.List do
 		if def.MinTier and not def.Boss and not def.Champion then
 			Expect(EM.Behaviors[def.Behavior], def.Key .. " behaviour " .. def.Behavior)
-			Expect(def.HP < 100 and def.Radius < 2, def.Key .. " is a horde enemy")
+			Expect(def.HP < 100 and def.Radius < (if def.Role == "Elite" then 3 else 2), def.Key .. " is a horde enemy")
 		end
 	end
 end)
@@ -1693,7 +1699,7 @@ T("tiers: a slot draws its tier's bosses; every tier has its own main boss", fun
 		local run = Run.new({ Seed = 3, Difficulty = tier })
 		Eq(BossDirector.Main(run).Key, def.Key, "tier " .. tier .. " meets " .. def.Key)
 	end
-	Eq(BossData.MainFor(2).Key, "TheFinalOne", "HUNT keeps THE FINAL ONE")
+	Eq(BossData.MainFor(2).Key, "CountSeven", "HUNT meets COUNT SEVEN")
 	-- the bodies' HP in EnemyData is BossData's (only used by a body spawned on its own)
 	for _, def in BossData.List do
 		for _, body in def.Bodies do
@@ -1787,15 +1793,13 @@ T("every main boss: sealed arena, its phases, its arena mechanic, victory", func
 		end
 		Expect(phases >= #def.Phases, def.Key .. " announced its phases: " .. phases)
 		if boss.Alive then
-			EnemyManager.Damage(run, boss, boss.HP + 1, 0, 0, 0, 0)
+			EnemyManager.Damage(run, boss, boss.HP * 4 + 1, 0, 0, 0, 0) -- (MEGA SIX's slimes cut a hit)
 		end
 		Expect(run.Result.MainBoss and run.VictoryAt, def.Key .. ": victory")
 		Expect(not run.Map.ArenaSealed and run.Map.DarkUntil == nil and run.ShotRoom == nil, def.Key .. ": the arena opens again")
 		steps(run, 8, 8, 0) -- (the level ups of the kill's XP come first)
 		Expect(run.Ended and run.Victory, def.Key .. ": the run is won")
-		if tier == 4 then
-			Expect(cues > 0, "THE DREAD turns the lights out (and says so)")
-		end
+		Expect(cues > 0, def.Key .. " says what to do")
 	end
 end)
 
@@ -1966,6 +1970,225 @@ T("sketches and lane runners drop nothing; eggs hatch unless broken", function()
 	local egg2 = EM.Spawn(run, "GooEgg", run.PX - 12, run.PZ + 12, { Force = true })
 	EM.Damage(run, egg2, egg2.HP + 1, 0, 0, 0, 0)
 	Expect(not egg2.Alive, "broken in time")
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("bestiary")
+---------------------------------------------------------------------------
+T("bestiary: every difficulty has 2 regulars, its elite and its main boss", function()
+	local ANIMS = { Bob = true, Hop = true, Flap = true, Roll = true, Float = true, Spin = true, Jitter = true, Boss = true }
+	for tier = 1, 7 do
+		local regulars = {}
+		for _, def in EnemyData.List do
+			if def.Role == "Regular" and def.MinTier == tier then
+				table.insert(regulars, def)
+				Expect(def.Spawn and def.Spawn.Weight > 0 and def.Spawn.From > 0, def.Key .. " spawns")
+			end
+		end
+		Eq(#regulars, 2, "tier " .. tier .. " regulars")
+		local elite = EnemyData.ByKey[EnemyData.TierElite[tier]]
+		Expect(elite and elite.Role == "Elite" and elite.Theme == regulars[1].Theme, "tier " .. tier .. " elite")
+		Expect(#elite.Attacks >= 1 and #elite.Phases >= 1, elite.Key .. " attacks and phases")
+		local boss = BossData.MainFor(tier)
+		local body = EnemyData.ByKey[boss.Bodies[1]]
+		Expect(body.Role == "Boss" and body.Theme == regulars[1].Theme and #body.Attacks >= 3, boss.Key .. " is the tier's boss")
+	end
+	for _, def in EnemyData.List do
+		if def.Role then
+			Expect(ANIMS[def.AnimType], def.Key .. " AnimType " .. tostring(def.AnimType))
+		end
+	end
+end)
+
+T("bestiary: the horde's tricks", function()
+	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
+	local B = EM.Behaviors
+	local run = townRun(51, { Difficulty = 7 })
+	steps(run, 0.5)
+	run.Weapons = {} -- (your own shots stay out of it)
+	local px, pz = run.PX, run.PZ
+	-- Gloopy hops: bursts of speed on a beat
+	local g = EM.Spawn(run, "Gloopy", px + 20, pz, { Force = true })
+	g.HopT = 0
+	local _, _, burst = B.Hop(run, g, -1, 0, 20, 0.05)
+	g.HopT = 0.6
+	local _, _, rest = B.Hop(run, g, -1, 0, 20, 0.05)
+	Expect(burst > 1.5 and rest < 0.5, "hop " .. burst .. " / " .. rest)
+	-- Boo Sheet: slower when you face it, faster behind your back
+	local boo = EM.Spawn(run, "BooSheet", px + 20, pz, { Force = true })
+	run.FX, run.FZ = 1, 0
+	local _, _, seen = B.Shy(run, boo, -20, 0, 20)
+	run.FX, run.FZ = -1, 0
+	local _, _, behind = B.Shy(run, boo, -20, 0, 20)
+	Expect(seen < 0.7 and behind > 1.2, "shy " .. seen .. " / " .. behind)
+	Expect(boo.Ghost, "floats through walls")
+	-- Pumpkin Knight: the shield blocks the front
+	local k = EM.Spawn(run, "PumpkinKnight", px + 12, pz, { Force = true })
+	k.FaceX, k.FaceZ = -1, 0
+	local hp = k.HP
+	EM.Damage(run, k, 100, 0, 1, 0, 0) -- pushed away from you: a hit in the face
+	Expect(math.abs(hp - k.HP - 15) < 1e-6, "front: 85% blocked")
+	hp = k.HP
+	EM.Damage(run, k, 100, 0, -1, 0, 0)
+	Expect(math.abs(hp - k.HP - 100) < 1e-6, "back: full damage")
+	-- Obsidian Crab: the shell cuts until it cracks, then grows back
+	local c = EM.Spawn(run, "ObsidianCrab", px - 12, pz, { Force = true })
+	c.HP, c.MaxHP = 1e6, 1e6
+	hp = c.HP
+	EM.Damage(run, c, 100, 0, 0, 0, 0)
+	Expect(math.abs(hp - c.HP - 40) < 1e-6, "shelled: -60%")
+	for _ = 1, 9 do
+		EM.Damage(run, c, 100, 0, 0, 0, 0)
+	end
+	Expect(c.Shell == 0 and c.ShellBackAt, "the shell cracked")
+	hp = c.HP
+	EM.Damage(run, c, 100, 0, 0, 0, 0)
+	Expect(math.abs(hp - c.HP - 100) < 1e-6, "open: full damage")
+	steps(run, 5.5, px, pz)
+	Expect(c.Shell == c.Def.Params.ShellHits, "the shell grew back")
+	-- deaths: bandages, an ice ring, a pop, a split
+	local hazards = #run.Hazards
+	local w = EM.Spawn(run, "Wrappy", px + 30, pz + 30, { Force = true })
+	EM.Damage(run, w, w.HP + 1, 0, 0, 0, 0)
+	steps(run, 0.2, px, pz)
+	local slow = 0
+	for _, h in run.Hazards do
+		if h.Slow and h.Slow < 1 then
+			slow += 1
+		end
+	end
+	Expect(#run.Hazards >= hazards + 4 and slow >= 4, "Wrappy's bandages slow you")
+	local shots = #run.EnemyProjectiles
+	local wisp = EM.Spawn(run, "FrostWisp", px + 30, pz - 30, { Force = true })
+	EM.Damage(run, wisp, wisp.HP + 1, 0, 0, 0, 0)
+	Expect(#run.EnemyProjectiles >= shots + 8, "Frost Wisp: an ice ring")
+	local tele = #run.Telegraphs
+	local imp = EM.Spawn(run, "ImpPop", px - 30, pz - 30, { Force = true })
+	EM.Damage(run, imp, imp.HP + 1, 0, 0, 0, 0)
+	Expect(#run.Telegraphs == tele + 1, "Imp Pop: a circle, then the pop")
+	local before = EM.Count(run)
+	local king = EM.Spawn(run, "KingGloop", px - 30, pz + 30, { Force = true })
+	EM.Damage(run, king, king.HP + 1, 0, 0, 0, 0)
+	Eq(EM.Count(run), before + 3, "King Gloop pops into 3 Gloopies")
+	-- a hologram pops in one hit; a Voidling pulls (a gravity well)
+	local holo = EM.Spawn(run, "OverclockHolo", px + 8, pz + 8, { Force = true })
+	EM.Damage(run, holo, 1, 0, 0, 0, 0)
+	Expect(not holo.Alive, "one hit pops a hologram")
+	local v = EM.Spawn(run, "Voidling", px + 5, pz, { Force = true })
+	steps(run, 0.2, px, pz)
+	local pulled = false
+	for _, well in run.Wells do
+		if math.abs(well.X - v.X) < 3 and math.abs(well.Z - v.Z) < 3 then
+			pulled = true
+		end
+	end
+	Expect(pulled, "a Voidling pulls at you")
+	-- a Star Eater's moon comes back
+	local star = EM.Spawn(run, "StarEater", px + 16, pz, { Force = true })
+	star.T = 0
+	steps(run, 1, px, pz)
+	Expect(star.MoonsOut >= 1, "a moon is out")
+	star.T = 1e9 -- (no new moons)
+	steps(run, 3.5, px, pz)
+	Expect(star.MoonsOut == 0 or not star.Alive, "it came back")
+	-- an elite below its phase attacks faster
+	local Elites = R("ServerScriptService.Server.Sim.Elites")
+	local e = Elites.Spawn(run, "SandGolem", px + 25, pz + 25, {})
+	EM.Damage(run, e, e.HP * 0.6, 0, 0, 0, 0)
+	steps(run, 0.1, px, pz)
+	Eq(e.Rate, e.Def.Phases[1].Rate, "CRUMBLING: faster")
+end)
+
+T("bestiary: a difficulty's own elite shows up", function()
+	local Elites = R("ServerScriptService.Server.Sim.Elites")
+	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
+	for tier = 1, 7 do
+		local run = townRun(60 + tier, { Difficulty = tier })
+		steps(run, 0.5)
+		run.Time = 600
+		local own = 0
+		for i = 1, 12 do
+			local e = Elites.Spawn(run, nil, run.PX + 25 + i, run.PZ + 25)
+			if e then
+				if e.Key == EnemyData.TierElite[tier] then
+					own += 1
+				end
+				EM.Despawn(run, e)
+			end
+		end
+		Expect(own >= 2 and own <= 11, "tier " .. tier .. ": its own elite " .. own .. "/12")
+	end
+end)
+
+T("bestiary bosses: orbiters, the blood moon, slides, holograms, echoes", function()
+	local EM = R("ServerScriptService.Server.Sim.EnemyManager")
+	local Bosses = R("ServerScriptService.Server.Sim.Bosses")
+	local A = Bosses.Actions
+	local run = townRun(71, { Difficulty = 7 })
+	steps(run, 0.5)
+	run.Weapons = {}
+	local px, pz = run.PX, run.PZ
+	-- MEGA SIX behind its orbiting slimes: -30% until they fall
+	local six = EM.Spawn(run, "MegaSix", px + 20, pz, { Force = true })
+	A.Orbiters(run, six, six.Def.Params, 1, EM)
+	Eq(#six.Orbiters, 3, "three slimes")
+	steps(run, 0.5, px, pz)
+	local hp = six.HP
+	EM.Damage(run, six, 1000, 0, 0, 0, 0)
+	Expect(math.abs(hp - six.HP - 700) < 1e-6, "-30% while they circle")
+	local o = six.Orbiters[1]
+	Expect(math.abs(math.sqrt((o.X - six.X) ^ 2 + (o.Z - six.Z) ^ 2) - six.Def.Params.OrbitRadius) < 1, "they circle it")
+	for _, orb in six.Orbiters do
+		EM.Damage(run, orb, orb.HP + 1, 0, 0, 0, 0)
+	end
+	hp = six.HP
+	EM.Damage(run, six, 1000, 0, 0, 0, 0)
+	Expect(math.abs(hp - six.HP - 1000) < 1e-6, "full damage once they fall")
+	EM.Despawn(run, six)
+	-- COUNT SEVEN's BLOOD MOON: bats until it is hurt enough, then it sets
+	local count = EM.Spawn(run, "CountSeven", px - 20, pz, { Force = true })
+	run:TakeEvents()
+	A.BloodMoon(run, count, count.Def.Params)
+	local before = EM.Count(run)
+	steps(run, 1.5, px, pz)
+	Expect(EM.Count(run) > before, "bats keep coming")
+	EM.Damage(run, count, count.MaxHP * 0.13, 0, 0, 0, 0)
+	local events = {}
+	steps(run, 0.2, px, pz, events)
+	local set = false
+	for _, ev in events do
+		if ev.Name == "Arena" and ev.P.Tint == false then
+			set = true
+		end
+	end
+	Expect(count.Moon.Done and set, "the moon sets")
+	EM.Despawn(run, count)
+	-- the penguin's belly slide: a leg per bounce, each one shown first
+	local peng = EM.Spawn(run, "PenguinPrime", px, pz + 20, { Force = true })
+	local tele = #run.Telegraphs
+	A.BellySlide(run, peng, peng.Def.Params, 1)
+	Eq(#run.Telegraphs - tele, 1 + peng.Def.Params.SlideBounces, "every leg is telegraphed")
+	Eq(#peng.Legs, peng.Def.Params.SlideBounces, "two bounces to go")
+	steps(run, 4, px - 30, pz - 30)
+	Expect(peng.Legs == nil or #peng.Legs == 0, "it slid every leg")
+	EM.Despawn(run, peng)
+	-- OVERCLOCK-6: two holograms, then OVERCLOCK
+	local oc = EM.Spawn(run, "Overclock6", px + 15, pz + 15, { Force = true })
+	before = EM.Count(run)
+	A.Hologram(run, oc, oc.Def.Params, 1, EM)
+	Eq(EM.Count(run), before + 2, "two holograms")
+	A.Overclock(run, oc, oc.Def.Params)
+	Expect(math.abs(oc.Rate - 1.4) < 1e-6, "+40% attack speed")
+	EM.Despawn(run, oc)
+	-- THE 67: an echo of an earlier boss; black holes at the edge
+	local final = EM.Spawn(run, "Final67", px - 15, pz - 15, { Force = true })
+	A.EchoCall(run, final, final.Def.Params, 1, EM)
+	local echo = run.Enemies[#run.Enemies]
+	Expect(echo.Def.Behavior == "EchoBoss", "an echo came back")
+	local wells = #run.Wells
+	A.BlackHoles(run, final, final.Def.Params, 1)
+	Eq(#run.Wells, wells + final.Def.Params.HoleCount, "black holes")
+	steps(run, 8, px, pz)
 end)
 
 ---------------------------------------------------------------------------

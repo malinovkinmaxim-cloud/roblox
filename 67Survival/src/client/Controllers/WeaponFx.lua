@@ -1195,6 +1195,56 @@ function WeaponFx:BuildFx(variant: number, x: number, z: number, pos: Vector3, a
 	elseif variant == GFX.Rally then
 		fx:Ring(pos, r, rgb(255, 205, 60), 0.8, r * 0.04)
 		sound:Play("BossSpawn", 1.4, 0.4)
+	-- the bestiary
+	elseif variant == GFX.Phantom then
+		-- a Pixel Bit glitched away: a ghost of it stays a moment where it was
+		local ghost = self:Take("Ball")
+		ghost.Color = rgb(34, 211, 238)
+		ghost.Size = Vector3.new(1.8, 1.8, 1.8)
+		ghost.CFrame = CFrame.new(pos + Vector3.new(0, 1.2, 0))
+		self:Transient(0.2, function(t)
+			ghost.Transparency = 0.4 + 0.6 * t
+		end, function()
+			self:Give("Ball", ghost)
+		end)
+		fx:Poof(x, z, rgb(244, 114, 182), 5)
+	elseif variant == GFX.Bats then
+		-- COUNT SEVEN turns into a flock of bats (and back)
+		fx:Emit("Poof", pos + Vector3.new(0, 4, 0), rgb(60, 40, 90), 16)
+		fx:Emit("Big", pos + Vector3.new(0, 5, 0), rgb(139, 92, 246), 10)
+		fx:Ring(pos, r, rgb(139, 92, 246), 0.35)
+		sound:Play("Zap", 0.6, 0.5)
+	elseif variant == GFX.Swell then
+		fx:Ring(pos, r, rgb(123, 224, 106), 0.6, r * 0.5)
+		fx:Emit("Big", pos + Vector3.new(0, 5, 0), rgb(182, 245, 160), 20)
+		fx:WorldText(pos + Vector3.new(0, 14, 0), "SWELL!", rgb(182, 245, 160), 3, 1)
+		cam:Shake(1)
+		sound:Play("Slam", 0.7, 0.8)
+	elseif variant == GFX.Breath then
+		-- DRAKO 67's fire: bursts along the cone
+		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		for k = 1, 4 do
+			fx:Emit("Big", pos + dir * (r * k / 5) + Vector3.new(0, 2, 0), if k % 2 == 0 then rgb(251, 146, 60) else rgb(253, 224, 71), 10)
+		end
+		cam:Shake(0.8)
+		sound:Play("Boom", 0.9, 0.7)
+	elseif variant == GFX.Holo then
+		fx:Ring(pos, r, rgb(56, 189, 248), 0.4)
+		fx:Poof(x, z, rgb(56, 189, 248), 10)
+		sound:Play("Zap", 1.2, 0.6)
+	elseif variant == GFX.EchoIn then
+		fx:Ring(pos, r, rgb(192, 132, 252), 0.6, r * 2)
+		fx:Emit("Poof", pos + Vector3.new(0, 3, 0), rgb(192, 132, 252), 14)
+		sound:Play("BossSpawn", 1.3, 0.5)
+	elseif variant == GFX.BlackHole then
+		-- rings that close in, over and over while it lasts
+		local rings = math.clamp(math.floor(p2 / 0.9), 1, 12)
+		for k = 0, rings - 1 do
+			task.delay(k * 0.9, function()
+				fx:Ring(pos, r, rgb(120, 70, 200), 0.8, r * 0.05)
+			end)
+		end
+		sound:Play("Freeze", 0.4, 0.5)
 	end
 end
 

@@ -218,8 +218,12 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 			EnemyManager.Damage(run, e, e.MaxHP * 10 + 1, 0, 0, 0, 0) -- (armoured elites take less)
 		end
 	elseif command == "die" then
-		run.Invulnerable = 0
-		run:HurtPlayer(1e9, true)
+		-- (straight to zero HP: barrier charges, dodges and guards of the build don't save you)
+		if not run.Dead and not run.Ended then
+			run.Invulnerable = 0
+			run.HP = 0
+			run:OnZeroHP()
+		end
 	elseif command == "item" then
 		local key = if arg and ItemData.ByKey[arg] then arg else Items.Roll(run, "Boss4")
 		if key then

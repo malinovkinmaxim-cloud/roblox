@@ -1234,7 +1234,7 @@ local LIST: { EnemyDef } = ({
 		HP = 1, Speed = 6, Damage = 8, XP = 0, Radius = 3.2,
 		Model = "OverclockHolo", Color = rgb(150, 220, 255), Accent = rgb(255, 80, 90),
 		Behavior = "Holo", Mass = 999, CoinChance = 0, ItemChance = 0, Role = "Minion", Theme = "Cyber", AnimType = "Float", Collection = false,
-		Params = { Fly = true, Lifetime = 9, Every = 2.4, Count = 10, ProjSpeed = 14, ProjDamage = 9 },
+		Params = { Fly = true, OneHit = true, Lifetime = 9, Every = 2.4, Count = 10, ProjSpeed = 14, ProjDamage = 9 },
 	}),
 	enemy({
 		Key = "Overclock6",

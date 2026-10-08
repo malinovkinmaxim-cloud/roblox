@@ -823,6 +823,91 @@ play(alice, run, 6)
 check("no errors with evolutions", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
+section("the bestiary: models, animation, every new enemy in a run")
+---------------------------------------------------------------------------
+mark = #Engine.Errors
+do
+	local EnemyModels = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Render.EnemyModels")
+	local EnemyAnimator = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Render.EnemyAnimator")
+	local EnemyData = Engine.Module(server, "ReplicatedStorage.Modules.EnemyData")
+	-- every model of the bestiary builds within its part budget (an elite with its elite ring)
+	local BUDGET = { Regular = 10, Minion = 10, Elite = 18, Boss = 45 }
+	local bossModels = {}
+	for _, def in EnemyData.List do
+		if def.Role == "Boss" then
+			bossModels[def.Model] = true
+		end
+	end
+	local over, built, moving = {}, 0, 0
+	for _, def in EnemyData.List do
+		if def.Role then
+			local variant = if def.Role == "Elite" then "e" else ""
+			local model, root, info = EnemyModels.Build(def, variant)
+			local n = #info.Parts
+			-- (a minion that is a shrunken boss - an echo, a hologram - has a boss's budget)
+			if n > (if bossModels[def.Model] or def.Model == "OverclockHolo" then BUDGET.Boss else BUDGET[def.Role]) then
+				table.insert(over, def.Key .. " " .. n)
+			end
+			built += 1
+			-- the animator moves its parts (a few frames of every kind)
+			local item = { Root = root, Info = info }
+			local e = { Phase = 1.3, RX = 0, RZ = 0 }
+			for f = 1, 3 do
+				EnemyAnimator.Pose(e, item, f * 0.1, 0.1, 0.5, false)
+				EnemyAnimator.Parts(item, f * 0.1)
+			end
+			if info.Anims then
+				for _, a in info.Anims do
+					if a.Kind ~= "Pulse" and a.Motor.C0 ~= a.Base then
+						moving += 1
+						break
+					end
+				end
+			end
+			EnemyModels.Reset(item)
+			model:Destroy()
+		end
+	end
+	check("every bestiary model builds within its part budget", #over == 0 and built >= 37, table.concat(over, ", "))
+	check("their parts move (wings, capes, jaws, moons...)", moving >= 20, moving)
+	-- the Studio Models (models/Enemies -> ReplicatedStorage/Enemies): switched on with UseInGame,
+	-- the game builds an enemy from its Model instead of the code: same parts, same moving parts
+	local file = require("@lune/fs").readFile("models/Enemies/1 CALM - Meadow/MegaSix.rbxm")
+	local loaded = roblox.deserializeModel(file)[1]
+	local folder = roblox.Instance.new("Folder")
+	folder.Name = "Enemies"
+	folder:SetAttribute("UseInGame", true)
+	loaded.Parent = folder
+	folder.Parent = rawget(alice.Game:GetService("ReplicatedStorage"), "__real")
+	local def = EnemyData.ByKey.MegaSix
+	local _, studioRoot, studio = EnemyModels.Build(def, "e")
+	folder:SetAttribute("UseInGame", false)
+	local _, _, coded = EnemyModels.Build(def, "e")
+	folder:Destroy()
+	check("a Studio Model replaces the code model when UseInGame is on",
+		#studio.Parts == #coded.Parts and #studio.Anims == #coded.Anims and math.abs(studio.Height - coded.Height) < 1e-3 and studioRoot.Anchored,
+		#studio.Parts .. "/" .. #coded.Parts)
+end
+-- every new enemy, elite and minion in a live run (server AI + client renderer), god mode on
+local invulnerable = run.Invulnerable
+run.Invulnerable = 1e9
+local spawned = 0
+for _, def in Engine.Module(server, "ReplicatedStorage.Modules.EnemyData").List do
+	if def.Role and def.Role ~= "Boss" then
+		cd:Fire("Admin", "spawn", def.Key)
+		spawned += 1
+		if spawned % 4 == 0 then
+			Engine.Step(1)
+		end
+	end
+end
+play(alice, run, 8)
+check("no errors with every bestiary enemy in the run", errorsSince(mark) == 0, Engine.Errors[mark + 1])
+cd:Fire("Admin", "killall", "")
+Engine.Step(1)
+run.Invulnerable = invulnerable
+
+---------------------------------------------------------------------------
 section("death -> results -> rewards saved")
 ---------------------------------------------------------------------------
 mark = #Engine.Errors

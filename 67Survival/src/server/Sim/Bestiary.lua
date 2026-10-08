@@ -749,6 +749,9 @@ function Bestiary.Init(run, e)
 	if p.Ghost or p.Fly then
 		e.Ghost = true -- floats over walls
 	end
+	if p.OneHit then
+		e.HP, e.MaxHP = 1, 1 -- (a hologram: any hit pops it, whatever the difficulty)
+	end
 	if b == "Hop" then
 		e.HopT = rng:NextNumber(0, p.HopEvery)
 	elseif b == "Zigzag" then
