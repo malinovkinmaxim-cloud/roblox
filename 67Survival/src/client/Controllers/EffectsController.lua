@@ -184,6 +184,10 @@ function EffectsController:Init(controllers)
 		table.insert(self.Vignette, f)
 	end
 	self.VignetteLevel = 0
+	self.BossVignetteUntil = 0
+	-- death pops (GameConfig.Feel DeathPop): pooled balls
+	self.Pops = {}
+	self.PopFree = {}
 end
 
 ---------------------------------------------------------------------------
@@ -298,7 +302,7 @@ function EffectsController:DamageNumber(e, damage: number, flags: number)
 	elseif crit and six7 then
 		color, size = rgb(255, 215, 40), 1.6
 	elseif crit then
-		color, size = rgb(255, 240, 80), 1.4
+		color, size = rgb(255, 205, 60), 1.45 -- crits: bigger and gold
 	elseif six7 then
 		color = rgb(255, 150, 230)
 	end
@@ -461,6 +465,7 @@ end
 function EffectsController:PlayerHurt(damage: number)
 	self:Flash(rgb(255, 30, 50), math.clamp(damage / 60, 0.12, 0.35))
 	self.C.CameraController:Shake(math.clamp(damage / 25, 0.3, 1.2))
+	self.C.CameraController:FovPulse(GameConfig.Feel.FovPulse * math.clamp(damage / 40, 0.4, 1), 0.35)
 	self.C.SoundController:Play("Hurt")
 	self.C.HudController:HurtShake()
 	local pos = playerPos()
@@ -518,6 +523,33 @@ function EffectsController:BossArrive(e)
 	self.C.SoundController:Play("BossSpawn")
 	self:Ring(pos - Vector3.new(0, 2.5, 0), 40, rgb(255, 40, 60), 0.9)
 	self:Emit("Smoke", pos, rgb(60, 50, 70), 30)
+	if e.Def.Boss then
+		-- a dark vignette while the BOSS banner is up
+		self.BossVignetteUntil = os.clock() + GameConfig.Feel.BossVignette
+	end
+end
+
+-- a regular enemy POPS when it dies: a ball of its colour swells x PopScale, then shrinks to
+-- nothing (GameConfig.Feel); its kill effect throws the few particles
+function EffectsController:Pop(pos: Vector3, size: number, color: Color3)
+	if #self.Pops >= 40 then
+		return
+	end
+	local ball = table.remove(self.PopFree)
+	if not ball then
+		ball = Instance.new("Part")
+		ball.Name = "DeathPop"
+		ball.Shape = Enum.PartType.Ball
+		ball.Material = Enum.Material.SmoothPlastic
+		ball.Anchored = true
+		ball.CanCollide = false
+		ball.CanQuery = false
+		ball.CanTouch = false
+		ball.CastShadow = false
+		ball.Parent = self.Anchor
+	end
+	ball.CFrame = CFrame.new(pos)
+	table.insert(self.Pops, { Part = ball, T = 0, Size = size, Color = color })
 end
 
 -- a boss's WEAK POINT opened: say it over its head
@@ -551,6 +583,7 @@ end
 function EffectsController:Revived(_p)
 	local pos = playerPos()
 	self:Flash(rgb(255, 150, 220), 0.6)
+	self.C.CameraController:FovPulse(GameConfig.Feel.FovPulse * 2, 0.8)
 	self.C.SoundController:Play("Revive")
 	if pos then
 		self:Ring(pos - Vector3.new(0, 2.5, 0), 25, rgb(255, 120, 220), 0.6)
@@ -574,7 +607,9 @@ function EffectsController:Update(dt: number)
 			numbers[i] = numbers[#numbers]
 			numbers[#numbers] = nil
 		else
-			local pop = if t < 0.15 then 1 + (1 - t / 0.15) * 0.6 else 1
+			-- a springy grow (Back easing overshoots a little), then it floats up and fades
+			local grow = n.T / 0.22
+			local pop = if grow < 1 then 0.35 + 0.65 * TweenService:GetValue(grow, Enum.EasingStyle.Back, Enum.EasingDirection.Out) else 1
 			n.Gui.StudsOffsetWorldSpace = Vector3.new(0, 2 + t * 3.5, 0)
 			n.Gui.Size = UDim2.fromOffset(n.BaseW * pop, n.BaseW * 0.43 * pop)
 			if t > 0.6 then
@@ -631,7 +666,32 @@ function EffectsController:Update(dt: number)
 		end
 	end
 
-	-- low HP vignette
+	-- death pops
+	local pops = self.Pops
+	local popLife = GameConfig.Feel.DeathPop
+	local popScale = GameConfig.Feel.PopScale
+	i = 1
+	while i <= #pops do
+		local p = pops[i]
+		p.T += dt
+		local t = p.T / popLife
+		if t >= 1 then
+			p.Part.CFrame = PARK
+			table.insert(self.PopFree, p.Part)
+			pops[i] = pops[#pops]
+			pops[#pops] = nil
+		else
+			-- 1 -> PopScale in the first 30%, then down to nothing
+			local k = if t < 0.3 then 1 + (popScale - 1) * TweenService:GetValue(t / 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+				else popScale * (1 - TweenService:GetValue((t - 0.3) / 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+			local d = math.max(0.05, p.Size * k)
+			p.Part.Size = Vector3.new(d, d, d)
+			p.Part.Color = p.Color:Lerp(rgb(255, 255, 255), if t < 0.3 then t / 0.3 * 0.5 else 0.5)
+			i += 1
+		end
+	end
+
+	-- low HP vignette (red); a dark one while a boss arrives
 	local run = self.C.RunClient
 	local target = 0
 	if run.Active and run.MaxHP > 0 then
@@ -640,9 +700,17 @@ function EffectsController:Update(dt: number)
 			target = (0.35 - frac) / 0.35 * (0.55 + 0.25 * math.sin(os.clock() * 6))
 		end
 	end
+	local boss = os.clock() < self.BossVignetteUntil
+	if boss then
+		target = math.max(target, 0.6)
+	end
 	self.VignetteLevel += (target - self.VignetteLevel) * math.min(1, dt * 6)
+	local tint = if boss then rgb(20, 8, 30) else rgb(255, 20, 40)
 	for _, f in self.Vignette do
 		f.BackgroundTransparency = 1 - self.VignetteLevel
+		if f.BackgroundColor3 ~= tint then
+			f.BackgroundColor3 = tint
+		end
 	end
 end
 

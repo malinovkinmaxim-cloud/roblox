@@ -18,8 +18,11 @@ local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local TweenService = game:GetService("TweenService")
+
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local Protocol = require(Shared.Protocol)
+local GameConfig = require(Shared.GameConfig)
 
 local Pool = require(script.Parent.Parent.Render.Pool)
 local EnemyModels = require(script.Parent.Parent.Render.EnemyModels)
@@ -39,6 +42,8 @@ local RAGE = Color3.fromRGB(255, 236, 140)
 local ES = Protocol.EState
 local ELITE: Color3 -- set below (elite plates)
 local MAX_DYING = 40
+local FEEL = GameConfig.Feel
+local LAUNCH_SCALE = 1.6 -- elites and bigger are launched off screen when they die; the rest pop
 local atan2, sin, abs = math.atan2, math.sin, math.abs
 
 local function poolKey(def, flags: number): string
@@ -64,7 +69,8 @@ end
 -- golden, elite); mid-run the pool is trimmed harder once too many models sit parked
 local PARKED_BUDGET = 96
 local function keepBetweenRuns(key: string): number
-	return if string.sub(key, -1) == ":" then 24 else 6
+	-- (12 of a kind: the bestiary has many kinds, a next run meets other ones)
+	return if string.sub(key, -1) == ":" then 12 else 6
 end
 local function keepMidRun(key: string): number
 	return if string.sub(key, -1) == ":" then 4 else 1
@@ -74,6 +80,7 @@ function EnemyRenderer:Init(controllers)
 	self.C = controllers
 	self.List = {}
 	self.Dying = {}
+	self.FlashBudget = FEEL.HitFlashPerFrame -- (white hit flashes per frame; refilled every frame)
 	self.Parts = {}
 	self.CFrames = {}
 	local folder = Instance.new("Folder")
@@ -86,6 +93,17 @@ function EnemyRenderer:Init(controllers)
 	end)
 end
 
+-- the colours of a model's parts, for the white hit flash (cached once, from the fresh model)
+local function cacheColors(item)
+	if not item.Info.Colors then
+		local colors = {}
+		for i, p in item.Info.Parts do
+			colors[i] = p.Color
+		end
+		item.Info.Colors = colors
+	end
+end
+
 function EnemyRenderer:Add(e)
 	local item = self.Pool:Acquire(poolKey(e.Def, e.Flags))
 	e.Item = item
@@ -93,6 +111,16 @@ function EnemyRenderer:Add(e)
 	e.Yaw = math.random() * 6.28
 	e.RX, e.RZ = e.X1, e.Z1
 	e.Sky = if bit32.band(e.Flags, FLAGS.FromSky) ~= 0 then 0.55 else 0
+	-- it pops out of the ground (Back easing) with a small puff (a few per second)
+	if e.Sky == 0 and not e.Def.Boss then
+		local now = os.clock()
+		e.Born = now
+		if now >= (self.PuffAt or 0) then
+			self.PuffAt = now + 1 / FEEL.SpawnPuffs
+			self.C.EffectsController:Poof(e.X1, e.Z1, Color3.fromRGB(200, 190, 175), 3)
+		end
+	end
+	cacheColors(item)
 	table.insert(self.List, e)
 	e.Index = #self.List
 	if e.Def.Champion or e.Def.MiniBoss then
@@ -314,6 +342,8 @@ function EnemyRenderer:UpdatePlates()
 	end
 end
 
+local unflash -- (below)
+
 local function unlist(self, e)
 	local list = self.List
 	local i = e.Index
@@ -345,12 +375,21 @@ function EnemyRenderer:Remove(e, cause: number)
 		return
 	end
 	e.Item = nil
+	if e.FlashParts then
+		unflash(e, item)
+	end
 	if item.Root.Color ~= item.Info.BodyColor then
 		item.Root.Color = item.Info.BodyColor
 	end
 	fade(item, 0)
 	EnemyModels.Reset(item) -- affixes, toggled parts, phase looks: back to the pooled model
-	if cause == 0 and #self.Dying < MAX_DYING and self.C.EffectsController:Quality() then
+	if cause == 0 and item.Info.Scale < LAUNCH_SCALE and self.C.EffectsController:Quality() then
+		-- a regular enemy POPS (EffectsController:Pop) and its model goes back to the pool
+		local run = self.C.RunClient
+		local h = item.Info.Height
+		self.C.EffectsController:Pop(run:World(e.RX, e.RZ, h), h * 2, item.Info.BodyColor)
+		self.Pool:Release(item)
+	elseif cause == 0 and #self.Dying < MAX_DYING and self.C.EffectsController:Quality() then
 		-- launched off screen, spinning: goofy death
 		local away = Vector3.new(e.RX - (self.PX or e.RX), 0, e.RZ - (self.PZ or e.RZ))
 		if away.Magnitude < 0.01 then
@@ -369,11 +408,42 @@ function EnemyRenderer:Remove(e, cause: number)
 	end
 end
 
+-- a hit: the whole model flashes white for a moment (cached colours come back) and gets
+-- knocked back a little (only the look: the server moves the enemy)
+function unflash(e, item)
+	e.FlashParts = nil
+	local colors = item.Info.Colors
+	if colors then
+		for i, p in item.Info.Parts do
+			if p ~= item.Root and colors[i] then
+				p.Color = colors[i]
+			end
+		end
+	end
+end
+
 function EnemyRenderer:Flash(e)
 	local item = e.Item
-	if item and e.State ~= ES.Frozen then
-		item.Root.Color = WHITE
-		e.FlashUntil = os.clock() + 0.07
+	if not item or e.State == ES.Frozen then
+		return
+	end
+	local now = os.clock()
+	item.Root.Color = WHITE
+	e.FlashUntil = now + FEEL.HitFlash
+	if not e.FlashParts and item.Info.Colors and self.FlashBudget > 0 then
+		self.FlashBudget -= 1
+		e.FlashParts = true
+		local colors = item.Info.Colors
+		for i, p in item.Info.Parts do
+			if colors[i] then -- (parts added later, e.g. affixes, keep their colour)
+				p.Color = WHITE
+			end
+		end
+	end
+	local dx, dz = (e.RX or 0) - (self.PX or 0), (e.RZ or 0) - (self.PZ or 0)
+	local d = math.sqrt(dx * dx + dz * dz)
+	if d > 0.01 then
+		e.KickAt, e.KickX, e.KickZ = now, dx / d, dz / d
 	end
 end
 
@@ -403,11 +473,15 @@ function EnemyRenderer:Reskin(e)
 	if not old then
 		return
 	end
+	if e.FlashParts then
+		unflash(e, old)
+	end
 	old.Root.Color = old.Info.BodyColor
 	fade(old, 0)
 	EnemyModels.Reset(old)
 	self.Pool:Release(old)
 	e.Item = self.Pool:Acquire(poolKey(e.Def, e.Flags))
+	cacheColors(e.Item)
 	self.C.EffectsController:Poof(e.RX, e.RZ, Color3.fromRGB(200, 120, 255), 6)
 end
 
@@ -417,6 +491,9 @@ function EnemyRenderer:Clear()
 	end
 	for _, e in self.List do
 		if e.Item then
+			if e.FlashParts then
+				unflash(e, e.Item)
+			end
 			EnemyModels.Reset(e.Item)
 			self.Pool:Release(e.Item)
 			e.Item = nil
@@ -445,6 +522,7 @@ function EnemyRenderer:Update(dt: number)
 		px, pz = root.Position.X - center.X, root.Position.Z - center.Z
 	end
 	self.PX, self.PZ = px, pz
+	self.FlashBudget = FEEL.HitFlashPerFrame
 	local paused = run.Paused
 	local turn = math.min(1, 10 * dt)
 	-- procedural animation (Render/EnemyAnimator): a plain bob in a big crowd, parts only near you
@@ -537,8 +615,32 @@ function EnemyRenderer:Update(dt: number)
 				e.Sky = math.max(0, e.Sky - dt)
 				y += e.Sky * e.Sky * 140
 			end
+			-- spawn: it rises out of the ground with a little overshoot
+			if e.Born then
+				local t = (now - e.Born) / FEEL.SpawnRise
+				if t >= 1 then
+					e.Born = nil
+				else
+					local k = TweenService:GetValue(t, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+					y -= (1 - k) * info.Height * 2
+				end
+			end
+			-- hit recoil
+			if e.KickAt then
+				local t = (now - e.KickAt) / 0.12
+				if t >= 1 then
+					e.KickAt = nil
+				else
+					local r = FEEL.Recoil * (1 - t) * math.min(scale, 1.5)
+					ox += e.KickX * r
+					oz += e.KickZ * r
+				end
+			end
 			if e.FlashUntil and now >= e.FlashUntil then
 				e.FlashUntil = nil
+				if e.FlashParts then
+					unflash(e, item)
+				end
 				if state ~= ES.Frozen and state ~= ES.Lit then
 					item.Root.Color = info.BodyColor
 				end

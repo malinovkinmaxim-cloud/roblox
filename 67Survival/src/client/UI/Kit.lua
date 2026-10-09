@@ -131,6 +131,36 @@ function Kit.Pop(guiObject: GuiObject, amount: number?)
 	Kit.Tween(scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
 end
 
+-- Fades a whole panel in (it and everything inside it, from invisible to how it was built)
+local FADE_PROPS = {
+	Frame = { "BackgroundTransparency" },
+	TextLabel = { "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency" },
+	TextButton = { "BackgroundTransparency", "TextTransparency" },
+	ImageLabel = { "BackgroundTransparency", "ImageTransparency" },
+	UIStroke = { "Transparency" },
+}
+function Kit.FadeIn(root: Instance, duration: number)
+	local list = root:GetDescendants()
+	table.insert(list, root)
+	for _, obj in list do
+		local props = FADE_PROPS[obj.ClassName]
+		if props then
+			local goal = {}
+			for _, prop in props do
+				local key = "Fade" .. prop
+				local base = obj:GetAttribute(key)
+				if base == nil then
+					base = (obj :: any)[prop]
+					obj:SetAttribute(key, base)
+				end
+				(obj :: any)[prop] = 1
+				goal[prop] = base
+			end
+			Kit.Tween(obj, duration, goal, Enum.EasingStyle.Sine)
+		end
+	end
+end
+
 -- Soft appear: fade + slight grow
 function Kit.Appear(guiObject: GuiObject)
 	local scale = guiObject:FindFirstChildOfClass("UIScale")

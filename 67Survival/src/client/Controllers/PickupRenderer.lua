@@ -2,8 +2,9 @@
 	PickupRenderer - XP gems, pickups (snack, magnet, bomb, chest, 67 chest, coins, fragments)
 	and the helper goobers (Goober Friends).
 
-	Gems are pooled neon crystals (colour = tier) that sit still (cheap) and fly into the player
-	when collected. Items bob and spin (there are only a few). Allies are small goobers moved
+	Gems are pooled neon crystals (colour = tier) that hop out of a defeated enemy in a little
+	arc (GameConfig.Feel DropArc), then sit still (cheap) and fly into the player with an ease-in
+	when collected; coins hop out the same way. Items bob and spin (there are only a few). Allies are small goobers moved
 	with interpolation, like enemies.
 ]]
 
@@ -181,6 +182,7 @@ function PickupRenderer:Init(controllers)
 	self.Gems = {} -- id -> { Part, X, Z, Tier }
 	self.GemFree = {}
 	self.Flying = {}
+	self.Dropping = {} -- gems hopping out of an enemy
 	self.Items = {}
 	self.ItemFree = {}
 	self.Allies = {}
@@ -213,11 +215,19 @@ function PickupRenderer:AddGem(id: number, x: number, z: number, tier: number)
 	p.Size = Vector3.new(s, s, s)
 	p.Color = GEM_COLORS[tier] or GEM_COLORS[1]
 	local run = self.C.RunClient
-	p.CFrame = CFrame.new(run:World(x, z, 1 + s * 0.4)) * GEM_ROT
-	self.Gems[id] = { Part = p, X = x, Z = z, Tier = tier }
+	local base = CFrame.new(run:World(x, z, 1 + s * 0.4)) * GEM_ROT
+	p.CFrame = base
+	local g = { Part = p, X = x, Z = z, Tier = tier }
+	self.Gems[id] = g
+	-- a little hop out of the enemy (a few dozen at most; the rest just appear)
+	if #self.Dropping < 80 then
+		g.Base = base
+		table.insert(self.Dropping, { Gem = g, T = 0 })
+	end
 end
 
 function PickupRenderer:ReleaseGem(g)
+	g.Base = nil
 	g.Part.CFrame = PARK
 	table.insert(self.GemFree, g.Part)
 end
@@ -225,6 +235,7 @@ end
 function PickupRenderer:GemTier(id: number, tier: number)
 	local g = self.Gems[id]
 	if g then
+		g.Base = nil
 		g.Tier = tier
 		local s = GEM_SIZES[tier] or 1
 		g.Part.Size = Vector3.new(s, s, s)
@@ -239,6 +250,7 @@ function PickupRenderer:TakeGem(id: number)
 		return
 	end
 	self.Gems[id] = nil
+	g.Base = nil
 	if #self.Flying < 60 then
 		table.insert(self.Flying, { Part = g.Part, From = g.Part.Position, T = 0, Gem = g })
 	else
@@ -265,6 +277,7 @@ function PickupRenderer:AddItem(id: number, kind: string, x: number, z: number)
 	entry.X, entry.Z = x, z
 	entry.Phase = math.random() * 6
 	entry.Id = id
+	entry.Born = os.clock() -- it hops out (Update)
 	self.Items[id] = entry
 	if kind == "Chest" or kind == "Chest67" then
 		self.C.EffectsController:Poof(x, z, rgb(255, 215, 60), 12)
@@ -314,6 +327,7 @@ function PickupRenderer:Clear()
 		self:ReleaseGem(f.Gem)
 	end
 	table.clear(self.Flying)
+	table.clear(self.Dropping)
 	for id in self.Items do
 		self:TakeItem(id, false)
 	end
@@ -341,9 +355,30 @@ function PickupRenderer:Update(dt: number)
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	local now = os.clock()
 
+	-- fresh gems hop out in an arc
+	local arc = GameConfig.Feel.DropArc
+	local dropping = self.Dropping
+	local i = 1
+	while i <= #dropping do
+		local d = dropping[i]
+		d.T += dt / arc
+		local g = d.Gem
+		if d.T >= 1 or not g.Base then
+			if g.Base then
+				g.Part.CFrame = g.Base -- landed
+				g.Base = nil
+			end
+			dropping[i] = dropping[#dropping]
+			dropping[#dropping] = nil
+		else
+			g.Part.CFrame = g.Base + Vector3.new(0, math.sin(d.T * math.pi) * 2.4, 0)
+			i += 1
+		end
+	end
+
 	-- collected gems fly into the player
 	local flying = self.Flying
-	local i = 1
+	i = 1
 	while i <= #flying do
 		local f = flying[i]
 		f.T += dt / 0.22
@@ -359,9 +394,17 @@ function PickupRenderer:Update(dt: number)
 		end
 	end
 
-	-- items bob and spin
+	-- items bob and spin (a coin hops out first)
 	for _, entry in self.Items do
 		local bob = math.sin(now * 3 + entry.Phase) * 0.35
+		if entry.Born then
+			local t = (now - entry.Born) / arc
+			if t >= 1 then
+				entry.Born = nil
+			else
+				bob += math.sin(t * math.pi) * 2.4
+			end
+		end
 		local spin = now * 2 + entry.Phase
 		entry.Root.CFrame = CFrame.new(run:World(entry.X, entry.Z, 2 + bob)) * CFrame.Angles(0, spin, 0)
 	end

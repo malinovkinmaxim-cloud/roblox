@@ -1483,6 +1483,7 @@ function EnemyManager.Step(run, dt: number)
 	local riftOpen = run.Map ~= nil and run.Map.RiftOpen
 	local grid = run.Grid
 	local knockDecay = exp(-7 * dt)
+	local turnRate = GameConfig.Feel.EnemyTurn
 	local decoy = run.Decoy
 	if decoy and now >= decoy.Until then
 		decoy = nil
@@ -1585,8 +1586,17 @@ function EnemyManager.Step(run, dt: number)
 			end
 		end
 
-		e.X += (dirX * speed + e.KX + sepX * 9) * dt
-		e.Z += (dirZ * speed + e.KZ + sepZ * 9) * dt
+		-- velocity smoothing: a walker eases into a turn (dashes, stops and bosses are instant)
+		local wantX, wantZ = dirX * speed, dirZ * speed
+		if e.IsBoss or mult == 0 or mult > 1.5 or not e.VX then
+			e.VX, e.VZ = wantX, wantZ
+		else
+			local k = min(1, dt * turnRate)
+			e.VX += (wantX - e.VX) * k
+			e.VZ += (wantZ - e.VZ) * k
+		end
+		e.X += (e.VX + e.KX + sepX * 9) * dt
+		e.Z += (e.VZ + e.KZ + sepZ * 9) * dt
 		e.KX *= knockDecay
 		e.KZ *= knockDecay
 

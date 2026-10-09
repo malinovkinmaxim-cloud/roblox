@@ -347,10 +347,10 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 		self:Pick(index)
 	end)
 
-	-- soft staggered appear
-	scale.Scale = 0.9
-	task.delay(0.05 * index, function()
-		Kit.Tween(scale, 0.22, { Scale = 1 })
+	-- staggered spring: each card pops up a little after the one before (the row slides up: Show)
+	scale.Scale = 0.85
+	task.delay(0.06 * index, function()
+		Kit.Tween(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 	end)
 	if rare then
 		task.delay(0.05 * index + 0.15, function()
@@ -379,6 +379,11 @@ function LevelUpController:Show(offer)
 	self.RerollLabel.TextColor3 = C.Text
 	local wasOpen = self.Gui.Enabled
 	self.Gui.Enabled = true
+	-- the row of cards slides up with a spring (GameConfig.Feel CardSlide)
+	local home = self.CardsHome or self.Cards.Position
+	self.CardsHome = home
+	self.Cards.Position = home + UDim2.fromOffset(0, 70)
+	Kit.Tween(self.Cards, GameConfig.Feel.CardSlide, { Position = home }, Enum.EasingStyle.Back)
 	if not wasOpen then
 		Kit.Appear(self.Title)
 		Kit.Blur("levelup", 10)
@@ -406,9 +411,12 @@ function LevelUpController:Pick(index: number)
 		return
 	end
 	self:Lock()
-	local card = self.Cards:FindFirstChild("Card" .. index)
-	if card then
-		Kit.Pop(card :: GuiObject, 0.15)
+	-- the chosen card grows, the others step back
+	for _, other in self.Cards:GetChildren() do
+		local s = other:IsA("GuiObject") and other:FindFirstChildOfClass("UIScale")
+		if s then
+			Kit.Tween(s, 0.2, { Scale = if other.Name == "Card" .. index then 1.08 else 0.94 }, Enum.EasingStyle.Back)
+		end
 	end
 	self.C.ClientData:Fire("Choose", index)
 end

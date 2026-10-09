@@ -414,6 +414,22 @@ local avgBytes = runClient.Stats.Bytes / math.max(1, runClient.Stats.Frames)
 check("network frames are small (< 1.5 KB avg)", avgBytes < 1500, math.floor(avgBytes) .. " bytes")
 print(string.format("       t=%.0fs level %d kills %d alive %d | avg frame %d bytes", run.Time, run.Level, run.Kills, #run.Enemies, avgBytes))
 check("no errors in the first 30 s", errorsSince(mark) == 0, Engine.Errors[mark + 1])
+do
+	-- game feel (GameConfig.Feel): pops, white flashes, the FOV pulse, the drop arcs
+	local cached = 0
+	for _, e in enemyRenderer.List do
+		if e.Item and e.Item.Info.Colors then
+			cached += 1
+		end
+	end
+	check("feel: every enemy model knows its colours (white hit flash)", cached == enemyRenderer:Count(), cached .. " / " .. enemyRenderer:Count())
+	check("feel: regular enemies pop when they die", #effects.Pops + #effects.PopFree > 0)
+	local camera = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.CameraController")
+	effects:PlayerHurt(30)
+	check("feel: getting hurt breathes the camera out (FOV pulse)", camera.Fov ~= nil and camera.Fov.Amount > 0)
+	local pickups = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.PickupRenderer")
+	check("feel: gems hop out in an arc (bounded)", pickups.Dropping ~= nil and #pickups.Dropping <= 80)
+end
 
 -- level up offer: keyboard picks work too
 mark = #Engine.Errors
@@ -450,6 +466,16 @@ local function teleport(x: number, z: number)
 	end
 	Engine.MoveCharacter("Alice", roblox.Vector3.new(x, ARENA_Y, z))
 	Engine.Step(0.2)
+end
+-- an open level-up offer pauses the run: answer it (kill timing decides when one opens)
+local function answerOffers(r)
+	for _ = 1, 10 do
+		if not r.Offer then
+			return
+		end
+		cd:Fire("Choose", 1)
+		Engine.Step(0.3)
+	end
 end
 -- lets the run go on for `seconds` of RUN time while Alice stands at (x, z) (level-up cards
 -- are picked: they pause the run)
@@ -619,6 +645,7 @@ do
 	check("your items are real items", key ~= nil and ItemData.ByKey[key] ~= nil)
 	-- the same item again: level II, the card says I -> II
 	if key then
+		answerOffers(run)
 		local level = run.Items[key]
 		Items.Drop(run, key, run.PX + 1, run.PZ)
 		Engine.Step(0.4)
@@ -629,6 +656,7 @@ do
 	-- the DASH of the Rocket Skates
 	Items.Gain(run, "RocketSkates")
 	Engine.Step(0.3)
+	answerOffers(run)
 	check("dash button appears with the Rocket Skates", hud.DashButton.Visible == true)
 	local bx, bz = run.PX, run.PZ
 	runClient:RequestDash()
@@ -653,6 +681,7 @@ do
 	check("elite killed: counted, gone from the client", (run.Result.Elites or 0) > elitesBefore and next(runClient.Elites) == nil)
 
 	-- a 67 VAULT and the 67 RUSH
+	answerOffers(run)
 	cd:Fire("Admin", "vault", "")
 	cd:Fire("Admin", "rush", "")
 	Engine.Step(0.5)
@@ -673,6 +702,7 @@ do
 	end
 
 	-- the rift opens
+	answerOffers(run)
 	if not run.Map.RiftOpen then
 		cd:Fire("Admin", "time", tostring(ArenaData.RiftOpensAt - 1))
 		Engine.Step(1.5)

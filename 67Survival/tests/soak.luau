@@ -47,6 +47,12 @@ local function countWorkspace(): number
 	return #rawget(clientWS, "__real"):GetDescendants()
 end
 
+-- instances of the enemy model pool (bounded per enemy kind: checked on its own below)
+local function countEnemyPool(): number
+	local folder = rawget(clientWS, "__real"):FindFirstChild("RunEnemies")
+	return if folder then #folder:GetDescendants() + 1 else 0
+end
+
 local function oneRun(label: string, god: boolean)
 	print("\n[" .. label .. "]")
 	local mark = #Engine.Errors
@@ -140,6 +146,7 @@ runClient:Leave()
 cd:Fire("ReturnToLobby")
 Engine.Step(2)
 local wsAfterFirst = countWorkspace()
+local enemyAfterFirst = countEnemyPool()
 local poolAfterFirst = enemyRenderer.Pool.Created
 check("client world cleaned after the run", enemyRenderer:Count() == 0 and next(pickups.Gems) == nil and next(weaponFx.Projectiles) == nil)
 
@@ -149,8 +156,11 @@ runClient:Leave()
 cd:Fire("ReturnToLobby")
 Engine.Step(2)
 local wsAfterSecond = countWorkspace()
+local enemyAfterSecond = countEnemyPool()
 print(string.format("  workspace instances after run 1: %d, after run 2: %d | pool %d -> %d", wsAfterFirst, wsAfterSecond, poolAfterFirst, enemyRenderer.Pool.Created))
-check("no instance growth between runs (pools reused + trimmed)", wsAfterSecond <= wsAfterFirst + 300, wsAfterSecond - wsAfterFirst)
+-- (the enemy pool keeps a few models of every kind met so far: a second run meets other kinds)
+local otherGrowth = (wsAfterSecond - enemyAfterSecond) - (wsAfterFirst - enemyAfterFirst)
+check("no instance growth between runs (pools reused + trimmed)", otherGrowth <= 150, otherGrowth)
 local keys = 0
 for _ in enemyRenderer.Pool.Free do
 	keys += 1

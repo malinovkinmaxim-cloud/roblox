@@ -29,6 +29,7 @@ local ZOOM_MIN, ZOOM_MAX = 38, 96
 
 -- hub showcase framing (relative to the hero's root)
 local HUB_FOV = 40
+local RUN_FOV = 55 -- (a run; GameConfig.Feel FovPulse breathes out from it)
 local HUB_DIST = 15.5
 local HUB_EYE_Y, HUB_LOOK_Y = 1.2, -0.3 -- a low, slightly upward-feeling angle; the hero sits above the plate
 local HUB_SCREEN_X = 0.5 -- the hero sits this far right of the screen centre (fraction of half width): the right third
@@ -72,6 +73,16 @@ function CameraController:Shake(amplitude: number)
 		return
 	end
 	self.ShakeAmp = math.min(3, math.max(self.ShakeAmp, amplitude))
+end
+
+-- the field of view breathes out for a moment (getting hurt, a revive): `amount` degrees
+function CameraController:FovPulse(amount: number, duration: number)
+	local now = os.clock()
+	local old = self.Fov
+	if old and now < old.Until and old.Amount >= amount then
+		return
+	end
+	self.Fov = { Start = now, Until = now + duration, Amount = amount }
 end
 
 -- quick dramatic zoom towards the player (factor < 1 = closer)
@@ -232,6 +243,21 @@ function CameraController:Update(dt: number)
 		end
 	end
 
+	-- FOV pulse: out fast, back slowly
+	local fov = RUN_FOV
+	local pulse = self.Fov
+	if pulse then
+		if now >= pulse.Until then
+			self.Fov = nil
+		else
+			local t = (now - pulse.Start) / (pulse.Until - pulse.Start)
+			fov += pulse.Amount * (if t < 0.2 then t / 0.2 else 1 - (t - 0.2) / 0.8)
+		end
+	end
+	if camera.FieldOfView ~= fov then
+		camera.FieldOfView = fov
+	end
+
 	local offset = Vector3.new(0, math.sin(PITCH), math.cos(PITCH)) * zoom
 	local cf = CFrame.lookAt(focus + offset, focus + Vector3.new(0, 1.5, 0))
 	if self.ShakeAmp > 0.01 then
@@ -252,8 +278,9 @@ function CameraController:SetMode(mode: string)
 	end
 	if mode == "Run" then
 		camera.CameraType = Enum.CameraType.Scriptable
-		camera.FieldOfView = 55
+		camera.FieldOfView = RUN_FOV
 		self.Focus = nil
+		self.Fov = nil
 	else
 		-- the hub showcase camera (UpdateHub)
 		camera.CameraType = Enum.CameraType.Scriptable

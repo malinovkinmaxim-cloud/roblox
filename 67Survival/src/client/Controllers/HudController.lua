@@ -990,6 +990,7 @@ function HudController:ShowBoss(boss)
 	self.BossPanel.Visible = true
 	self.BossBar:Set(1)
 	Kit.Appear(self.BossPanel)
+	Kit.FadeIn(self.BossPanel, GameConfig.Feel.BossBarFade) -- the boss bar fades in under the banner
 end
 
 function HudController:HideBoss()

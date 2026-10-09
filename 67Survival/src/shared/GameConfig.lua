@@ -119,6 +119,23 @@ GameConfig.Visuals = {
 	FewerEffectsFade = 0.25, -- ability areas and auras get this much more see-through
 }
 
+-- GAME FEEL (smoothness): every timing of the little animations in one place
+GameConfig.Feel = {
+	EnemyTurn = 12, -- server: how fast an enemy's velocity follows its wish (1/s; dashes, bosses: instant)
+	SpawnRise = 0.25, -- an enemy pops out of the ground (Back easing), a small puff
+	SpawnPuffs = 8, -- at most this many spawn puffs a second (a 67 INVASION spawns hundreds)
+	DeathPop = 0.2, -- a regular enemy pops: x PopScale, then 0
+	PopScale = 1.15,
+	HitFlash = 0.08, -- every part flashes white this long
+	HitFlashPerFrame = 24, -- at most this many models start a flash per frame
+	Recoil = 0.35, -- studs a hit pushes the model back (visual only)
+	FovPulse = 5, -- degrees the camera breathes out when you get hurt (more for a revive)
+	DropArc = 0.35, -- XP gems and coins hop out of a defeated enemy (seconds, 2.4 studs high)
+	CardSlide = 0.45, -- level-up cards slide up with a spring
+	BossVignette = 1.6, -- seconds of a dark vignette when a boss arrives
+	BossBarFade = 0.5, -- the boss bar fades in
+}
+
 -- ponds in the arena: water slows everyone who wades through (bosses and flyers do not)
 GameConfig.Water = {
 	PlayerSpeed = 0.75, -- walk speed multiplier in water
