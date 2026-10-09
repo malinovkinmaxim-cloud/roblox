@@ -1,6 +1,9 @@
 --[[
 	ShopPanel - full-screen shop, one page at a time:
 	  UPGRADES    permanent upgrades bought with coins (small bonuses, never required)
+	  PREMIUM     the 7 Mythic abilities (Robux; hero-card style with the Mythic shine), the
+	              daily FREE TRIAL (one of them for your next run), ability skins and the trail
+	              pack (shared/AbilityConfig.lua). No id yet: COMING SOON (Studio: TEST BUY)
 	  COSMETICS   12 categories (left list): hats, hero skins, ability skins, kill effects,
 	              spawn effects, trails, emotes, name effects, lobby decor, victory poses,
 	              UI themes, auras. Looks only. Coins, achievements, levels, the collection
@@ -13,7 +16,7 @@
 	published game (shared/MonetizationData.lua).
 	Nothing here wins a run: the paid revive / extra reroll / extra chest only appear at the
 	moment they apply (death screen, level up, results).
-	OnOpen(arg) selects a page ("Upgrades", "Cosmetics", "Boosts", "Passes", "Support").
+	OnOpen(arg) selects a page ("Upgrades", "Premium", "Cosmetics", "Boosts", "Passes", "Support").
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,6 +26,8 @@ local MetaData = require(Shared.MetaData)
 local CosmeticData = require(Shared.CosmeticData)
 local AchievementData = require(Shared.AchievementData)
 local MonetizationData = require(Shared.MonetizationData)
+local WeaponData = require(Shared.WeaponData)
+local AbilityConfig = require(Shared.AbilityConfig)
 
 local Kit = require(script.Parent.Parent.Kit)
 local Theme = require(script.Parent.Parent.Theme)
@@ -38,8 +43,8 @@ local Panel = {}
 Panel.Kind = "Screen"
 Panel.Title = "SHOP"
 
-local PAGES = { "Upgrades", "Cosmetics", "Boosts", "Passes", "Support" }
-local LABELS = { Upgrades = "UPGRADES", Cosmetics = "COSMETICS", Boosts = "BOOSTS", Passes = "GAMEPASSES", Support = "SUPPORT" }
+local PAGES = { "Upgrades", "Premium", "Cosmetics", "Boosts", "Passes", "Support" }
+local LABELS = { Upgrades = "UPGRADES", Premium = "PREMIUM", Cosmetics = "COSMETICS", Boosts = "BOOSTS", Passes = "GAMEPASSES", Support = "SUPPORT" }
 local SUPPORT = { { "Product", "Support1" }, { "Product", "Support2" }, { "Product", "Support3" } }
 local BOOSTS = { { "Product", "CosmeticBoost" }, { "Product", "AfkBoost" } }
 local PASSES = {
@@ -88,6 +93,154 @@ local function productCard(state, scroll: Instance, order: number, kind: string,
 	state.Products[key] = ui
 end
 
+-- the Robux button of a premium sale: owned / COMING SOON (no id yet) / TEST BUY (Studio) / price
+local function saleButton(state, ui, key: string, owned: boolean)
+	local cd = state.C.ClientData
+	local def = MonetizationData.PassByKey[key] or MonetizationData.ProductByKey[key]
+	if owned then
+		Cards.Set(ui, "OWNED", "OWNED", C.SuccessDark)
+	elseif not cd:CanBuy(key) then
+		Cards.Set(ui, "", "COMING SOON", C.Neutral)
+	elseif def and def.Id == 0 then
+		Cards.Set(ui, "", "TEST BUY", C.AccentSoft)
+		ui.Need.Text = "Studio test (no id yet)"
+	else
+		local price = cd:RobuxPrice(key)
+		Cards.Set(ui, "", if price > 0 then robux(price) else "BUY", C.AccentSoft)
+	end
+end
+
+local function buy(state, key: string)
+	local data = state.C.ClientData.Data
+	if not data or not state.C.ClientData:CanBuy(key) then
+		return -- not on sale yet (no id)
+	end
+	if data.Passes and data.Passes[key] then
+		return
+	end
+	state.C.ClientData:Fire("Buy", if MonetizationData.PassByKey[key] then "Pass" else "Product", key)
+end
+
+-- PREMIUM: the daily trial, the 7 Mythic abilities, ability skins, the trail pack
+local function buildPremium(state, scroll: Instance)
+	local center = { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) }
+	local trial = Cards.Item(scroll, {
+		Name = "FREE TRIAL",
+		Desc = "",
+		Rarity = "Mythic",
+		RarityBorder = true,
+		Order = 0,
+		PictureHeight = 110,
+		Width = 230,
+		OnClick = function()
+			local premium = state.C.ClientData.Data and state.C.ClientData.Data.Premium
+			if premium and premium.Trial and premium.TrialLeft > 0 and not premium.TrialArmed then
+				state.C.ClientData:Fire("PremiumTrial")
+			end
+		end,
+	})
+	state.Trial = trial
+	for i, def in WeaponData.Premium do
+		local sale = MonetizationData.ForAbility(def.Key)
+		local ui = Cards.Item(scroll, {
+			Name = def.Name,
+			Desc = def.Desc,
+			Rarity = "Mythic",
+			RarityBorder = true,
+			Order = i,
+			PictureHeight = 110,
+			Width = 230,
+			OnClick = function()
+				if sale then
+					buy(state, sale.Key)
+				end
+			end,
+		})
+		Icons.Make(ui.Picture, "Weapon", def.Key, 104, center)
+		ui.Key = def.Key
+		ui.Sale = sale and sale.Key
+		state.PremiumCards[def.Key] = ui
+	end
+	-- ability skins and the trail pack (cosmetic only)
+	local extras = {}
+	for _, style in AbilityConfig.SkinOrder do
+		table.insert(extras, { "Skin." .. style, CosmeticData.ById["WeaponSkin." .. style] })
+	end
+	table.insert(extras, { "TrailPack", CosmeticData.ById["Trail." .. AbilityConfig.TrailPack.Trails[1]] })
+	for i, entry in extras do
+		local sale = MonetizationData.PassByKey[entry[1]] or MonetizationData.ProductByKey[entry[1]]
+		local ui = Cards.Item(scroll, {
+			Name = string.upper(sale.Name),
+			Desc = sale.Desc,
+			Rarity = entry[2].Rarity,
+			RarityBorder = true,
+			Order = 20 + i,
+			PictureHeight = 110,
+			Width = 230,
+			OnClick = function()
+				buy(state, sale.Key)
+			end,
+		})
+		Icons.Cosmetic(ui.Picture, entry[2], 72, center)
+		ui.Sale = sale.Key
+		ui.Cosmetics = sale.Cosmetics
+		state.PremiumExtras[sale.Key] = ui
+	end
+end
+
+local function refreshPremium(state, data)
+	local premium = data.Premium or { Owned = {}, TrialLeft = 0 }
+	local owned = premium.Owned or {}
+	-- the trial card: today's ability (its picture changes with it)
+	local trial = state.Trial
+	local key = premium.Trial
+	if key ~= state.TrialKey then
+		state.TrialKey = key
+		local old = trial.Picture:FindFirstChild("Icon")
+		if old then
+			old:Destroy()
+		end
+		if key then
+			Icons.Make(trial.Picture, "Weapon", key, 104, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) })
+		end
+	end
+	local def = key and WeaponData.ByKey[key]
+	if not def then
+		trial.Desc.Text = "You own every premium ability. Thank you!"
+		Cards.Set(trial, "OWNED", nil)
+	else
+		trial.Desc.Text = string.format("Today: %s. Take it into your next run for free, once a day.", def.Name)
+		if premium.TrialArmed then
+			Cards.Set(trial, "EQUIPPED", "NEXT RUN", C.SuccessDark)
+			trial.State.Text = "READY"
+		elseif (premium.TrialLeft or 0) > 0 then
+			Cards.Set(trial, "", "TRY IT FREE", C.AccentSoft)
+		else
+			Cards.Set(trial, "", "TOMORROW", C.Neutral)
+			trial.Need.Text = "Used today: a new one tomorrow"
+		end
+	end
+	for k, ui in state.PremiumCards do
+		if ui.Sale then
+			saleButton(state, ui, ui.Sale, owned[k] == true)
+		else
+			Cards.Set(ui, "", "COMING SOON", C.Neutral)
+		end
+		if premium.TrialArmed and premium.Trial == k and not owned[k] then
+			ui.State.Text = "TRIAL"
+			ui.State.Visible = true
+		end
+	end
+	local cos = data.Cosmetics and data.Cosmetics.Owned or {}
+	for key2, ui in state.PremiumExtras do
+		local all = true
+		for _, id in ui.Cosmetics or {} do
+			all = all and cos[id] == true
+		end
+		saleButton(state, ui, key2, all or (data.Passes ~= nil and data.Passes[key2] == true))
+	end
+end
+
 -- the picture of a cosmetic: a real preview when there is one, else an icon tile
 local function cosmeticPicture(ui, def, heroKey: string)
 	local picture = ui.Picture
@@ -105,7 +258,7 @@ local function cosmeticPicture(ui, def, heroKey: string)
 end
 
 function Panel.Build(body: Frame, controllers)
-	local state = { C = controllers, Upgrades = {}, Cosmetics = {}, Products = {}, Pages = {}, CatButtons = {}, CatPages = {} }
+	local state = { C = controllers, Upgrades = {}, Cosmetics = {}, Products = {}, Pages = {}, CatButtons = {}, CatPages = {}, PremiumCards = {}, PremiumExtras = {} }
 
 	-- top row: page tabs (left) and your coins (right)
 	local tabs = Widgets.Tabs(body, PAGES, LABELS, function(name)
@@ -197,6 +350,11 @@ function Panel.Build(body: Frame, controllers)
 		})
 		state.Upgrades[def.Key] = ui
 	end
+
+	-- PREMIUM: hero-card style Mythic cards
+	local premium = page(holder, "Premium", Vector2.new(230, 330))
+	state.Pages.Premium = premium
+	buildPremium(state, premium)
 
 	-- COSMETICS: categories on the left, one grid per category on the right
 	local cosmetics = Kit.New("Frame", { Name = "Cosmetics", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false, Parent = holder })
@@ -331,11 +489,14 @@ function Panel.ClickCosmetic(state, def)
 		state.C.ClientData:Fire("BuyCosmetic", def.Id)
 	elseif def.Pass then
 		state.C.ClientData:Fire("Buy", "Pass", def.Pass)
+	elseif def.Robux then
+		Panel.Show(state, "Premium") -- ability skins and the trail pack are sold there
 	end
 end
 
 function Panel.Refresh(state, data)
 	state.Wallet.Text = Widgets.Commas(data.Coins)
+	refreshPremium(state, data)
 
 	for _, def in MetaData.Upgrades do
 		local ui = state.Upgrades[def.Key]
@@ -371,6 +532,9 @@ function Panel.Refresh(state, data)
 			Cards.Set(ui, "LOCKED", nil, if data.Coins >= def.Cost then C.AccentSoft else C.Neutral, def.Cost)
 		elseif def.Pass then
 			Cards.Set(ui, "LOCKED", "GAMEPASS", C.Neutral)
+			ui.Need.Text = CosmeticData.SourceText(def)
+		elseif def.Robux and not def.Collection then
+			Cards.Set(ui, "LOCKED", "PREMIUM", C.Neutral)
 			ui.Need.Text = CosmeticData.SourceText(def)
 		else
 			Cards.Set(ui, "LOCKED", "LOCKED", C.Neutral)

@@ -131,12 +131,20 @@ function GameManager:CreateEntry(player: Player, opts)
 		return nil
 	end
 	local offset = opts.Offset
+	-- the premium abilities the player owns join the offers; the daily trial joins the run
+	local Monetization = self.Services.MonetizationManager
+	local unlocked = table.clone(data.Weapons)
+	for key in Monetization:PremiumOwned(player) do
+		unlocked[key] = true
+	end
+	local trial = Monetization:TakeTrial(player)
 	local run = Run.new({
 		Seed = opts.Seed,
 		Hero = heroKey,
 		Meta = data.Meta,
-		Unlocked = data.Weapons,
+		Unlocked = unlocked,
 		StartWeapon = weapon,
+		Trial = trial,
 		Colliders = self.Services.MapBuilder.Colliders,
 		StartX = offset.X,
 		StartZ = offset.Z,

@@ -131,11 +131,12 @@ function Defaults.Reconcile(raw: any)
 		out.Selected = HeroData.Default
 	end
 
-	-- abilities that can show up in runs (weapons + secret passives)
+	-- abilities that can show up in runs (weapons + secret passives); premium abilities are
+	-- never in here (a pass is checked live, a product is in Premium.Owned below)
 	out.Weapons = {}
 	local rw = tbl(r.Weapons)
 	for _, def in WeaponData.List do
-		if def.Evolution == nil then
+		if def.Evolution == nil and not def.Premium then
 			out.Weapons[def.Key] = (def.Unlock.Default == true) or rw[def.Key] == true
 		end
 	end
@@ -367,6 +368,21 @@ function Defaults.Reconcile(raw: any)
 			end
 		end
 	end
+	-- PREMIUM abilities bought as developer products, and the daily trial
+	-- (Services/MonetizationManager: Trial* = the day it was taken / used, uses that day)
+	local rprem = tbl(r.Premium)
+	local premium = {}
+	for _, def in WeaponData.Premium do
+		premium[def.Key] = true
+	end
+	local trialKey = str(rprem.TrialKey, "", 32)
+	out.Premium = {
+		Owned = keySet(rprem.Owned, premium),
+		TrialKey = if premium[trialKey] then trialKey else "",
+		TrialDay = int(rprem.TrialDay, 0, 0),
+		TrialUsedDay = int(rprem.TrialUsedDay, 0, 0),
+		TrialUses = int(rprem.TrialUses, 0, 0, 100),
+	}
 	out.StudioPasses = {}
 	for _, def in MonetizationData.Passes do
 		if tbl(r.StudioPasses)[def.Key] == true then

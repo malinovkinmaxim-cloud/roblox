@@ -9,6 +9,8 @@
 	Kinds: Projectile Missile Boomerang Lob Aura FireRing Field Cloud Meteor Slam Lightning
 	       Chain Beam Vortex Blast67 Slash Hammer Swords Orbit Drone Clone Allies Barrier
 	       Glitch Chaos Stare
+	       + the PREMIUM ones (Solar HolePet GoldMeteor Bubble Phoenix Storm Crown) from
+	       Sim/PremiumAbilities.lua, installed at the end of this module
 
 	Ability levels, level-up upgrades and items change behaviour through mechanic keys in the
 	ability's stats (shared/WeaponData.lua header): ricochet, split, homing, explosions, return,
@@ -141,6 +143,7 @@ local function gatherList(run, x: number, z: number, r: number): { any }
 	local n = gather(run, x, z, r)
 	return table.move(hitList, 1, n, 1, {})
 end
+CombatManager.Gather = gatherList
 
 local function area(run, x: number, z: number, r: number, dmg: number, knock: number): number
 	local list = gatherList(run, x, z, r)
@@ -227,6 +230,12 @@ local function fire(run, w, mode: string, angle: number, speed: number, life: nu
 	end
 	local s = w.S
 	local x, z = fromX or run.PX, fromZ or run.PZ
+	-- TIME BUBBLE: your shots fly faster (same reach)
+	local haste = run.Haste
+	if haste and haste > 1 then
+		speed *= haste
+		life /= haste
+	end
 	local p = {
 		Id = nextProjId(run),
 		W = w,
@@ -263,6 +272,7 @@ local function fire(run, w, mode: string, angle: number, speed: number, life: nu
 	run:Write("Proj", p.Id, w.Id, x, z, angle, speed, if mode == "Boomerang" then p.OutTime else life, if target then target.Id else 0)
 	return p
 end
+CombatManager.Fire = fire
 
 local function nextZoneId(run): number
 	run.NextZoneId = (run.NextZoneId or 0) % 65535 + 1
@@ -905,6 +915,7 @@ function KINDS.Stare(run, w, dt)
 end
 
 CombatManager.Kinds = KINDS
+require(script.Parent.PremiumAbilities).Install(CombatManager) -- the premium Kinds
 
 -- THE 67 hero: every 67th kill
 function CombatManager.Free67Blast(run)
@@ -1073,59 +1084,64 @@ local function stepProjectile(run, p, dt: number): boolean -- true = keep
 	end
 
 	local step = p.Speed * dt
-	p.X += p.DX * step
-	p.Z += p.DZ * step
 	p.Travel += step
 	run.HitDistance = p.Travel
 
-	local n = gather(run, p.X, p.Z, p.R)
-	for k = 1, n do
-		local e = hitList[k]
-		if p.Mode == "Straight" then
-			if not p.Hit[e.Uid] and targetable(e) then
-				p.Hit[e.Uid] = true
-				local dmg = s.Damage * p.Mult * (1 + (s.PierceGrow or 0) * p.Pierced)
-				CombatManager.Hit(run, e, dmg, p.DX, p.DZ, s.Knockback)
-				p.Pierced += 1
-				-- explosive rounds
-				if s.ExplodeChance and explodeBudget > 0 and run.Rng:NextNumber() < s.ExplodeChance then
-					explodeBudget -= 1
-					run:Write("Fx", 0, p.X, p.Z, 0, s.ExplodeR, 0, GFX.Bomb)
-					local was = run.Proc
-					run.Proc = true
-					area(run, p.X, p.Z, s.ExplodeR, dmg * (s.ExplodeShare or 0.4), 3)
-					if s.ExplodeBurn then
-						for _, o in gatherList(run, p.X, p.Z, s.ExplodeR) do
-							CombatManager.Burn(run, o, dmg * 0.2, 2)
+	-- swept hits: a fast shot checks a few points along its move (and where it starts on its
+	-- first step), so it never flies through an enemy pressed against the hero (20 steps / s)
+	local x0, z0 = p.X, p.Z
+	local samples = max(1, min(4, math.ceil(step / (p.R * 2 + 1.5))))
+	for i = if p.T <= dt + 1e-6 then 0 else 1, samples do
+		p.X, p.Z = x0 + p.DX * step * i / samples, z0 + p.DZ * step * i / samples
+		local n = gather(run, p.X, p.Z, p.R)
+		for k = 1, n do
+			local e = hitList[k]
+			if p.Mode == "Straight" then
+				if not p.Hit[e.Uid] and targetable(e) then
+					p.Hit[e.Uid] = true
+					local dmg = s.Damage * p.Mult * (1 + (s.PierceGrow or 0) * p.Pierced)
+					CombatManager.Hit(run, e, dmg, p.DX, p.DZ, s.Knockback)
+					p.Pierced += 1
+					-- explosive rounds
+					if s.ExplodeChance and explodeBudget > 0 and run.Rng:NextNumber() < s.ExplodeChance then
+						explodeBudget -= 1
+						run:Write("Fx", 0, p.X, p.Z, 0, s.ExplodeR, 0, GFX.Bomb)
+						local was = run.Proc
+						run.Proc = true
+						area(run, p.X, p.Z, s.ExplodeR, dmg * (s.ExplodeShare or 0.4), 3)
+						if s.ExplodeBurn then
+							for _, o in gatherList(run, p.X, p.Z, s.ExplodeR) do
+								CombatManager.Burn(run, o, dmg * 0.2, 2)
+							end
 						end
+						run.Proc = was
 					end
-					run.Proc = was
+					-- split on the first hit
+					if not p.Shard and p.Pierced == 1 and s.SplitChance and run.Rng:NextNumber() < s.SplitChance then
+						shards(run, p, s.SplitCount or 2, true)
+					end
+					if s.Retarget then
+						p.Seek = nil
+					end
+					p.Pierce -= 1
+					if p.Pierce < 0 then
+						lastHit(run, p, e)
+						endProjectile(run, p, false)
+						return false
+					end
 				end
-				-- split on the first hit
-				if not p.Shard and p.Pierced == 1 and s.SplitChance and run.Rng:NextNumber() < s.SplitChance then
-					shards(run, p, s.SplitCount or 2, true)
-				end
-				if s.Retarget then
-					p.Seek = nil
-				end
-				p.Pierce -= 1
-				if p.Pierce < 0 then
-					lastHit(run, p, e)
-					endProjectile(run, p, false)
+			elseif p.Mode == "Homing" then
+				if targetable(e) then
+					explode(run, p)
+					if not p.Shard and (s.SplitEnd or 0) > 0 then
+						shards(run, p, math.floor(s.SplitEnd), false)
+					end
 					return false
 				end
+			elseif (p.Hit[e.Uid] or 0) <= now then
+				p.Hit[e.Uid] = now + (s.HitCooldown or 0.4)
+				CombatManager.Hit(run, e, s.Damage * p.Mult, p.DX, p.DZ, s.Knockback)
 			end
-		elseif p.Mode == "Homing" then
-			if targetable(e) then
-				explode(run, p)
-				if not p.Shard and (s.SplitEnd or 0) > 0 then
-					shards(run, p, math.floor(s.SplitEnd), false)
-				end
-				return false
-			end
-		elseif (p.Hit[e.Uid] or 0) <= now then
-			p.Hit[e.Uid] = now + (s.HitCooldown or 0.4)
-			CombatManager.Hit(run, e, s.Damage * p.Mult, p.DX, p.DZ, s.Knockback)
 		end
 	end
 

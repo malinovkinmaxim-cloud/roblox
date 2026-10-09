@@ -454,8 +454,17 @@ function EnemyManager.Kill(run, e)
 	-- coins / items
 	local params = def.Params
 	local coinChance = def.CoinChance * luck * (if run.Mech == "Hoarder" then 1.5 else 1) * (if run.Map then ArenaDirector.CoinMult(run, e.X, e.Z) else 1)
+	-- GOLDEN METEOR SHOWER (premium): what it defeats drops more coins
+	local src = e.LastSrc
+	local bonus = src and src.S and src.S.CoinBonus
 	if params.Coins then
-		run:AddCoins(params.Coins)
+		run:AddCoins(params.Coins * (1 + (bonus or 0)))
+	elseif bonus then
+		local chance = coinChance * (1 + bonus)
+		local n = math.floor(chance) + (if rng:NextNumber() < chance % 1 then 1 else 0)
+		for _ = 1, n do
+			Pickups.SpawnItem(run, "Coin", e.X + rng:NextNumber(-1, 1), e.Z + rng:NextNumber(-1, 1))
+		end
 	elseif rng:NextNumber() < coinChance then
 		Pickups.SpawnItem(run, "Coin", e.X + rng:NextNumber(-1, 1), e.Z + rng:NextNumber(-1, 1))
 	end

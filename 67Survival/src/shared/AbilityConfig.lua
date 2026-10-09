@@ -142,7 +142,9 @@ AbilityConfig.Premium = {
 	ChainStorm = { ProductId = 0, Type = "Gamepass" }, -- TODO: insert ID
 	AuraCrown = { ProductId = 0, Type = "Gamepass" }, -- TODO: insert ID
 }
--- the TRIAL: once a day a player may take one random premium ability into a run for free
+-- the TRIAL: once a day a player may take one premium ability into a run for free (the Premium
+-- tab: TRY IT; the next run starts with it). Which one: a different one every day, one the
+-- player does not own. Hours = the length of a "day" for the trial.
 AbilityConfig.Trial = { PerDay = 1, Hours = 24 }
 -- a premium ability is never more than PowerCap x the best free ability of its role (DPS)
 AbilityConfig.PowerCap = 1.3
@@ -152,7 +154,10 @@ AbilityConfig.PremiumWeight = 0.13
 ---------------------------------------------------------------------------
 -- COSMETICS for Robux (no balance): ability skins and the trail pack
 ---------------------------------------------------------------------------
--- the ability skins on sale (shared/CosmeticData.lua WeaponSkin; the colours live there)
+-- the ability skins on sale (shared/CosmeticData.lua WeaponSkin; the colours live there).
+-- Bought here or got the old way (a pass, the Collection Book, coins); the equipped one is saved
+-- in the profile (Cosmetics.Equipped.WeaponSkin)
+AbilityConfig.SkinOrder = { "Gold", "Rainbow", "Void", "Ice" }
 AbilityConfig.Skins = {
 	Gold = { ProductId = 0, Type = "Gamepass" }, -- TODO: insert ID (today: in the VIP Cosmetics pass)
 	Rainbow = { ProductId = 0, Type = "Gamepass" }, -- TODO: insert ID (today: in the Cosmetic Collection pass)

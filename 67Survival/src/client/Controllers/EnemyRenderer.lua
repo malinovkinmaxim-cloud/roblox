@@ -456,9 +456,10 @@ function EnemyRenderer:Update(dt: number)
 		self.LightClock = 0
 		EnemyAnimator.Lights(self.List, px, pz)
 	end
-	-- after a big wave (67 INVASION) hundreds of models can sit parked: free the extras
+	-- after a big wave (67 INVASION) hundreds of models can sit parked: free the extras (every
+	-- half second: the bestiary has many kinds, a kind's models can't stand in for another's)
 	self.TrimClock = (self.TrimClock or 0) + dt
-	if self.TrimClock >= 2 then
+	if self.TrimClock >= 0.5 then
 		self.TrimClock = 0
 		if self.Pool:Parked() > PARKED_BUDGET then
 			self.Pool:Trim(keepMidRun)

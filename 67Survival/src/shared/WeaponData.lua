@@ -7,7 +7,9 @@
 	  Category  PROJECTILE / AREA / MELEE / SUMMON / DEFENSIVE / SPECIAL (passives live in UpgradeData)
 	  Rarity    shared/Rarity.lua (how often it shows up in level-up offers)
 	  Base      stats at level 1;  Levels[n] = additive changes + card text
-	  Unlock    Default = true, Fragments, Achievement, or Secret (a discovered secret)
+	  Unlock    Default = true, Fragments, Achievement, Secret (a discovered secret) or Premium
+	            (Robux / the daily trial: shared/AbilityConfig.lua; never saved in the profile's
+	            Weapons, ownership comes from the pass / product)
 	  Evolution { From = ability, With = passive }: a Mythic form offered when From is at max
 	            level and the passive is owned (EVOLUTION AVAILABLE)
 
@@ -46,8 +48,9 @@ export type WeaponDef = {
 	MinPlayerLevel: number?,
 	Base: { [string]: number },
 	Levels: { [number]: { [string]: any } },
-	Unlock: { Default: boolean?, Fragments: number?, Achievement: string?, Secret: string? },
+	Unlock: { Default: boolean?, Fragments: number?, Achievement: string?, Secret: string?, Premium: boolean? },
 	Evolution: { From: string, With: string }?,
+	Premium: boolean?, -- a Mythic ability bought with Robux (shared/AbilityConfig.lua Premium)
 }
 
 local rgb = Color3.fromRGB
@@ -839,6 +842,161 @@ local LIST: { WeaponDef } = ({
 		Unlock = { Default = true },
 		Evolution = { From = "Laser", With = "Duration" },
 	},
+	-------------------------------------------------------------------- PREMIUM (Mythic, Robux)
+	-- Premium = true: owned through a pass / product (shared/AbilityConfig.lua Premium) or the
+	-- daily TRIAL; behaviour in Sim/PremiumAbilities.lua, looks in client Render/PremiumFx.lua.
+	-- Never more than AbilityConfig.PowerCap x the best free ability of the same Category
+	-- (tests/run.luau [premium] measures it). They are not part of the Collection Book.
+	{
+		Key = "SolarBeam67",
+		Name = "SOLAR BEAM 67",
+		Desc = "A golden pillar strikes the nearest enemy from the sky: 6 pulses, then the 7th explodes.",
+		Kind = "Solar",
+		Category = "AREA",
+		Rarity = "Mythic",
+		Color = rgb(255, 200, 60),
+		MaxLevel = 7,
+		NoAmount = true,
+		Premium = true,
+		Base = { Damage = 9, Cooldown = 3.4, Pillars = 1, Pulse = 0.16, Width = 3.2, Radius = 8, BlastMult = 4, Range = 42, Knockback = 1 },
+		Levels = {
+			[2] = { Damage = 3, Desc = "+3 damage per pulse" },
+			[3] = { Radius = 1.5, Desc = "A bigger 7th blast" },
+			[4] = { Cooldown = -0.5, Desc = "Strikes more often" },
+			[5] = { BurnHit = 5, Desc = "The pillar sets enemies on fire", New = true },
+			[6] = { Damage = 5, Desc = "+5 damage per pulse" },
+			[7] = { Pillars = 1, Desc = "TWIN SUNS: two pillars at once", New = true },
+		},
+		Unlock = { Premium = true },
+	},
+	{
+		Key = "BlackHolePet",
+		Name = "BLACK HOLE PET",
+		Desc = "A little black hole follows you, pulls enemies in and crushes them.",
+		Kind = "HolePet",
+		Category = "SUMMON",
+		Rarity = "Mythic",
+		Color = rgb(150, 80, 255),
+		MaxLevel = 7,
+		NoAmount = true,
+		Premium = true,
+		Base = { Damage = 3.5, Radius = 7, Core = 2.5, Pull = 9, HitCooldown = 0.45, Follow = 5 },
+		Levels = {
+			[2] = { Damage = 2, Desc = "+2 damage" },
+			[3] = { Radius = 1.5, Desc = "Pulls from farther away" },
+			[4] = { Pull = 4, Desc = "Pulls harder" },
+			[5] = { Crush = 1, Desc = "Enemies in its core take double damage", New = true },
+			[6] = { Damage = 2, Radius = 1, Desc = "+2 damage, bigger" },
+			[7] = { Collapse = 9, CollapseEvery = 6, Desc = "COLLAPSE: every 6 s it implodes in a blast", New = true },
+		},
+		Unlock = { Premium = true },
+	},
+	{
+		Key = "GoldenMeteors",
+		Name = "GOLDEN METEOR SHOWER",
+		Desc = "Golden meteors rain around you. Enemies they defeat drop +50% coins.",
+		Kind = "GoldMeteor",
+		Category = "AREA",
+		Rarity = "Mythic",
+		Color = rgb(255, 205, 50),
+		MaxLevel = 7,
+		Premium = true,
+		Base = { Damage = 30, Cooldown = 2.4, Amount = 2, Radius = 4.5, Range = 18, Duration = 0.7, CoinBonus = 0.5, Knockback = 3 },
+		Levels = {
+			[2] = { Amount = 1, Desc = "+1 meteor" },
+			[3] = { Damage = 12, Desc = "+12 damage" },
+			[4] = { Radius = 1.2, Desc = "Bigger impacts" },
+			[5] = { BurnHit = 6, Desc = "Golden fire: impacts burn", New = true },
+			[6] = { Amount = 1, Cooldown = -0.3, Desc = "+1 meteor, falls more often" },
+			[7] = { Split = 3, Desc = "MOTHERLODE: every meteor bursts into 3 golden shards", New = true },
+		},
+		Unlock = { Premium = true },
+	},
+	{
+		Key = "TimeBubble",
+		Name = "TIME BUBBLE",
+		Desc = "A dome of slow time around you: enemies inside move 60% slower, your shots fly faster.",
+		Kind = "Bubble",
+		Category = "DEFENSIVE",
+		Rarity = "Mythic",
+		Color = rgb(110, 190, 255),
+		MaxLevel = 7,
+		NoAmount = true,
+		Premium = true,
+		Base = { Cooldown = 9, Duration = 4, Radius = 9, Slow = 0.6, Haste = 1.5 },
+		Levels = {
+			[2] = { Radius = 1.5, Desc = "A bigger bubble" },
+			[3] = { Duration = 1, Desc = "Lasts 1 s longer" },
+			[4] = { Cooldown = -1.5, Desc = "Comes back sooner" },
+			[5] = { Stop = 0.5, Desc = "Enemies that enter it stop for 0.5 s", New = true },
+			[6] = { Radius = 1.5, Duration = 1, Desc = "Bigger and longer" },
+			[7] = { TimeStop = 1.5, Desc = "TIME STOP: when it ends, everything inside freezes for 1.5 s", New = true },
+		},
+		Unlock = { Premium = true },
+	},
+	{
+		Key = "PhoenixFamiliar",
+		Name = "PHOENIX FAMILIAR",
+		Desc = "A little phoenix flies with you and shoots exploding fireballs. Once per run it brings you back at 40% HP.",
+		Kind = "Phoenix",
+		Category = "SUMMON",
+		Rarity = "Mythic",
+		Color = rgb(255, 120, 40),
+		MaxLevel = 7,
+		Premium = true,
+		Base = { Damage = 13, Cooldown = 0.9, Amount = 1, Range = 40, Speed = 70, Radius = 1.1, Duration = 0.7, BurnHit = 3, ExplodeEnd = 2.5, ReviveHeal = 0.4, Knockback = 1 },
+		Levels = {
+			[2] = { Damage = 3, Desc = "+3 damage" },
+			[3] = { Amount = 1, Desc = "+1 fireball" },
+			[4] = { BurnHit = 3, Desc = "Hotter fire" },
+			[5] = { Cooldown = -0.2, ExplodeEnd = 1.5, Desc = "Bigger fireball blasts, fires faster", New = true },
+			[6] = { Damage = 3, Desc = "+3 damage" },
+			[7] = { SplitEnd = 2, Desc = "REBIRTH FIRE: fireballs split into 2 embers", New = true },
+		},
+		Unlock = { Premium = true },
+	},
+	{
+		Key = "ChainStorm",
+		Name = "CHAIN STORM",
+		Desc = "Lightning jumps between 12 enemies; every next one takes a little less.",
+		Kind = "Storm",
+		Category = "AREA",
+		Rarity = "Mythic",
+		Color = rgb(56, 189, 248),
+		MaxLevel = 7,
+		Premium = true,
+		Base = { Damage = 22, Cooldown = 1.8, Amount = 1, Chain = 11, Falloff = 0.9, Range = 40, Jump = 13, Knockback = 1 },
+		Levels = {
+			[2] = { Damage = 6, Desc = "+6 damage" },
+			[3] = { Cooldown = -0.25, Desc = "Strikes more often" },
+			[4] = { Falloff = 0.03, Desc = "Loses less power per jump" },
+			[5] = { Stun = 0.25, Desc = "Every link stuns for 0.25 s", New = true },
+			[6] = { Damage = 8, Desc = "+8 damage" },
+			[7] = { LinkBlast = 2.5, Desc = "THUNDERHEAD: every link bursts in a small blast", New = true },
+		},
+		Unlock = { Premium = true },
+	},
+	{
+		Key = "AuraCrown",
+		Name = "AURA CROWN",
+		Desc = "A golden ring turns around you; the 6 and 7 on it hit every enemy they touch.",
+		Kind = "Crown",
+		Category = "MELEE",
+		Rarity = "Mythic",
+		Color = rgb(255, 214, 70),
+		MaxLevel = 7,
+		Premium = true,
+		Base = { Damage = 13, Amount = 2, Orbit = 3.6, Radius = 2.4, Speed = 2.6, HitCooldown = 0.4, Rings = 1, Knockback = 3 },
+		Levels = {
+			[2] = { Damage = 4, Desc = "+4 damage" },
+			[3] = { Amount = 2, Desc = "+2 digits on the ring (6 7 6 7)" },
+			[4] = { Orbit = 0.6, Radius = 0.4, Desc = "A wider ring, bigger digits" },
+			[5] = { Weaken = 0.15, Desc = "Digits mark enemies: +15% damage taken", New = true },
+			[6] = { Damage = 7, Speed = 0.4, Desc = "+7 damage, spins faster" },
+			[7] = { Rings = 2, Desc = "CROWN OF 67: three rings", New = true },
+		},
+		Unlock = { Premium = true },
+	},
 } :: any)
 
 local WeaponData = {}
@@ -847,6 +1005,7 @@ WeaponData.ByKey = {} :: { [string]: WeaponDef }
 WeaponData.ById = {} :: { [number]: WeaponDef }
 WeaponData.Evolutions = {} :: { WeaponDef } -- every evolved form
 WeaponData.EvolutionOf = {} :: { [string]: WeaponDef } -- base ability key -> its evolution
+WeaponData.Premium = {} :: { WeaponDef } -- the premium (Robux) abilities, in list order
 
 WeaponData.Categories = { "PROJECTILE", "AREA", "MELEE", "SUMMON", "DEFENSIVE", "SPECIAL" }
 
@@ -857,6 +1016,9 @@ for id, def in LIST do
 	if def.Evolution then
 		table.insert(WeaponData.Evolutions, def)
 		WeaponData.EvolutionOf[def.Evolution.From] = def
+	end
+	if def.Premium then
+		table.insert(WeaponData.Premium, def)
 	end
 end
 

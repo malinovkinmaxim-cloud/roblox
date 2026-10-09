@@ -90,6 +90,7 @@ function RewardManager:CheckCosmetics(session): { string }
 				or (def.Level ~= nil and level >= def.Level)
 				or (def.Collection ~= nil and collected >= def.Collection)
 				or (def.Pass ~= nil and session.Player ~= nil and M:HasPass(session.Player, def.Pass))
+				or (def.Robux ~= nil and session.Player ~= nil and M:HasPass(session.Player, def.Robux))
 			if ok then
 				owned[def.Id] = true
 				data.Cosmetics.New[def.Id] = true

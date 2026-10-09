@@ -321,6 +321,105 @@ function KINDS.Stare(vf, c)
 	part(vf, Vector3.new(0.4, 0.4, 0.3), rgb(10, 10, 15), CFrame.new(0, 0, 0.55), BALL)
 end
 
+---------------------------------------------------------------------------
+-- PREMIUM abilities (shared/WeaponData.lua Premium): golden, glowing, a little 67
+---------------------------------------------------------------------------
+-- a digit made of neon bars (7 segments), centred at `at`, facing the camera (+Z)
+local SEGMENTS = { ["6"] = "acdefg", ["7"] = "abc" }
+local function digit(vf, ch: string, c: Color3, at: CFrame, h: number)
+	local w, t = h * 0.55, h * 0.16
+	local at_ = {
+		a = CFrame.new(0, h / 2, 0),
+		d = CFrame.new(0, -h / 2, 0),
+		g = CFrame.new(0, 0, 0),
+		b = CFrame.new(w / 2, h / 4, 0),
+		c = CFrame.new(w / 2, -h / 4, 0),
+		e = CFrame.new(-w / 2, -h / 4, 0),
+		f = CFrame.new(-w / 2, h / 4, 0),
+	}
+	for seg in string.gmatch(SEGMENTS[ch], ".") do
+		local flat = seg == "a" or seg == "d" or seg == "g"
+		part(vf, if flat then Vector3.new(w + t, t, t) else Vector3.new(t, h / 2 + t, t), c, at * at_[seg], nil, NEON)
+	end
+end
+
+function KINDS.Solar(vf, c)
+	local beam = part(vf, Vector3.new(4.6, 1.1, 1.1), c, CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), CYL, NEON)
+	beam.Transparency = 0.1
+	part(vf, Vector3.new(4.8, 0.45, 0.45), rgb(255, 250, 220), CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), CYL, NEON)
+	ring(vf, c, 2.4, -2).Transparency = 0.5
+	digit(vf, "6", rgb(255, 140, 40), CFrame.new(-1.6, 1, 0.4), 0.9)
+	digit(vf, "7", rgb(255, 140, 40), CFrame.new(1.6, 1.4, 0.4), 0.9)
+end
+
+function KINDS.HolePet(vf, c)
+	part(vf, Vector3.new(1.7, 1.7, 1.7), rgb(12, 8, 22), CFrame.new(), BALL)
+	ring(vf, c, 3.4)
+	ring(vf, rgb(230, 200, 255), 2.4).Transparency = 0.45
+	for i = 1, 3 do
+		local a = i * 2.1
+		part(vf, Vector3.new(0.3, 0.3, 0.3), rgb(230, 200, 255), CFrame.new(math.cos(a) * 1.9, 0.5 - i * 0.3, math.sin(a) * 1.2), BALL, NEON)
+	end
+end
+
+function KINDS.GoldMeteor(vf, c)
+	for k, at in { Vector3.new(-1.1, 0.9, 0), Vector3.new(0.6, -0.1, 0.3), Vector3.new(1.4, 1.5, -0.4) } do
+		local size = if k == 2 then 1.3 else 0.9
+		part(vf, Vector3.new(size, size, size), c, CFrame.new(at), BALL, NEON)
+		for i = 1, 3 do
+			local s = size * (1 - i * 0.25)
+			part(vf, Vector3.new(s, s, s), rgb(255, 150, 40), CFrame.new(at + Vector3.new(i * 0.35, i * 0.45, 0)), BALL, NEON).Transparency = 0.2 + i * 0.2
+		end
+	end
+end
+
+function KINDS.Bubble(vf, c)
+	part(vf, Vector3.new(3.6, 3.6, 3.6), c, CFrame.new(), BALL, Enum.Material.Glass).Transparency = 0.65
+	ring(vf, rgb(220, 240, 255), 2.6)
+	ring(vf, c, 1.8).Transparency = 0.35
+	-- clock hands
+	part(vf, Vector3.new(0.14, 0.9, 0.14), rgb(255, 255, 255), CFrame.new(0, 0.45, 0.4), nil, NEON)
+	part(vf, Vector3.new(0.7, 0.14, 0.14), rgb(255, 255, 255), CFrame.new(0.35, 0, 0.4), nil, NEON)
+end
+
+function KINDS.Phoenix(vf, c)
+	ellipsoid(vf, Vector3.new(1.6, 1.5, 1.5), c, CFrame.new(0, -0.2, 0)) -- body
+	ellipsoid(vf, Vector3.new(1.1, 1.1, 1.1), rgb(255, 170, 70), CFrame.new(0, 0.8, 0.3)) -- head
+	for _, side in { -1, 1 } do
+		ellipsoid(vf, Vector3.new(1.7, 0.3, 0.9), rgb(255, 90, 40), CFrame.new(side * 1.2, 0.2, -0.1) * CFrame.Angles(0, 0, side * math.rad(30)))
+		ellipsoid(vf, Vector3.new(0.18, 0.24, 0.1), rgb(24, 22, 30), CFrame.new(side * 0.22, 0.9, 0.82))
+	end
+	part(vf, Vector3.new(0.3, 0.3, 0.3), rgb(255, 225, 80), CFrame.new(0, 0.7, 0.85), BALL, NEON) -- beak
+	for i = 1, 3 do
+		local s = 0.75 - i * 0.15
+		part(vf, Vector3.new(s, s, s), rgb(255, 210 - i * 40, 60), CFrame.new(0, -0.6 - i * 0.35, -0.5 - i * 0.3), BALL, NEON)
+	end
+end
+
+function KINDS.Storm(vf, c)
+	bolt(vf, c)
+	local second = { Vector3.new(1.6, 1.4, 0), Vector3.new(1.0, 0.3, 0), Vector3.new(1.8, -0.6, 0), Vector3.new(1.2, -1.6, 0) }
+	for i = 1, 3 do
+		local a, b = second[i], second[i + 1]
+		part(vf, Vector3.new(0.25, 0.25, (b - a).Magnitude), c, CFrame.lookAt((a + b) / 2, b), nil, NEON)
+	end
+	for _, at in { Vector3.new(-0.3, -2, 0), Vector3.new(1.2, -1.6, 0), Vector3.new(0.3, 2, 0) } do
+		part(vf, Vector3.new(0.55, 0.55, 0.55), rgb(230, 250, 255), CFrame.new(at), BALL, NEON)
+	end
+end
+
+function KINDS.Crown(vf, c)
+	-- a tilted ring of golden beads with a 6 and a 7 riding on it
+	local tilt = CFrame.Angles(math.rad(-62), 0, 0)
+	for i = 1, 16 do
+		local a = i * math.pi * 2 / 16
+		part(vf, Vector3.new(0.4, 0.4, 0.4), c, tilt * CFrame.new(math.cos(a) * 2.3, 0, math.sin(a) * 2.3), BALL, NEON)
+	end
+	digit(vf, "6", rgb(255, 240, 180), CFrame.new(-1.4, 0.5, 1.4), 1)
+	digit(vf, "7", rgb(255, 240, 180), CFrame.new(1.4, 0.5, 1.4), 1)
+	part(vf, Vector3.new(0.9, 0.9, 0.9), rgb(255, 250, 230), CFrame.new(0, -0.2, 0), BALL, NEON)
+end
+
 function Previews.Weapon(parent: Instance, key: string, props: { [string]: any }?): ViewportFrame
 	local vf, camera = viewport(parent, props)
 	local def = WeaponData.ByKey[key]

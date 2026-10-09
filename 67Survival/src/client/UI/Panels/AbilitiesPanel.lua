@@ -87,8 +87,7 @@ function Panel.Build(body: Frame, controllers)
 				Size = UDim2.new(1, -24, 0, 16),
 				Position = UDim2.fromOffset(12, 214),
 				Font = F.Bold,
-				TextScaled = false,
-				TextSize = 13,
+				MaxTextSize = 13, -- (shrinks a little on narrow cards instead of spilling out)
 				TextColor3 = (def.Color or C.Text):Lerp(Color3.new(1, 1, 1), 0.45),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				Parent = ui.Card,
@@ -128,6 +127,11 @@ function Panel.Click(state, def)
 	if not data or def.Evolution then
 		return
 	end
+	if def.Premium then
+		-- premium (Robux): the shop's Premium page
+		state.C.LobbyController:OpenPanel("Shop", false, "Premium")
+		return
+	end
 	if data.Weapons[def.Key] then
 		state.C.ClientData:Fire("SetStartWeapon", if data.StartWeapon == def.Key then "" else def.Key)
 	elseif def.Unlock.Fragments and not def.Unlock.Secret then
@@ -158,6 +162,18 @@ function Panel.Refresh(state, data)
 				Cards.Set(ui, if reached then "OWNED" else "", nil)
 				ui.Need.Text = if reached then "Reached" else "Evolve it in a run"
 				ui.Preview.ImageColor3 = if reached then Color3.new(1, 1, 1) else Color3.fromRGB(60, 60, 70)
+			elseif def.Premium then
+				local premium = data.Premium or {}
+				local owned = premium.Owned and premium.Owned[def.Key]
+				if owned then
+					Cards.Set(ui, "OWNED", "PREMIUM", C.SuccessDark)
+					ui.Need.Text = "In your level ups: " .. def.MaxLevel .. " levels"
+				else
+					Cards.Set(ui, "LOCKED", "PREMIUM", C.AccentSoft)
+					ui.Need.Text = if premium.Trial == def.Key then "Free trial today: Shop > Premium" else "Robux · Shop > Premium"
+				end
+				ui.Name.Text = string.upper(def.Name)
+				ui.Preview.ImageColor3 = Color3.new(1, 1, 1)
 			elseif data.Weapons[def.Key] then
 				if data.StartWeapon == def.Key then
 					Cards.Set(ui, "EQUIPPED", "STARTING", C.SuccessDark)

@@ -786,14 +786,29 @@ section("every ability kind + evolution")
 ---------------------------------------------------------------------------
 mark = #Engine.Errors
 cd:Fire("Admin", "unlockall", "")
-for i, key in { "Katana", "Orb67", "FireRing", "IceField", "PoisonCloud", "Meteor", "Shockwave", "ChainLightning", "Laser", "BlackHole", "GiantFist", "SwordStorm", "Drone", "Clone", "GooberFriends", "Barrier", "Glitch", "Chaos", "Blast67", "SigmaStare", "BananaBomb", "Boomerang", "Rocket", "MagicMissile", "Arrow", "Lightning", "SigmaAura", "OrbitalBlades", "PulseBlast" } do
+for i, key in { "Katana", "Orb67", "FireRing", "IceField", "PoisonCloud", "Meteor", "Shockwave", "ChainLightning", "Laser", "BlackHole", "GiantFist", "SwordStorm", "Drone", "Clone", "GooberFriends", "Barrier", "Glitch", "Chaos", "Blast67", "SigmaStare", "BananaBomb", "Boomerang", "Rocket", "MagicMissile", "Arrow", "Lightning", "SigmaAura", "OrbitalBlades", "PulseBlast", "SolarBeam67", "BlackHolePet", "GoldenMeteors", "TimeBubble", "PhoenixFamiliar", "ChainStorm", "AuraCrown" } do
 	cd:Fire("Admin", "weapon", key)
 	if i % 4 == 0 then
 		Engine.Step(1) -- admin commands are rate limited too
 	end
 end
 play(alice, run, 12)
-check("run holds many abilities (slots ignored by debug)", #run.Weapons >= 25, #run.Weapons)
+check("run holds many abilities (slots ignored by debug)", #run.Weapons >= 32, #run.Weapons)
+do
+	local wfx = Engine.Module(alice, "StarterPlayer.StarterPlayerScripts.Client.Controllers.WeaponFx")
+	local always = wfx.Premium and wfx.Premium.Always or {}
+	check("premium pets and the crown are drawn (black hole, phoenix, crown)", always.BlackHolePet ~= nil and always.PhoenixFamiliar ~= nil and always.AuraCrown ~= nil)
+	local pet = always.BlackHolePet
+	check("the black hole pet follows the server's positions", pet ~= nil and wfx.Premium.PetAt.BlackHolePet ~= nil)
+	local fireballs = 0
+	for _, p in wfx.Projectiles do
+		if p.Style == "Fireball" then
+			fireballs += 1
+		end
+	end
+	local phoenix = run:GetWeapon("PhoenixFamiliar")
+	check("the phoenix shoots (server)", phoenix ~= nil and phoenix.Timer < phoenix.S.Cooldown + 0.5)
+end
 check("client loadout knows them", runClient.Loadout and #runClient.Loadout.Weapons == #run.Weapons)
 check("no errors with every ability firing", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 print(string.format("       t=%.0fs level %d kills %d alive %d projectiles %d zones %d", run.Time, run.Level, run.Kills, #run.Enemies, #run.Projectiles, #run.Zones))
@@ -1198,6 +1213,57 @@ Engine.Step(0.3)
 check("no errors while buying", errorsSince(mark) == 0, Engine.Errors[mark + 1])
 
 ---------------------------------------------------------------------------
+section("shop: PREMIUM abilities, the free trial, skins, the trail pack")
+---------------------------------------------------------------------------
+mark = #Engine.Errors
+lobby:OpenPanel("Shop", false, "Premium")
+Engine.Step(0.5)
+local premiumCards = shopState.PremiumCards
+local n = 0
+for _ in premiumCards do
+	n += 1
+end
+check("PREMIUM page: 7 Mythic ability cards + the trial", shopState.Pages.Premium.Visible == true and n == 7 and shopState.Trial ~= nil)
+check("Mythic cards have the animated border", premiumCards.SolarBeam67.Card:FindFirstChildOfClass("UIStroke"):FindFirstChild("MythicShine") ~= nil)
+check("Studio, no id yet: TEST BUY", premiumCards.SolarBeam67.ButtonLabel.Text == "TEST BUY", premiumCards.SolarBeam67.ButtonLabel.Text)
+cd:Fire("Buy", "Pass", "Ability.SolarBeam67")
+Engine.Step(0.5)
+check("test purchase: SOLAR BEAM 67 owned", cd.Data.Premium.Owned.SolarBeam67 == true and premiumCards.SolarBeam67.ButtonLabel.Text == "OWNED")
+local trialKey = cd.Data.Premium.Trial
+check("today's trial is one you don't own", trialKey ~= nil and trialKey ~= "SolarBeam67", trialKey)
+cd:Fire("PremiumTrial")
+Engine.Step(0.5)
+check("TRY IT FREE: armed for the next run", cd.Data.Premium.TrialArmed == true and shopState.Trial.ButtonLabel.Text == "NEXT RUN", shopState.Trial.ButtonLabel.Text)
+Engine.Step(2) -- (purchases are rate limited)
+cd:Fire("Buy", "Product", "Skin.Void")
+Engine.Step(1.2)
+cd:Fire("Buy", "Pass", "TrailPack")
+Engine.Step(1.2)
+check("ability skin bought (saved)", session.Data.Cosmetics.Owned["WeaponSkin.Void"] == true)
+check("trail pack: Comet, Sakura, Pixel", session.Data.Cosmetics.Owned["Trail.Comet"] == true and session.Data.Cosmetics.Owned["Trail.Sakura"] == true and session.Data.Cosmetics.Owned["Trail.Pixel"] == true)
+cd:Fire("EquipCosmetic", "Trail.Pixel")
+Engine.Step(0.5)
+local root = alicePlayer.Character and alicePlayer.Character:FindFirstChild("HumanoidRootPart")
+local trails = 0
+for _, child in root and root:GetChildren() or {} do
+	if child:IsA("Trail") then
+		trails += 1
+	end
+end
+check("one trail on the hero (Pixel)", trails == 1 and session.Data.Cosmetics.Equipped.Trail == "Trail.Pixel", trails)
+cd:Fire("EquipCosmetic", "Trail.None")
+-- the published game without ids: COMING SOON, nothing can be bought
+cd.Data.Studio = false
+lobby:ClosePanel()
+lobby:OpenPanel("Shop", false, "Premium")
+Engine.Step(0.1)
+check("published game, no id yet: COMING SOON", premiumCards.AuraCrown.ButtonLabel.Text == "COMING SOON", premiumCards.AuraCrown.ButtonLabel.Text)
+cd.Data.Studio = true
+lobby:ClosePanel()
+Engine.Step(0.3)
+check("no errors in the premium shop", errorsSince(mark) == 0, Engine.Errors[mark + 1])
+
+---------------------------------------------------------------------------
 section("party: invite, play together, shared 67 events")
 ---------------------------------------------------------------------------
 mark = #Engine.Errors
@@ -1217,6 +1283,9 @@ Engine.Step(0.5)
 local aliceRun = GM.Entries[alicePlayer] and GM.Entries[alicePlayer].Run
 local bobRun = GM.Entries[bobPlayer] and GM.Entries[bobPlayer].Run
 check("PLAY started the whole party", aliceRun ~= nil and bobRun ~= nil)
+check("the free trial joined the run (once)", aliceRun ~= nil and aliceRun.Trial == trialKey and aliceRun:GetWeapon(trialKey) ~= nil and session.Data.Premium.TrialUses == 1 and session.Data.Premium.TrialKey == "")
+check("an owned premium ability can show up in level ups", aliceRun ~= nil and aliceRun.Unlocked.SolarBeam67 == true and session.Data.Weapons.SolarBeam67 == nil)
+check("Bob (owns nothing) has no premium ability", bobRun ~= nil and bobRun.Unlocked.SolarBeam67 == nil and bobRun.Trial == nil)
 check("players who have played get no how-to card", pointer.Hint.Visible == false)
 local bobPointer = Engine.Module(bob, "StarterPlayer.StarterPlayerScripts.Client.Controllers.PointerController")
 check("phone, first run: the card talks about the joystick", bobPointer.Hint.Visible == true and string.find(bobPointer.HintLines[1].Text, "joystick", 1, true) ~= nil, bobPointer.HintLines[1].Text)

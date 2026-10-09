@@ -417,6 +417,7 @@ for _, scene in {
 	{ "Abilities" },
 	{ "Items" },
 	{ "Shop" },
+	{ "Shop", "Premium" },
 	{ "Shop", "Cosmetics" },
 	{ "Shop", "Passes" },
 	{ "Shop", "Support" },

@@ -112,7 +112,7 @@ T("30 abilities + 12 evolutions with contiguous levels", function()
 	for _, def in WeaponData.List do
 		Expect(def.Name ~= "" and def.Desc ~= "", def.Key)
 		Expect(Rarity.Index[def.Rarity], def.Key .. " rarity")
-		Expect(def.Base.Cooldown or def.Kind == "Allies", def.Key .. " base")
+		Expect(def.Base.Cooldown or def.Kind == "Allies" or def.Base.HitCooldown, def.Key .. " base")
 		if def.Evolution then
 			evo += 1
 			Eq(def.Rarity, "Mythic", def.Key .. " evolutions are mythic")
@@ -125,7 +125,8 @@ T("30 abilities + 12 evolutions with contiguous levels", function()
 				local l = def.Levels[level]
 				Expect(l and type(l.Desc) == "string", def.Key .. " level " .. level)
 			end
-			Expect(def.Unlock.Default or def.Unlock.Fragments or def.Unlock.Achievement or def.Unlock.Secret, def.Key .. " unlock")
+			Expect(def.Unlock.Default or def.Unlock.Fragments or def.Unlock.Achievement or def.Unlock.Secret or def.Unlock.Premium, def.Key .. " unlock")
+			Expect((def.Premium == true) == (def.Unlock.Premium == true), def.Key .. " premium flag")
 			if def.Unlock.Achievement then
 				Expect(AchievementData.ByKey[def.Unlock.Achievement], def.Key .. " unlock achievement")
 			end
@@ -402,7 +403,10 @@ T("cosmetics: every item has a way to get it and a default per category", functi
 	for _, def in CosmeticData.List do
 		Expect(not ids[def.Id], "duplicate " .. def.Id)
 		ids[def.Id] = true
-		Expect(def.Default or def.Cost or def.Achievement or def.Pass or def.Level or def.Collection, def.Id)
+		Expect(def.Default or def.Cost or def.Achievement or def.Pass or def.Level or def.Collection or def.Robux, def.Id)
+		if def.Robux then
+			Expect(MonetizationData.PassByKey[def.Robux] or MonetizationData.ProductByKey[def.Robux], def.Id .. " robux sale")
+		end
 		if def.Achievement then
 			Expect(AchievementData.ByKey[def.Achievement], def.Id .. " achievement")
 		end
@@ -445,14 +449,19 @@ T("rarity: legendary is rare, luck helps", function()
 	Eq(Rarity.WeightFor("Mythic", 5), 0, "mythic cards are never random")
 end)
 
-T("monetization: no pay-to-win items", function()
-	for _, def in MonetizationData.Passes do
-		local desc = string.lower(def.Desc)
-		Expect(not string.find(desc, "damage") and not string.find(desc, "coins"), def.Key)
-		Expect(def.Price > 0, def.Key)
-	end
-	for _, def in MonetizationData.Products do
-		Expect(def.Price > 0, def.Key)
+T("monetization: no pay-to-win items (premium abilities: capped, see [premium])", function()
+	for _, list in { MonetizationData.Passes, MonetizationData.Products } do
+		for _, def in list do
+			if def.Ability or def.Cosmetics then
+				-- made from shared/AbilityConfig.lua: no id and no price invented here
+				Eq(def.Id, 0, def.Key .. " id (TODO)")
+				Eq(def.Price, 0, def.Key .. " price (set on the dashboard)")
+			else
+				local desc = string.lower(def.Desc)
+				Expect(list ~= MonetizationData.Passes or (not string.find(desc, "damage") and not string.find(desc, "coins")), def.Key)
+				Expect(def.Price > 0, def.Key)
+			end
+		end
 	end
 end)
 
@@ -2189,6 +2198,178 @@ T("bestiary bosses: orbiters, the blood moon, slides, holograms, echoes", functi
 	A.BlackHoles(run, final, final.Def.Params, 1)
 	Eq(#run.Wells, wells + final.Def.Params.HoleCount, "black holes")
 	steps(run, 8, px, pz)
+end)
+
+---------------------------------------------------------------------------
+Harness.Section("premium")
+---------------------------------------------------------------------------
+local AbilityConfig = R("ReplicatedStorage.Modules.AbilityConfig")
+
+-- every free (non-premium) ability, unlocked
+local function freeUnlocked()
+	local u = {}
+	for _, def in WeaponData.List do
+		if not def.Premium then
+			u[def.Key] = true
+		end
+	end
+	return u
+end
+
+T("premium: 7 Mythic abilities, on sale with ProductId 0 (TODO), a sound slot, not in the book", function()
+	Eq(#WeaponData.Premium, 7, "premium abilities")
+	local book = {}
+	for _, cat in CollectionData.Categories do
+		for _, entry in cat.Entries do
+			book[entry.Key] = true
+		end
+	end
+	local profile = Defaults.New()
+	for _, def in WeaponData.Premium do
+		Eq(def.Rarity, "Mythic", def.Key)
+		Eq(def.MaxLevel, 7, def.Key .. " levels")
+		local config = AbilityConfig.Premium[def.Key]
+		Expect(config and config.ProductId == 0 and (config.Type == "Gamepass" or config.Type == "Product"), def.Key .. " sale config")
+		local sale = MonetizationData.ForAbility(def.Key)
+		Expect(sale and sale.Id == 0 and sale.Ability == def.Key, def.Key .. " pass / product")
+		Expect(AbilityConfig.Sounds[def.Key], def.Key .. " sound slot")
+		Expect(not book[def.Key], def.Key .. " is not a Collection Book entry")
+		Expect(profile.Weapons[def.Key] == nil, def.Key .. " is not saved as unlocked")
+	end
+	for _, style in AbilityConfig.SkinOrder do
+		local skin = CosmeticData.ById["WeaponSkin." .. style]
+		Expect(skin and skin.Robux == "Skin." .. style, style .. " skin sold")
+		local sale = MonetizationData.PassByKey[skin.Robux] or MonetizationData.ProductByKey[skin.Robux]
+		Expect(sale and sale.Id == 0 and sale.Cosmetics[1] == skin.Id, style .. " skin sale")
+	end
+	for _, style in AbilityConfig.TrailPack.Trails do
+		local trail = CosmeticData.ById["Trail." .. style]
+		Expect(trail and trail.Robux == "TrailPack", style .. " trail in the pack")
+	end
+	Expect(MonetizationData.PassByKey.TrailPack and MonetizationData.PassByKey.TrailPack.Id == 0, "trail pack pass")
+end)
+
+T("premium: never more than +30% over the best free ability of its category", function()
+	local Power = require("./power")
+	for _, row in Power.Table() do
+		Expect(row.Ratio <= AbilityConfig.PowerCap, string.format("%s level %d %s: %.2fx %s", row.Key, row.Level, row.Scene, row.Ratio, tostring(row.BestKey)))
+	end
+end)
+
+T("premium: all 7 work in a live run at max level (and the trial starts with one)", function()
+	local run = Run.new({ Seed = 67, Unlocked = freeUnlocked(), Trial = "ChainStorm" })
+	Expect(run:GetWeapon("ChainStorm") ~= nil and run.Trial == "ChainStorm", "the trial ability joined the run")
+	local bad = Run.new({ Seed = 67, Unlocked = freeUnlocked(), Trial = "BasicBlaster" })
+	Expect(bad.Trial == nil, "only a premium ability can be a trial")
+	run.Stats.WeaponSlots = 12
+	for _, def in WeaponData.Premium do
+		run:AddWeapon(def.Key)
+		run:GetWeapon(def.Key).Level = def.MaxLevel
+	end
+	run:RefreshStats()
+	local kills = run.Kills
+	for _ = 1, 20 * 90 do
+		run.Invulnerable = 10
+		run.Offer = nil
+		run:Step(1 / 20)
+	end
+	Expect(run.Kills > kills + 50, "the premium abilities kill things " .. run.Kills)
+	Expect(not run.Ended, "the run goes on")
+end)
+
+T("premium: the PHOENIX brings you back once, at 40% HP", function()
+	local run = Run.new({ Seed = 3, Unlocked = { PhoenixFamiliar = true }, StartWeapon = "PhoenixFamiliar" })
+	run.Revives = 0
+	run:HurtPlayer(1e6, true)
+	local w = run:GetWeapon("PhoenixFamiliar")
+	Expect(not run.Dead and w.Spent, "revived by the phoenix")
+	Eq(run.HP, math.floor(run.Stats.MaxHP * 0.4), "40% HP")
+	run.Invulnerable = 0
+	run:HurtPlayer(1e6, true)
+	Expect(run.Dead, "only once per run")
+end)
+
+T("premium: the TIME BUBBLE slows enemies inside and speeds your shots up", function()
+	local run = Run.new({ Seed = 5, Unlocked = { TimeBubble = true, BasicBlaster = true }, StartWeapon = "TimeBubble" })
+	run:AddWeapon("BasicBlaster")
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local CombatManager = R("ServerScriptService.Server.Sim.CombatManager")
+	local e = EnemyManager.Spawn(run, "Goober", run.PX + 5, run.PZ, { Force = true })
+	e.HP, e.MaxHP = 1e9, 1e9
+	local w = run:GetWeapon("TimeBubble")
+	w.Timer = 0
+	for _ = 1, 40 do
+		run.Invulnerable = 10
+		run:Step(1 / 20)
+	end
+	Expect(w.Until and w.Until > run.Time, "the bubble is up")
+	Eq(run.Haste, w.S.Haste, "haste while it is up")
+	Expect(e.SlowFactor <= 1 - w.S.Slow + 1e-6, "the enemy inside is slowed " .. tostring(e.SlowFactor))
+	local blaster = run:GetWeapon("BasicBlaster")
+	local shot = CombatManager.Fire(run, blaster, "Straight", 0, blaster.S.Speed, 1)
+	Expect(math.abs(shot.Speed - blaster.S.Speed * w.S.Haste) < 0.01 and math.abs(shot.Life - 1 / w.S.Haste) < 1e-6, "shots fly faster, as far " .. shot.Speed)
+	for _ = 1, 20 * 12 do
+		run.Invulnerable = 10
+		run:Step(1 / 20)
+	end
+	Expect(run.Haste == nil or w.Until ~= nil, "no haste once it is down")
+end)
+
+T("premium: what GOLDEN METEORS defeat drops +50% coins", function()
+	local EnemyManager = R("ServerScriptService.Server.Sim.EnemyManager")
+	local goober = EnemyData.ByKey.Goober
+	local chance = goober.CoinChance
+	goober.CoinChance = 0.3 -- (enough coins to count)
+	local function coins(golden: boolean): number
+		local run = Run.new({ Seed = 9, Unlocked = { GoldenMeteors = true }, StartWeapon = "GoldenMeteors" })
+		local w = run:GetWeapon("GoldenMeteors")
+		local n = 0
+		for i = 1, 600 do
+			local e = EnemyManager.Spawn(run, "Goober", (i % 30) - 15, math.floor(i / 30) - 10, { Force = true })
+			e.LastSrc = if golden then w else nil
+			EnemyManager.Kill(run, e)
+			for _, d in run.Drops do
+				if d.Kind == "Coin" then
+					n += 1
+				end
+			end
+			table.clear(run.Drops)
+		end
+		return n
+	end
+	local plain, gold = coins(false), coins(true)
+	goober.CoinChance = chance
+	Expect(plain > 20 and gold >= plain * 1.3 and gold <= plain * 1.75, string.format("%d -> %d coins", plain, gold))
+end)
+
+T("premium: an owner sees it in the first level up; nobody else ever", function()
+	local u = freeUnlocked()
+	u.AuraCrown = true
+	for seed = 1, 20 do
+		local run = Run.new({ Seed = seed, Unlocked = u })
+		local found = false
+		for _, card in LevelUp.Build(run, "Level") do
+			found = found or card.Key == "AuraCrown"
+		end
+		Expect(found, "first offer, seed " .. seed)
+	end
+	local run = Run.new({ Seed = 4, Unlocked = freeUnlocked() })
+	run.Level = 20
+	for _ = 1, 300 do
+		for _, card in LevelUp.Build(run, "Level") do
+			Expect(not WeaponData.ByKey[card.Key] or not WeaponData.ByKey[card.Key].Premium, "offered " .. card.Key)
+		end
+	end
+end)
+
+T("premium: the profile keeps bought products and the trial, nothing else", function()
+	local p = Defaults.Reconcile({ Premium = { Owned = { SolarBeam67 = true, Bogus = true, BasicBlaster = true }, TrialKey = "Bad", TrialDay = 5, TrialUses = 1e9 } })
+	Expect(p.Premium.Owned.SolarBeam67 == true and p.Premium.Owned.Bogus == nil and p.Premium.Owned.BasicBlaster == nil, "owned set")
+	Eq(p.Premium.TrialKey, "", "unknown trial key dropped")
+	Eq(p.Premium.TrialDay, 5)
+	Eq(p.Premium.TrialUses, 100, "clamped")
+	local fresh = Defaults.New()
+	Expect(next(fresh.Premium.Owned) == nil and fresh.Premium.TrialKey == "", "a new profile owns nothing")
 end)
 
 ---------------------------------------------------------------------------

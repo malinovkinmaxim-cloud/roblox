@@ -40,6 +40,7 @@ local Perks = require(script.Parent.Perks)
 local ArenaDirector = require(script.Parent.ArenaDirector)
 local MiniBosses = require(script.Parent.MiniBosses)
 local Elites = require(script.Parent.Elites)
+local PremiumAbilities = require(script.Parent.PremiumAbilities)
 
 local Run = {}
 Run.__index = Run
@@ -59,6 +60,7 @@ export type Options = {
 	LiveEvent: { [string]: number }?, -- limited-time event modifiers (EventRate...)
 	Follower: boolean?, -- party member: 67 events come from the party leader's run
 	Difficulty: number?, -- tier (shared/DifficultyData.lua); default II, the classic balance
+	Trial: string?, -- the daily PREMIUM TRIAL: this premium ability joins the run at the start
 }
 
 -- buff key -> bonus stats while it is active
@@ -206,11 +208,17 @@ function Run.new(opts: Options)
 		start = opts.StartWeapon
 	end
 	self:AddWeapon(start)
+	-- the daily PREMIUM TRIAL (shared/AbilityConfig.lua Trial): one premium ability for this run
+	local trial = opts.Trial and WeaponData.ByKey[opts.Trial]
+	if trial and trial.Premium then
+		self.Trial = trial.Key
+		self:AddWeapon(trial.Key)
+	end
 	local extra = self.Stats.ExtraWeapons + (if self.Mech == "Unknown" then 2 else 0)
 	for _ = 1, extra do
 		local pool = {}
 		for _, def in WeaponData.List do
-			if self.Unlocked[def.Key] and WeaponData.IsBase(def.Key) and not self:GetWeapon(def.Key) and def.Rarity ~= "Secret" and def.Rarity ~= "Legendary" then
+			if self.Unlocked[def.Key] and WeaponData.IsBase(def.Key) and not self:GetWeapon(def.Key) and def.Rarity ~= "Secret" and def.Rarity ~= "Legendary" and not def.Premium then
 				table.insert(pool, def.Key)
 			end
 		end
@@ -394,6 +402,8 @@ function Run:SendLoadout()
 			Radius = w.S.Radius or 0,
 			Orbit = w.S.Orbit or 0,
 			Speed = w.S.Speed or 0,
+			Rings = w.S.Rings, -- AURA CROWN
+			Spent = w.Spent, -- PHOENIX FAMILIAR: its revive is used up
 		})
 	end
 	local passives = {}
@@ -739,6 +749,10 @@ function Run:HurtPlayer(amount: number, ignoreCooldown: boolean?, kind: string?)
 end
 
 function Run:OnZeroHP()
+	-- PHOENIX FAMILIAR (premium): once per run, before the normal revives
+	if PremiumAbilities.TryRevive(self) then
+		return
+	end
 	if self.Revives > 0 then
 		self.Revives -= 1
 		self:Revive("Free")
@@ -755,7 +769,8 @@ function Run:Revive(source: string)
 	if source == "Robux" then
 		self.RobuxRevived = true
 	end
-	self.HP = math.max(1, math.floor(self.Stats.MaxHP * GameConfig.Player.ReviveHeal))
+	local heal = if source == "Phoenix" then self.PhoenixHeal or 0.4 else GameConfig.Player.ReviveHeal
+	self.HP = math.max(1, math.floor(self.Stats.MaxHP * heal))
 	self.Invulnerable = GameConfig.Player.ReviveInvulnerable
 	-- a shockwave pushes the horde back
 	EnemyManager.Shockwave(self, self.PX, self.PZ, 22, 30, 0)

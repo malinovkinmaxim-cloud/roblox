@@ -39,6 +39,8 @@ local HeroModels = require(Shared.HeroModels)
 local GameConfig = require(Shared.GameConfig)
 local AbilityConfig = require(Shared.AbilityConfig)
 
+local PremiumFx = require(script.Parent.Parent.Render.PremiumFx)
+
 local WeaponFx = {}
 
 local rgb = Color3.fromRGB
@@ -164,8 +166,13 @@ local BUILD = {
 	end,
 }
 
+-- the PREMIUM abilities' pooled parts (Render/PremiumFx.lua)
+for style, build in PremiumFx.Styles do
+	BUILD[style] = build
+end
+
 -- projectile style by ability Kind (and a few keys)
-local PROJ_STYLE = { Projectile = "Bolt", Swords = "Sword", Missile = "Missile", Boomerang = "Boomerang", Drone = "Bolt" }
+local PROJ_STYLE = { Projectile = "Bolt", Swords = "Sword", Missile = "Missile", Boomerang = "Boomerang", Drone = "Bolt", Phoenix = "Fireball" }
 local PROJ_BY_KEY = { Arrow = "Arrow", Rocket = "Rocket", NukeLauncher = "Rocket" }
 
 function WeaponFx:Init(controllers)
@@ -184,6 +191,7 @@ function WeaponFx:Init(controllers)
 	self.Loadout = nil
 	self.Levels = {} -- [weapon key] = { Level, MaxLevel } (shared/AbilityConfig.lua: level looks)
 	self.CloneModel = nil
+	PremiumFx.Init(self)
 end
 
 -- "Fewer effects": ability areas and auras are more see-through (your hero stays visible);
@@ -246,6 +254,9 @@ function WeaponFx:ColorOf(def): Color3
 	local skin = CosmeticData.ById["WeaponSkin." .. style]
 	if skin and skin.Color then
 		return skin.Color
+	end
+	if def.Premium then
+		return def.Color -- a premium ability keeps its own colour (Render/PremiumFx adds the Mythic accent)
 	end
 	local color = AbilityConfig.EffectColor(def, os.clock())
 	if self:IsMax(def) then
@@ -337,6 +348,7 @@ function WeaponFx:SetLoadout(loadout)
 			self:ReleaseAlways(key)
 		end
 	end
+	PremiumFx.SetLoadout(self, loadout)
 end
 
 ---------------------------------------------------------------------------
@@ -353,7 +365,7 @@ function WeaponFx:Projectile(id: number, weaponId: number, x: number, z: number,
 	end
 	local style = PROJ_BY_KEY[def.Key] or PROJ_STYLE[def.Kind] or "Bolt"
 	local sx, sz = x, z
-	if def.Kind ~= "Drone" then
+	if def.Kind ~= "Drone" and def.Kind ~= "Phoenix" then -- (drones and the phoenix shoot from where they are)
 		sx, sz = self:PlayerXZ(x, z)
 	end
 	local mode = if def.Kind == "Missile" then "Homing" elseif def.Kind == "Boomerang" then "Boomerang" else "Straight"
@@ -858,6 +870,10 @@ function WeaponFx:Fx(weaponId: number, x: number, z: number, angle: number, p1: 
 		return
 	end
 	local kind = def.Kind
+	if PremiumFx.Kinds[kind] then
+		PremiumFx.Fx(self, def, x, z, angle, p1, p2, variant)
+		return
+	end
 	local color = self:ColorOf(def)
 	if kind == "Lob" then
 		if variant == 2 then
@@ -1376,6 +1392,9 @@ function WeaponFx:Update(dt: number)
 		end
 	end
 
+	-- the premium abilities' pets, crown and time bubble (Render/PremiumFx)
+	PremiumFx.Update(self, dt, now, clock, px, pz, center, ground, root ~= nil)
+
 	-- always-on abilities (same formulas as the server)
 	for key, a in self.Always do
 		local spec = a.Spec
@@ -1562,6 +1581,7 @@ function WeaponFx:Clear()
 		self.Bubble = nil
 	end
 	self:SetLoadout({ Weapons = {} })
+	PremiumFx.Clear(self)
 	self.Loadout = nil
 	-- a busy run can park hundreds of parts: keep a few per style for the next run
 	for _, free in self.Free do

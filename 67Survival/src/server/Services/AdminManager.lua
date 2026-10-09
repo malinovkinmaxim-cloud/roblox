@@ -94,7 +94,7 @@ function AdminManager:Run(player: Player, command: string, arg: string?)
 		say("AFK camp +" .. (n or 60) .. " minutes")
 	elseif command == "unlockall" then
 		for _, def in WeaponData.List do
-			if def.Evolution == nil then
+			if def.Evolution == nil and not def.Premium then -- (premium: bought, never unlocked here)
 				session.Data.Weapons[def.Key] = true
 			end
 		end

@@ -137,6 +137,8 @@ end
 local function tagFor(card): (string, Color3)
 	if card.Type == "Evolution" then
 		return "EVOLUTION", C.Mythic
+	elseif card.Premium and card.New then
+		return "PREMIUM", C.Gold -- a premium (Robux / trial) ability
 	elseif card.New then
 		return "NEW", C.Accent
 	elseif card.Level and card.Current then

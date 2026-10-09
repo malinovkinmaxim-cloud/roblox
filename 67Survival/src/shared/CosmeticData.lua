@@ -23,6 +23,8 @@
 	  Pass        included in a game pass
 	  Level       reaching an account level
 	  Collection  collecting N entries of the Collection Book
+	  Robux       sold on its own too: an ability skin / the trail pack (shared/MonetizationData.lua,
+	              ids in shared/AbilityConfig.lua); as a pass or as a product
 ]]
 
 export type CosmeticDef = {
@@ -38,6 +40,7 @@ export type CosmeticDef = {
 	Pass: string?,
 	Level: number?,
 	Collection: number?,
+	Robux: string?,
 	Color: Color3?,
 	Color2: Color3?,
 }
@@ -95,10 +98,10 @@ CosmeticData.List = {
 	c("WeaponSkin", "Default", { Name = "Original", Desc = "Every ability in its own colour.", Default = true }),
 	c("WeaponSkin", "Crimson", { Name = "Crimson", Desc = "Everything red.", Cost = 1000, Color = rgb(255, 60, 80), Rarity = "Uncommon" }),
 	c("WeaponSkin", "Toxic", { Name = "Toxic", Desc = "Everything green.", Cost = 1000, Color = rgb(120, 255, 80), Rarity = "Uncommon" }),
-	c("WeaponSkin", "Ice", { Name = "Ice", Desc = "Everything frozen.", Cost = 1500, Color = rgb(140, 220, 255), Rarity = "Rare" }),
-	c("WeaponSkin", "Void", { Name = "Void", Desc = "Collect 25 Collection Book entries.", Collection = 25, Color = rgb(150, 80, 255), Rarity = "Epic" }),
-	c("WeaponSkin", "Gold", { Name = "Gold", Desc = "Shiny.", Pass = "VIPCosmetics", Color = rgb(255, 205, 60), Rarity = "Epic" }),
-	c("WeaponSkin", "Rainbow", { Name = "Rainbow", Desc = "Every colour at once.", Pass = "CosmeticPass", Rarity = "Legendary" }),
+	c("WeaponSkin", "Ice", { Name = "Ice", Desc = "Everything frozen.", Cost = 1500, Robux = "Skin.Ice", Color = rgb(140, 220, 255), Rarity = "Rare" }),
+	c("WeaponSkin", "Void", { Name = "Void", Desc = "Collect 25 Collection Book entries.", Collection = 25, Robux = "Skin.Void", Color = rgb(150, 80, 255), Rarity = "Epic" }),
+	c("WeaponSkin", "Gold", { Name = "Gold", Desc = "Shiny.", Pass = "VIPCosmetics", Robux = "Skin.Gold", Color = rgb(255, 205, 60), Rarity = "Epic" }),
+	c("WeaponSkin", "Rainbow", { Name = "Rainbow", Desc = "Every colour at once.", Pass = "CosmeticPass", Robux = "Skin.Rainbow", Rarity = "Legendary" }),
 	-- kill effects
 	c("KillEffect", "Pop", { Name = "Pop", Desc = "A clean pop.", Default = true }),
 	c("KillEffect", "Confetti", { Name = "Confetti", Desc = "Every kill is a celebration.", Cost = 1200, Rarity = "Uncommon" }),
@@ -118,6 +121,10 @@ CosmeticData.List = {
 	c("Trail", "Fire", { Name = "Fire", Desc = "Leave a flame behind.", Cost = 1500, Color = rgb(255, 120, 40), Color2 = rgb(255, 220, 80), Rarity = "Uncommon" }),
 	c("Trail", "Rainbow", { Name = "Rainbow", Desc = "All the colours.", Pass = "VIPCosmetics", Rarity = "Epic" }),
 	c("Trail", "Trail67", { Name = "67 Trail", Desc = "Reach account level 35.", Level = 35, Color = rgb(255, 205, 50), Color2 = rgb(170, 90, 255), Rarity = "Legendary" }),
+	-- the TRAIL PACK (Robux)
+	c("Trail", "Comet", { Name = "Comet", Desc = "A blazing comet tail. Trail Pack.", Robux = "TrailPack", Color = rgb(255, 214, 90), Color2 = rgb(255, 110, 40), Rarity = "Epic" }),
+	c("Trail", "Sakura", { Name = "Sakura", Desc = "Pink petals in the wind. Trail Pack.", Robux = "TrailPack", Color = rgb(255, 170, 210), Color2 = rgb(255, 235, 245), Rarity = "Epic" }),
+	c("Trail", "Pixel", { Name = "Pixel", Desc = "Blocky 8-bit sparkle. Trail Pack.", Robux = "TrailPack", Color = rgb(80, 230, 255), Color2 = rgb(170, 90, 255), Rarity = "Epic" }),
 	c("Trail", "Horde", { Name = "Horde Ribbon", Desc = "Win on HORDE difficulty.", Achievement = "WinHorde", Color = rgb(255, 214, 90), Color2 = rgb(255, 150, 60), Rarity = "Rare" }),
 	-- emotes
 	c("Emote", "Wave", { Name = "Wave", Desc = "Hi!", Default = true }),
@@ -188,11 +195,13 @@ function CosmeticData.SourceText(def: CosmeticDef): string
 	elseif def.Cost then
 		return tostring(def.Cost)
 	elseif def.Pass then
-		return if def.Pass == "VIPCosmetics" then "VIP Cosmetics pass" else "Cosmetic Collection pass"
+		return (if def.Pass == "VIPCosmetics" then "VIP Cosmetics pass" else "Cosmetic Collection pass") .. (if def.Robux then " or Robux" else "")
 	elseif def.Level then
 		return "Account level " .. def.Level
 	elseif def.Collection then
-		return "Collection " .. def.Collection
+		return "Collection " .. def.Collection .. (if def.Robux then " or Robux" else "")
+	elseif def.Robux then
+		return if def.Robux == "TrailPack" then "Trail Pack" else "Robux"
 	elseif def.Achievement then
 		return "Achievement"
 	end

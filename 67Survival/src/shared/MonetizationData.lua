@@ -1,7 +1,9 @@
 --[[
-	MonetizationData - Robux items. Cosmetics first, convenience second, never power:
-	nothing here makes a run easier to win. The paid revive is limited to once per run
-	(after the free ones), an extra reroll only shows when you are out of rerolls.
+	MonetizationData - Robux items. Cosmetics first, convenience second. The one exception
+	is the PREMIUM abilities (shared/AbilityConfig.lua): Mythic abilities that are never more
+	than +30% over the best free ability of their kind (tests/run.luau [premium] measures it),
+	so a boss can't be trivialized. The paid revive is limited to once per run (after the free
+	ones), an extra reroll only shows when you are out of rerolls.
 
 	HOW TO SELL FOR ROBUX IN THE PUBLISHED GAME (the code already handles buying, owning,
 	receipts and refunds; only the ids are missing):
@@ -19,8 +21,11 @@
 	The server prints the items still missing an id when it starts.
 ]]
 
-export type PassDef = { Key: string, Name: string, Desc: string, Id: number, Price: number }
-export type ProductDef = { Key: string, Name: string, Desc: string, Id: number, Price: number, Minutes: number?, Donation: boolean? }
+export type PassDef = { Key: string, Name: string, Desc: string, Id: number, Price: number, Ability: string?, Cosmetics: { string }? }
+export type ProductDef = { Key: string, Name: string, Desc: string, Id: number, Price: number, Minutes: number?, Donation: boolean?, Ability: string?, Cosmetics: { string }? }
+
+local WeaponData = require(script.Parent.WeaponData)
+local AbilityConfig = require(script.Parent.AbilityConfig)
 
 local MonetizationData = {}
 
@@ -45,6 +50,37 @@ MonetizationData.Products = {
 	{ Key = "Support3", Name = "Legendary Supporter", Desc = "The biggest thank you. You keep 67 Survival going!", Id = 0, Price = 500, Donation = true },
 } :: { ProductDef }
 
+-- PREMIUM abilities, ability skins and the trail pack: their ids live in shared/AbilityConfig.lua
+-- (ProductId, Type "Gamepass" / "Product"); the entries below are made from it. Price 0: the
+-- price always comes from the dashboard (no fallback number is invented here).
+--   Ability   owning it puts the premium ability into your runs (shared/WeaponData.lua)
+--   Cosmetics owning it gives these cosmetics (shared/CosmeticData.lua Robux)
+local function sale(key: string, name: string, desc: string, config, extra: { [string]: any })
+	local entry = { Key = key, Name = name, Desc = desc, Id = config.ProductId, Price = 0 }
+	for k, v in extra do
+		entry[k] = v
+	end
+	table.insert(if config.Type == "Product" then MonetizationData.Products else MonetizationData.Passes, entry)
+end
+for _, def in WeaponData.Premium do
+	local config = AbilityConfig.Premium[def.Key]
+	if config then
+		sale("Ability." .. def.Key, def.Name, def.Desc, config, { Ability = def.Key })
+	end
+end
+for _, style in AbilityConfig.SkinOrder do
+	local config = AbilityConfig.Skins[style]
+	sale("Skin." .. style, style .. " Ability Skin", "Every ability effect in " .. style .. ". Looks only.", config, { Cosmetics = { "WeaponSkin." .. style } })
+end
+do
+	local pack = AbilityConfig.TrailPack
+	local trails = {}
+	for _, style in pack.Trails do
+		table.insert(trails, "Trail." .. style)
+	end
+	sale("TrailPack", "Trail Pack", "Comet, Sakura and Pixel trails behind you while you run. Looks only.", pack, { Cosmetics = trails })
+end
+
 MonetizationData.PassByKey = {} :: { [string]: PassDef }
 for _, def in MonetizationData.Passes do
 	MonetizationData.PassByKey[def.Key] = def
@@ -52,6 +88,11 @@ end
 MonetizationData.ProductByKey = {} :: { [string]: ProductDef }
 for _, def in MonetizationData.Products do
 	MonetizationData.ProductByKey[def.Key] = def
+end
+
+-- the pass / product that sells a premium ability ("Ability.SolarBeam67"), or nil
+function MonetizationData.ForAbility(key: string): any
+	return MonetizationData.PassByKey["Ability." .. key] or MonetizationData.ProductByKey["Ability." .. key]
 end
 
 -- can this item be bought here? A configured id, or a Studio test (fake purchase)

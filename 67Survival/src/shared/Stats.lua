@@ -125,7 +125,8 @@ function Stats.Weapon(key: string, level: number, final: Final): { [string]: num
 		w.Amount = 1
 	end
 	local area = final.Area
-	local orbital = if def.Kind == "Orbit" then final.Orbital else 1
+	local ring = def.Kind == "Orbit" or def.Kind == "Crown" -- (the Aura Crown turns like an orbit)
+	local orbital = if ring then final.Orbital else 1
 	if w.Radius then
 		w.Radius *= area
 	end
@@ -144,7 +145,7 @@ function Stats.Weapon(key: string, level: number, final: Final): { [string]: num
 	if w.Range then
 		w.Range *= final.Range
 	end
-	if w.Speed and def.Kind == "Orbit" then
+	if w.Speed and ring then
 		w.Speed *= math.min(2.5, 1 / final.CooldownMult) * orbital -- orbit spins faster with attack speed
 	elseif w.Speed and def.Kind ~= "Allies" then
 		w.Speed *= final.ProjSpeed

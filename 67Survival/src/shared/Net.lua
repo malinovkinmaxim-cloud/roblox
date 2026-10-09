@@ -58,6 +58,7 @@ Net.ClientToServer = {
 	"RequestLeaderboard", -- ()
 	"Buy", -- (kind: "Pass" | "Product", key) opens the Roblox purchase prompt
 	"StudioPurchase", -- (kind, key) Studio-only fake purchase for testing unconfigured ids
+	"PremiumTrial", -- () today's free premium trial joins the next run (Premium tab)
 	"Admin", -- (command, arg) Studio / admins only
 }
 

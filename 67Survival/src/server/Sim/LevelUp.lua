@@ -18,6 +18,8 @@
 
 	Weights: every ability / upgrade / item has a Rarity (shared/Rarity.lua); Luck makes the
 	rare tiers more likely. An EVOLUTION that is ready always takes the first slot.
+	PREMIUM abilities (Robux, run.Unlocked only when owned) weigh AbilityConfig.PremiumWeight;
+	the first LEVEL UP of a run shows one of them (an owner always gets to pick it once).
 	Offers: Level (3 cards), Chest (3, THE LUCKY +1), Chest67 (4, luck boosted a lot).
 ]]
 
@@ -30,6 +32,7 @@ local UpgradeData = require(Shared.UpgradeData)
 local ItemData = require(Shared.ItemData)
 local SynergyData = require(Shared.SynergyData)
 local Rarity = require(Shared.Rarity)
+local AbilityConfig = require(Shared.AbilityConfig)
 
 local Perks = require(script.Parent.Perks)
 local Items = require(script.Parent.Items)
@@ -53,6 +56,7 @@ export type Card = {
 	New: boolean?,
 	Evolves: string?, -- this pick completes an evolution recipe
 	Synergy: string?, -- "BULLET HELL 3/4"
+	Premium: boolean?, -- a premium (Robux / trial) ability
 }
 
 local PROJECTILE_KINDS = { Projectile = true, Missile = true, Boomerang = true, Swords = true, Drone = true, Lob = true }
@@ -112,6 +116,7 @@ local function weaponCard(run, def, level: number): Card
 		Current = level - 1,
 		MaxLevel = def.MaxLevel,
 		New = isNew,
+		Premium = def.Premium,
 		Synergy = if isNew then synergyTag(run, "Ability:" .. def.Key, def.Key, "Ability") else nil,
 	}
 end
@@ -225,7 +230,8 @@ local function candidates(run, luck: number): { { any } }
 				and not run:GetWeapon(def.Key)
 				and (def.MinPlayerLevel or 0) <= run.Level
 			then
-				table.insert(out, { weaponCard(run, def, 1), cfg.NewWeaponWeight * Rarity.WeightFor(def.Rarity, luck) })
+				local weight = if def.Premium then AbilityConfig.PremiumWeight else Rarity.WeightFor(def.Rarity, luck)
+				table.insert(out, { weaponCard(run, def, 1), cfg.NewWeaponWeight * weight })
 			end
 		end
 	end
@@ -322,6 +328,22 @@ function LevelUp.Build(run, kind: string): { Card }
 				taken[entry[1].Id] = true
 				table.insert(cards, entry[1])
 			end
+		end
+	end
+	-- an owned premium ability shows up in the first level up of the run
+	if kind == "Level" and not run.PremiumOffered and #cards < count then
+		local premium = {}
+		for _, entry in pool do
+			local def = entry[1].Type == "Weapon" and WeaponData.ByKey[entry[1].Key]
+			if def and def.Premium then
+				table.insert(premium, entry[1])
+			end
+		end
+		if #premium > 0 then
+			run.PremiumOffered = true
+			local card = premium[rng:NextInteger(1, #premium)]
+			taken[card.Id] = true
+			table.insert(cards, card)
 		end
 	end
 	for slot = #cards + 1, count do

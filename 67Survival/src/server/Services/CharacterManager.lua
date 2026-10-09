@@ -220,7 +220,15 @@ end
 	TRAILS by rarity: Common a thin shimmer; Uncommon a two-colour flame; Rare a wider ribbon
 	with a gradient; Epic the rainbow + a few sparkles; Legendary two layers (a bright core
 	inside the colour) + sparkles. Always a clean taper, never a wall of particles.
+	The TRAIL PACK (Robux: Comet, Sakura, Pixel) tunes one light Trail each (TRAIL_PACK): one
+	Trail instance per player, a few sparkles at most.
 ]]
+local TRAIL_PACK = {
+	Comet = { Lifetime = 0.8, Sparkles = 6 }, -- a long blazing tail
+	Sakura = { Lifetime = 0.6, Sparkles = 9 }, -- petals drift off it
+	Pixel = { Lifetime = 0.45, Sparkles = 4, Blocky = true }, -- square, stepped segments
+}
+
 function CharacterManager:ApplyTrail(character: Model, session)
 	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root then
@@ -245,12 +253,32 @@ function CharacterManager:ApplyTrail(character: Model, session)
 	local c1 = if def and def.Color then def.Color else rgb(255, 255, 255)
 	local c2 = if def and def.Color2 then def.Color2 else c1
 	local color = if trailStyle == "Rainbow" then RAINBOW else ColorSequence.new(c1, c2)
-	trail(root, "HeroTrail", a0, a1, {
+	local pack = TRAIL_PACK[trailStyle]
+	local main = trail(root, "HeroTrail", a0, a1, {
 		Color = color,
-		Lifetime = if wide then 0.55 else 0.4,
+		Lifetime = if pack then pack.Lifetime elseif wide then 0.55 else 0.4,
 		LightEmission = if rarity == "Common" then 0.35 else 0.6,
 		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, if rarity == "Common" then 0.45 else 0.25), NumberSequenceKeypoint.new(1, 1) }),
 	})
+	if pack and pack.Blocky then
+		main.WidthScale = NumberSequence.new(1)
+		main.MinLength = 1.2
+		main.LightEmission = 0.9
+	end
+	if pack then
+		local sparkles = Instance.new("ParticleEmitter")
+		sparkles.Name = "TrailSparkles"
+		sparkles.Texture = SPARKLE
+		sparkles.Rate = pack.Sparkles
+		sparkles.Lifetime = NumberRange.new(0.4, 0.6)
+		sparkles.Speed = NumberRange.new(0.2, 0.8)
+		sparkles.SpreadAngle = Vector2.new(180, 180)
+		sparkles.Size = NumberSequence.new(if trailStyle == "Sakura" then 0.4 else 0.28, 0)
+		sparkles.LightEmission = 1
+		sparkles.Color = color
+		sparkles.Parent = a1
+		return
+	end
 	if rarity == "Legendary" or rarity == "Mythic" then
 		-- a bright thin core inside the colour
 		local b0 = Instance.new("Attachment")

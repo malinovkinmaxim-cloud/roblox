@@ -25,9 +25,12 @@ local ItemData = Harness.Require("ReplicatedStorage.Modules.ItemData")
 local WeaponData = Harness.Require("ReplicatedStorage.Modules.WeaponData")
 local MetaData = Harness.Require("ReplicatedStorage.Modules.MetaData")
 
+-- every ability a free player can unlock (the premium ones only with SIM_PREMIUM set)
 local unlocked = {}
 for _, def in WeaponData.List do
-	unlocked[def.Key] = true
+	if not def.Premium or process.env.SIM_PREMIUM then
+		unlocked[def.Key] = true
+	end
 end
 local meta = {}
 for _, def in MetaData.Upgrades do

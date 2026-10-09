@@ -631,11 +631,12 @@ export type Tabs = { Frame: Frame, Buttons: { [string]: TextButton }, Select: (n
 
 -- Pill tabs; onSelect(name) when changed
 function Widgets.Tabs(parent: Instance, names: { string }, labels: { [string]: string }?, onSelect: (string) -> ()): Tabs
+	local tabW = if #names > 5 then 132 else 150 -- (6 tabs still leave room for a wallet)
 	local bar = Kit.New("Frame", {
 		Name = "Tabs",
 		BackgroundColor3 = C.SurfaceDark,
 		BackgroundTransparency = 0.35,
-		Size = UDim2.fromOffset(#names * 150 + 8, 44),
+		Size = UDim2.fromOffset(#names * tabW + 8, 44),
 		Parent = parent,
 	})
 	Kit.Corner(bar, 22)
@@ -658,7 +659,7 @@ function Widgets.Tabs(parent: Instance, names: { string }, labels: { [string]: s
 			TextColor3 = C.TextDim,
 			BackgroundColor3 = C.Accent,
 			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(150, 36),
+			Size = UDim2.fromOffset(tabW, 36),
 			LayoutOrder = i,
 			Parent = bar,
 		})

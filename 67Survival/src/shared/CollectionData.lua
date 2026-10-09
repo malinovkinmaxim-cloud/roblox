@@ -32,7 +32,8 @@ local function list(): { Category }
 	end
 	local weapons, abilities = {}, {}
 	for _, def in WeaponData.List do
-		if def.Evolution == nil then
+		-- (premium abilities are not part of the book: nobody has to pay to complete it)
+		if def.Evolution == nil and not def.Premium then
 			table.insert(weapons, { Key = def.Key, Name = def.Name, Desc = def.Desc, Rarity = def.Rarity, Secret = def.Unlock.Secret ~= nil })
 		end
 	end

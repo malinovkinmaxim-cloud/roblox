@@ -110,7 +110,8 @@ end
 function ShopManager:UnlockWeapon(player: Player, key: string)
 	local session = self:Session(player)
 	local def = WeaponData.ByKey[key]
-	if not session or not def or def.Evolution or session.Data.Weapons[key] or def.Unlock.Secret then
+	-- (premium abilities are bought with Robux: Services/MonetizationManager)
+	if not session or not def or def.Evolution or session.Data.Weapons[key] or def.Unlock.Secret or def.Premium then
 		return
 	end
 	if not spendFragments(self, player, session, def.Unlock.Fragments) then
