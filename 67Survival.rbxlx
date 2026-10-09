@@ -32988,7 +32988,7 @@ BossData.List = {
 		Slot = 5,
 		Tier = 7,
 		Bodies = { "Final67" },
-		HP = 140000,
+		HP = 224000, -- (mirrors EnemyData Final67: the finale, a 2-4 minute fight)
 		XP = 0,
 		Coins = 400,
 		Hint = "The 6 smashes, the 7 shoots beams, black holes pull at the edge. Then every boss comes back as an echo. At the end the digits fuse and the arena shrinks.",
@@ -35047,21 +35047,21 @@ local LIST: { EnemyDef } = ({
 		Key = "Voidling",
 		Name = "Voidling",
 		Desc = "A fast little piece of the void. Up close it pulls at you: walking away is slower.",
-		HP = 18, Speed = 11, Damage = 6, XP = 3, Radius = 1.3,
+		HP = 21, Speed = 11, Damage = 7, XP = 3, Radius = 1.3,
 		Model = "Voidling", Color = rgb(15, 10, 31), Accent = rgb(192, 132, 252),
 		Behavior = "Voidling", MinTier = 7, Role = "Regular", Theme = "Void", AnimType = "Float",
 		Spawn = { Weight = 0.8, From = 60 },
-		Params = { Fly = true, PullRadius = 7, PullSlow = 0.92 },
+		Params = { Fly = true, PullRadius = 8, PullSlow = 0.88 },
 	}),
 	enemy({
 		Key = "StarEater",
 		Name = "Star Eater",
 		Desc = "A one-eyed black planet with three moons. Throws its moons at you; each one flies back 3 s later.",
-		HP = 28, Speed = 7, Damage = 6, XP = 4, Radius = 1.8,
+		HP = 30, Speed = 7, Damage = 7, XP = 4, Radius = 1.8,
 		Model = "StarEater", Color = rgb(17, 24, 39), Accent = rgb(168, 85, 247),
 		Behavior = "Moons", Mass = 2, MinTier = 7, Role = "Regular", Theme = "Void", AnimType = "Float",
-		Spawn = { Weight = 0.5, From = 170 },
-		Params = { Fly = true, Keep = 15, Every = 2.2, Moons = 3, Return = 3, Windup = 0.7, ProjSpeed = 14, ProjDamage = 7, ProjRadius = 1.2, ProjLife = 1.6 },
+		Spawn = { Weight = 0.5, From = 150 },
+		Params = { Fly = true, Keep = 15, Every = 2, Moons = 3, Return = 3, Windup = 0.7, ProjSpeed = 14, ProjDamage = 8, ProjRadius = 1.2, ProjLife = 1.6 },
 	}),
 	enemy({
 		Key = "EclipseKnight",
@@ -35081,7 +35081,7 @@ local LIST: { EnemyDef } = ({
 		Key = "Final67",
 		Name = "THE 67",
 		Desc = "The final boss of VII THE 67: two giant floating digits and a crowned void face. Every boss you met comes back as an echo.",
-		HP = 140000, Speed = 7, Damage = 26, XP = 1000, Radius = 8,
+		HP = 224000, Speed = 7, Damage = 26, XP = 1000, Radius = 8, -- (the finale: a 2-4 minute fight)
 		Model = "Final67", Color = rgb(15, 10, 31), Accent = rgb(192, 132, 252),
 		Behavior = "Boss", Mass = 160, CoinChance = 1, ItemChance = 0, Boss = true, MinTier = 7, Role = "Boss", Theme = "Void", AnimType = "Boss",
 		Attacks = {
@@ -35535,6 +35535,23 @@ GameConfig.Visuals = {
 	FillTransparency = 0.85,
 	FewerEffectsParticles = 1 / 3, -- particle count with "Fewer effects" on
 	FewerEffectsFade = 0.25, -- ability areas and auras get this much more see-through
+}
+
+-- GAME FEEL (smoothness): every timing of the little animations in one place
+GameConfig.Feel = {
+	EnemyTurn = 12, -- server: how fast an enemy's velocity follows its wish (1/s; dashes, bosses: instant)
+	SpawnRise = 0.25, -- an enemy pops out of the ground (Back easing), a small puff
+	SpawnPuffs = 8, -- at most this many spawn puffs a second (a 67 INVASION spawns hundreds)
+	DeathPop = 0.2, -- a regular enemy pops: x PopScale, then 0
+	PopScale = 1.15,
+	HitFlash = 0.08, -- every part flashes white this long
+	HitFlashPerFrame = 24, -- at most this many models start a flash per frame
+	Recoil = 0.35, -- studs a hit pushes the model back (visual only)
+	FovPulse = 5, -- degrees the camera breathes out when you get hurt (more for a revive)
+	DropArc = 0.35, -- XP gems and coins hop out of a defeated enemy (seconds, 2.4 studs high)
+	CardSlide = 0.45, -- level-up cards slide up with a spring
+	BossVignette = 1.6, -- seconds of a dark vignette when a boss arrives
+	BossBarFade = 0.5, -- the boss bar fades in
 }
 
 -- ponds in the arena: water slows everyone who wades through (bosses and flyers do not)
@@ -55139,6 +55156,7 @@ function EnemyManager.Step(run, dt: number)
 	local riftOpen = run.Map ~= nil and run.Map.RiftOpen
 	local grid = run.Grid
 	local knockDecay = exp(-7 * dt)
+	local turnRate = GameConfig.Feel.EnemyTurn
 	local decoy = run.Decoy
 	if decoy and now >= decoy.Until then
 		decoy = nil
@@ -55241,8 +55259,17 @@ function EnemyManager.Step(run, dt: number)
 			end
 		end
 
-		e.X += (dirX * speed + e.KX + sepX * 9) * dt
-		e.Z += (dirZ * speed + e.KZ + sepZ * 9) * dt
+		-- velocity smoothing: a walker eases into a turn (dashes, stops and bosses are instant)
+		local wantX, wantZ = dirX * speed, dirZ * speed
+		if e.IsBoss or mult == 0 or mult > 1.5 or not e.VX then
+			e.VX, e.VZ = wantX, wantZ
+		else
+			local k = min(1, dt * turnRate)
+			e.VX += (wantX - e.VX) * k
+			e.VZ += (wantZ - e.VZ) * k
+		end
+		e.X += (e.VX + e.KX + sepX * 9) * dt
+		e.Z += (e.VZ + e.KZ + sepZ * 9) * dt
 		e.KX *= knockDecay
 		e.KZ *= knockDecay
 
@@ -79129,6 +79156,7 @@ local Players = game:GetService("Players")
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local Widgets = require(script.Parent.Parent.UI.Widgets)
 
 local BannerController = {}
 
@@ -79459,8 +79487,14 @@ function BannerController:Toast(text: string, kind: string?, sub: string?)
 	local color = Theme.ToastColors[kind or "Info"] or Theme.ToastColors.Info
 	self:PlaceToasts()
 	self.ToastOrder += 1
+	-- a long line (a boss tip) wraps onto up to 4 lines at a readable size and stays longer
+	local width = self.ToastWidth or 400
+	local lines = 1
+	if sub and #sub > 50 then
+		lines = math.clamp(math.ceil(Widgets.TextWidth(sub, 13, Theme.Fonts.Medium) / (width - 52) + 0.15), 1, 4)
+	end
 	local frame = Kit.Panel({
-		Size = UDim2.fromOffset(self.ToastWidth or 400, if sub then 56 else 40),
+		Size = UDim2.fromOffset(width, if sub then 40 + 16 * lines else 40),
 		BackgroundTransparency = Theme.GlassStrong,
 		LayoutOrder = self.ToastOrder,
 		Radius = 12,
@@ -79489,12 +79523,16 @@ function BannerController:Toast(text: string, kind: string?, sub: string?)
 	if sub then
 		Kit.Label({
 			Text = sub,
-			Size = UDim2.new(1, -52, 0, 16),
+			Size = UDim2.new(1, -52, 0, 16 * lines),
 			Position = UDim2.fromOffset(34, 31),
 			Font = Theme.Fonts.Medium,
 			MaxTextSize = 14,
+			TextScaled = lines == 1,
+			TextSize = 13,
+			TextWrapped = lines > 1,
 			TextColor3 = C.TextDim,
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
 			Parent = frame,
 		})
 	end
@@ -79521,7 +79559,7 @@ function BannerController:Toast(text: string, kind: string?, sub: string?)
 	elseif kind == "Error" then
 		self.C.SoundController:Play("Error")
 	end
-	task.delay(3.2, function()
+	task.delay(3.2 + (lines - 1) * 1.5, function()
 		if frame.Parent then
 			frame:Destroy()
 		end
@@ -79661,6 +79699,7 @@ local ZOOM_MIN, ZOOM_MAX = 38, 96
 
 -- hub showcase framing (relative to the hero's root)
 local HUB_FOV = 40
+local RUN_FOV = 55 -- (a run; GameConfig.Feel FovPulse breathes out from it)
 local HUB_DIST = 15.5
 local HUB_EYE_Y, HUB_LOOK_Y = 1.2, -0.3 -- a low, slightly upward-feeling angle; the hero sits above the plate
 local HUB_SCREEN_X = 0.5 -- the hero sits this far right of the screen centre (fraction of half width): the right third
@@ -79704,6 +79743,16 @@ function CameraController:Shake(amplitude: number)
 		return
 	end
 	self.ShakeAmp = math.min(3, math.max(self.ShakeAmp, amplitude))
+end
+
+-- the field of view breathes out for a moment (getting hurt, a revive): `amount` degrees
+function CameraController:FovPulse(amount: number, duration: number)
+	local now = os.clock()
+	local old = self.Fov
+	if old and now < old.Until and old.Amount >= amount then
+		return
+	end
+	self.Fov = { Start = now, Until = now + duration, Amount = amount }
 end
 
 -- quick dramatic zoom towards the player (factor < 1 = closer)
@@ -79864,6 +79913,21 @@ function CameraController:Update(dt: number)
 		end
 	end
 
+	-- FOV pulse: out fast, back slowly
+	local fov = RUN_FOV
+	local pulse = self.Fov
+	if pulse then
+		if now >= pulse.Until then
+			self.Fov = nil
+		else
+			local t = (now - pulse.Start) / (pulse.Until - pulse.Start)
+			fov += pulse.Amount * (if t < 0.2 then t / 0.2 else 1 - (t - 0.2) / 0.8)
+		end
+	end
+	if camera.FieldOfView ~= fov then
+		camera.FieldOfView = fov
+	end
+
 	local offset = Vector3.new(0, math.sin(PITCH), math.cos(PITCH)) * zoom
 	local cf = CFrame.lookAt(focus + offset, focus + Vector3.new(0, 1.5, 0))
 	if self.ShakeAmp > 0.01 then
@@ -79884,8 +79948,9 @@ function CameraController:SetMode(mode: string)
 	end
 	if mode == "Run" then
 		camera.CameraType = Enum.CameraType.Scriptable
-		camera.FieldOfView = 55
+		camera.FieldOfView = RUN_FOV
 		self.Focus = nil
+		self.Fov = nil
 	else
 		-- the hub showcase camera (UpdateHub)
 		camera.CameraType = Enum.CameraType.Scriptable
@@ -80336,6 +80401,10 @@ function EffectsController:Init(controllers)
 		table.insert(self.Vignette, f)
 	end
 	self.VignetteLevel = 0
+	self.BossVignetteUntil = 0
+	-- death pops (GameConfig.Feel DeathPop): pooled balls
+	self.Pops = {}
+	self.PopFree = {}
 end
 
 ---------------------------------------------------------------------------
@@ -80450,7 +80519,7 @@ function EffectsController:DamageNumber(e, damage: number, flags: number)
 	elseif crit and six7 then
 		color, size = rgb(255, 215, 40), 1.6
 	elseif crit then
-		color, size = rgb(255, 240, 80), 1.4
+		color, size = rgb(255, 205, 60), 1.45 -- crits: bigger and gold
 	elseif six7 then
 		color = rgb(255, 150, 230)
 	end
@@ -80613,6 +80682,7 @@ end
 function EffectsController:PlayerHurt(damage: number)
 	self:Flash(rgb(255, 30, 50), math.clamp(damage / 60, 0.12, 0.35))
 	self.C.CameraController:Shake(math.clamp(damage / 25, 0.3, 1.2))
+	self.C.CameraController:FovPulse(GameConfig.Feel.FovPulse * math.clamp(damage / 40, 0.4, 1), 0.35)
 	self.C.SoundController:Play("Hurt")
 	self.C.HudController:HurtShake()
 	local pos = playerPos()
@@ -80670,6 +80740,33 @@ function EffectsController:BossArrive(e)
 	self.C.SoundController:Play("BossSpawn")
 	self:Ring(pos - Vector3.new(0, 2.5, 0), 40, rgb(255, 40, 60), 0.9)
 	self:Emit("Smoke", pos, rgb(60, 50, 70), 30)
+	if e.Def.Boss then
+		-- a dark vignette while the BOSS banner is up
+		self.BossVignetteUntil = os.clock() + GameConfig.Feel.BossVignette
+	end
+end
+
+-- a regular enemy POPS when it dies: a ball of its colour swells x PopScale, then shrinks to
+-- nothing (GameConfig.Feel); its kill effect throws the few particles
+function EffectsController:Pop(pos: Vector3, size: number, color: Color3)
+	if #self.Pops >= 40 then
+		return
+	end
+	local ball = table.remove(self.PopFree)
+	if not ball then
+		ball = Instance.new("Part")
+		ball.Name = "DeathPop"
+		ball.Shape = Enum.PartType.Ball
+		ball.Material = Enum.Material.SmoothPlastic
+		ball.Anchored = true
+		ball.CanCollide = false
+		ball.CanQuery = false
+		ball.CanTouch = false
+		ball.CastShadow = false
+		ball.Parent = self.Anchor
+	end
+	ball.CFrame = CFrame.new(pos)
+	table.insert(self.Pops, { Part = ball, T = 0, Size = size, Color = color })
 end
 
 -- a boss's WEAK POINT opened: say it over its head
@@ -80703,6 +80800,7 @@ end
 function EffectsController:Revived(_p)
 	local pos = playerPos()
 	self:Flash(rgb(255, 150, 220), 0.6)
+	self.C.CameraController:FovPulse(GameConfig.Feel.FovPulse * 2, 0.8)
 	self.C.SoundController:Play("Revive")
 	if pos then
 		self:Ring(pos - Vector3.new(0, 2.5, 0), 25, rgb(255, 120, 220), 0.6)
@@ -80726,7 +80824,9 @@ function EffectsController:Update(dt: number)
 			numbers[i] = numbers[#numbers]
 			numbers[#numbers] = nil
 		else
-			local pop = if t < 0.15 then 1 + (1 - t / 0.15) * 0.6 else 1
+			-- a springy grow (Back easing overshoots a little), then it floats up and fades
+			local grow = n.T / 0.22
+			local pop = if grow < 1 then 0.35 + 0.65 * TweenService:GetValue(grow, Enum.EasingStyle.Back, Enum.EasingDirection.Out) else 1
 			n.Gui.StudsOffsetWorldSpace = Vector3.new(0, 2 + t * 3.5, 0)
 			n.Gui.Size = UDim2.fromOffset(n.BaseW * pop, n.BaseW * 0.43 * pop)
 			if t > 0.6 then
@@ -80783,7 +80883,32 @@ function EffectsController:Update(dt: number)
 		end
 	end
 
-	-- low HP vignette
+	-- death pops
+	local pops = self.Pops
+	local popLife = GameConfig.Feel.DeathPop
+	local popScale = GameConfig.Feel.PopScale
+	i = 1
+	while i <= #pops do
+		local p = pops[i]
+		p.T += dt
+		local t = p.T / popLife
+		if t >= 1 then
+			p.Part.CFrame = PARK
+			table.insert(self.PopFree, p.Part)
+			pops[i] = pops[#pops]
+			pops[#pops] = nil
+		else
+			-- 1 -> PopScale in the first 30%, then down to nothing
+			local k = if t < 0.3 then 1 + (popScale - 1) * TweenService:GetValue(t / 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+				else popScale * (1 - TweenService:GetValue((t - 0.3) / 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+			local d = math.max(0.05, p.Size * k)
+			p.Part.Size = Vector3.new(d, d, d)
+			p.Part.Color = p.Color:Lerp(rgb(255, 255, 255), if t < 0.3 then t / 0.3 * 0.5 else 0.5)
+			i += 1
+		end
+	end
+
+	-- low HP vignette (red); a dark one while a boss arrives
 	local run = self.C.RunClient
 	local target = 0
 	if run.Active and run.MaxHP > 0 then
@@ -80792,9 +80917,17 @@ function EffectsController:Update(dt: number)
 			target = (0.35 - frac) / 0.35 * (0.55 + 0.25 * math.sin(os.clock() * 6))
 		end
 	end
+	local boss = os.clock() < self.BossVignetteUntil
+	if boss then
+		target = math.max(target, 0.6)
+	end
 	self.VignetteLevel += (target - self.VignetteLevel) * math.min(1, dt * 6)
+	local tint = if boss then rgb(20, 8, 30) else rgb(255, 20, 40)
 	for _, f in self.Vignette do
 		f.BackgroundTransparency = 1 - self.VignetteLevel
+		if f.BackgroundColor3 ~= tint then
+			f.BackgroundColor3 = tint
+		end
 	end
 end
 
@@ -80831,8 +80964,11 @@ local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local TweenService = game:GetService("TweenService")
+
 local Shared = ReplicatedStorage:WaitForChild("Modules")
 local Protocol = require(Shared.Protocol)
+local GameConfig = require(Shared.GameConfig)
 
 local Pool = require(script.Parent.Parent.Render.Pool)
 local EnemyModels = require(script.Parent.Parent.Render.EnemyModels)
@@ -80852,6 +80988,8 @@ local RAGE = Color3.fromRGB(255, 236, 140)
 local ES = Protocol.EState
 local ELITE: Color3 -- set below (elite plates)
 local MAX_DYING = 40
+local FEEL = GameConfig.Feel
+local LAUNCH_SCALE = 1.6 -- elites and bigger are launched off screen when they die; the rest pop
 local atan2, sin, abs = math.atan2, math.sin, math.abs
 
 local function poolKey(def, flags: number): string
@@ -80877,7 +81015,8 @@ end
 -- golden, elite); mid-run the pool is trimmed harder once too many models sit parked
 local PARKED_BUDGET = 96
 local function keepBetweenRuns(key: string): number
-	return if string.sub(key, -1) == ":" then 24 else 6
+	-- (12 of a kind: the bestiary has many kinds, a next run meets other ones)
+	return if string.sub(key, -1) == ":" then 12 else 6
 end
 local function keepMidRun(key: string): number
 	return if string.sub(key, -1) == ":" then 4 else 1
@@ -80887,6 +81026,7 @@ function EnemyRenderer:Init(controllers)
 	self.C = controllers
 	self.List = {}
 	self.Dying = {}
+	self.FlashBudget = FEEL.HitFlashPerFrame -- (white hit flashes per frame; refilled every frame)
 	self.Parts = {}
 	self.CFrames = {}
 	local folder = Instance.new("Folder")
@@ -80899,6 +81039,17 @@ function EnemyRenderer:Init(controllers)
 	end)
 end
 
+-- the colours of a model's parts, for the white hit flash (cached once, from the fresh model)
+local function cacheColors(item)
+	if not item.Info.Colors then
+		local colors = {}
+		for i, p in item.Info.Parts do
+			colors[i] = p.Color
+		end
+		item.Info.Colors = colors
+	end
+end
+
 function EnemyRenderer:Add(e)
 	local item = self.Pool:Acquire(poolKey(e.Def, e.Flags))
 	e.Item = item
@@ -80906,6 +81057,16 @@ function EnemyRenderer:Add(e)
 	e.Yaw = math.random() * 6.28
 	e.RX, e.RZ = e.X1, e.Z1
 	e.Sky = if bit32.band(e.Flags, FLAGS.FromSky) ~= 0 then 0.55 else 0
+	-- it pops out of the ground (Back easing) with a small puff (a few per second)
+	if e.Sky == 0 and not e.Def.Boss then
+		local now = os.clock()
+		e.Born = now
+		if now >= (self.PuffAt or 0) then
+			self.PuffAt = now + 1 / FEEL.SpawnPuffs
+			self.C.EffectsController:Poof(e.X1, e.Z1, Color3.fromRGB(200, 190, 175), 3)
+		end
+	end
+	cacheColors(item)
 	table.insert(self.List, e)
 	e.Index = #self.List
 	if e.Def.Champion or e.Def.MiniBoss then
@@ -81127,6 +81288,8 @@ function EnemyRenderer:UpdatePlates()
 	end
 end
 
+local unflash -- (below)
+
 local function unlist(self, e)
 	local list = self.List
 	local i = e.Index
@@ -81158,12 +81321,21 @@ function EnemyRenderer:Remove(e, cause: number)
 		return
 	end
 	e.Item = nil
+	if e.FlashParts then
+		unflash(e, item)
+	end
 	if item.Root.Color ~= item.Info.BodyColor then
 		item.Root.Color = item.Info.BodyColor
 	end
 	fade(item, 0)
 	EnemyModels.Reset(item) -- affixes, toggled parts, phase looks: back to the pooled model
-	if cause == 0 and #self.Dying < MAX_DYING and self.C.EffectsController:Quality() then
+	if cause == 0 and item.Info.Scale < LAUNCH_SCALE and self.C.EffectsController:Quality() then
+		-- a regular enemy POPS (EffectsController:Pop) and its model goes back to the pool
+		local run = self.C.RunClient
+		local h = item.Info.Height
+		self.C.EffectsController:Pop(run:World(e.RX, e.RZ, h), h * 2, item.Info.BodyColor)
+		self.Pool:Release(item)
+	elseif cause == 0 and #self.Dying < MAX_DYING and self.C.EffectsController:Quality() then
 		-- launched off screen, spinning: goofy death
 		local away = Vector3.new(e.RX - (self.PX or e.RX), 0, e.RZ - (self.PZ or e.RZ))
 		if away.Magnitude < 0.01 then
@@ -81182,11 +81354,42 @@ function EnemyRenderer:Remove(e, cause: number)
 	end
 end
 
+-- a hit: the whole model flashes white for a moment (cached colours come back) and gets
+-- knocked back a little (only the look: the server moves the enemy)
+function unflash(e, item)
+	e.FlashParts = nil
+	local colors = item.Info.Colors
+	if colors then
+		for i, p in item.Info.Parts do
+			if p ~= item.Root and colors[i] then
+				p.Color = colors[i]
+			end
+		end
+	end
+end
+
 function EnemyRenderer:Flash(e)
 	local item = e.Item
-	if item and e.State ~= ES.Frozen then
-		item.Root.Color = WHITE
-		e.FlashUntil = os.clock() + 0.07
+	if not item or e.State == ES.Frozen then
+		return
+	end
+	local now = os.clock()
+	item.Root.Color = WHITE
+	e.FlashUntil = now + FEEL.HitFlash
+	if not e.FlashParts and item.Info.Colors and self.FlashBudget > 0 then
+		self.FlashBudget -= 1
+		e.FlashParts = true
+		local colors = item.Info.Colors
+		for i, p in item.Info.Parts do
+			if colors[i] then -- (parts added later, e.g. affixes, keep their colour)
+				p.Color = WHITE
+			end
+		end
+	end
+	local dx, dz = (e.RX or 0) - (self.PX or 0), (e.RZ or 0) - (self.PZ or 0)
+	local d = math.sqrt(dx * dx + dz * dz)
+	if d > 0.01 then
+		e.KickAt, e.KickX, e.KickZ = now, dx / d, dz / d
 	end
 end
 
@@ -81216,11 +81419,15 @@ function EnemyRenderer:Reskin(e)
 	if not old then
 		return
 	end
+	if e.FlashParts then
+		unflash(e, old)
+	end
 	old.Root.Color = old.Info.BodyColor
 	fade(old, 0)
 	EnemyModels.Reset(old)
 	self.Pool:Release(old)
 	e.Item = self.Pool:Acquire(poolKey(e.Def, e.Flags))
+	cacheColors(e.Item)
 	self.C.EffectsController:Poof(e.RX, e.RZ, Color3.fromRGB(200, 120, 255), 6)
 end
 
@@ -81230,6 +81437,9 @@ function EnemyRenderer:Clear()
 	end
 	for _, e in self.List do
 		if e.Item then
+			if e.FlashParts then
+				unflash(e, e.Item)
+			end
 			EnemyModels.Reset(e.Item)
 			self.Pool:Release(e.Item)
 			e.Item = nil
@@ -81258,6 +81468,7 @@ function EnemyRenderer:Update(dt: number)
 		px, pz = root.Position.X - center.X, root.Position.Z - center.Z
 	end
 	self.PX, self.PZ = px, pz
+	self.FlashBudget = FEEL.HitFlashPerFrame
 	local paused = run.Paused
 	local turn = math.min(1, 10 * dt)
 	-- procedural animation (Render/EnemyAnimator): a plain bob in a big crowd, parts only near you
@@ -81350,8 +81561,32 @@ function EnemyRenderer:Update(dt: number)
 				e.Sky = math.max(0, e.Sky - dt)
 				y += e.Sky * e.Sky * 140
 			end
+			-- spawn: it rises out of the ground with a little overshoot
+			if e.Born then
+				local t = (now - e.Born) / FEEL.SpawnRise
+				if t >= 1 then
+					e.Born = nil
+				else
+					local k = TweenService:GetValue(t, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+					y -= (1 - k) * info.Height * 2
+				end
+			end
+			-- hit recoil
+			if e.KickAt then
+				local t = (now - e.KickAt) / 0.12
+				if t >= 1 then
+					e.KickAt = nil
+				else
+					local r = FEEL.Recoil * (1 - t) * math.min(scale, 1.5)
+					ox += e.KickX * r
+					oz += e.KickZ * r
+				end
+			end
 			if e.FlashUntil and now >= e.FlashUntil then
 				e.FlashUntil = nil
+				if e.FlashParts then
+					unflash(e, item)
+				end
 				if state ~= ES.Frozen and state ~= ES.Lit then
 					item.Root.Color = info.BodyColor
 				end
@@ -82903,6 +83138,7 @@ function HudController:ShowBoss(boss)
 	self.BossPanel.Visible = true
 	self.BossBar:Set(1)
 	Kit.Appear(self.BossPanel)
+	Kit.FadeIn(self.BossPanel, GameConfig.Feel.BossBarFade) -- the boss bar fades in under the banner
 end
 
 function HudController:HideBoss()
@@ -83464,10 +83700,10 @@ function LevelUpController:BuildCard(card, index: number, _count: number)
 		self:Pick(index)
 	end)
 
-	-- soft staggered appear
-	scale.Scale = 0.9
-	task.delay(0.05 * index, function()
-		Kit.Tween(scale, 0.22, { Scale = 1 })
+	-- staggered spring: each card pops up a little after the one before (the row slides up: Show)
+	scale.Scale = 0.85
+	task.delay(0.06 * index, function()
+		Kit.Tween(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 	end)
 	if rare then
 		task.delay(0.05 * index + 0.15, function()
@@ -83496,6 +83732,11 @@ function LevelUpController:Show(offer)
 	self.RerollLabel.TextColor3 = C.Text
 	local wasOpen = self.Gui.Enabled
 	self.Gui.Enabled = true
+	-- the row of cards slides up with a spring (GameConfig.Feel CardSlide)
+	local home = self.CardsHome or self.Cards.Position
+	self.CardsHome = home
+	self.Cards.Position = home + UDim2.fromOffset(0, 70)
+	Kit.Tween(self.Cards, GameConfig.Feel.CardSlide, { Position = home }, Enum.EasingStyle.Back)
 	if not wasOpen then
 		Kit.Appear(self.Title)
 		Kit.Blur("levelup", 10)
@@ -83523,9 +83764,12 @@ function LevelUpController:Pick(index: number)
 		return
 	end
 	self:Lock()
-	local card = self.Cards:FindFirstChild("Card" .. index)
-	if card then
-		Kit.Pop(card :: GuiObject, 0.15)
+	-- the chosen card grows, the others step back
+	for _, other in self.Cards:GetChildren() do
+		local s = other:IsA("GuiObject") and other:FindFirstChildOfClass("UIScale")
+		if s then
+			Kit.Tween(s, 0.2, { Scale = if other.Name == "Card" .. index then 1.08 else 0.94 }, Enum.EasingStyle.Back)
+		end
 	end
 	self.C.ClientData:Fire("Choose", index)
 end
@@ -85217,8 +85461,9 @@ return MinimapController
 	PickupRenderer - XP gems, pickups (snack, magnet, bomb, chest, 67 chest, coins, fragments)
 	and the helper goobers (Goober Friends).
 
-	Gems are pooled neon crystals (colour = tier) that sit still (cheap) and fly into the player
-	when collected. Items bob and spin (there are only a few). Allies are small goobers moved
+	Gems are pooled neon crystals (colour = tier) that hop out of a defeated enemy in a little
+	arc (GameConfig.Feel DropArc), then sit still (cheap) and fly into the player with an ease-in
+	when collected; coins hop out the same way. Items bob and spin (there are only a few). Allies are small goobers moved
 	with interpolation, like enemies.
 ]]
 
@@ -85396,6 +85641,7 @@ function PickupRenderer:Init(controllers)
 	self.Gems = {} -- id -> { Part, X, Z, Tier }
 	self.GemFree = {}
 	self.Flying = {}
+	self.Dropping = {} -- gems hopping out of an enemy
 	self.Items = {}
 	self.ItemFree = {}
 	self.Allies = {}
@@ -85428,11 +85674,19 @@ function PickupRenderer:AddGem(id: number, x: number, z: number, tier: number)
 	p.Size = Vector3.new(s, s, s)
 	p.Color = GEM_COLORS[tier] or GEM_COLORS[1]
 	local run = self.C.RunClient
-	p.CFrame = CFrame.new(run:World(x, z, 1 + s * 0.4)) * GEM_ROT
-	self.Gems[id] = { Part = p, X = x, Z = z, Tier = tier }
+	local base = CFrame.new(run:World(x, z, 1 + s * 0.4)) * GEM_ROT
+	p.CFrame = base
+	local g = { Part = p, X = x, Z = z, Tier = tier }
+	self.Gems[id] = g
+	-- a little hop out of the enemy (a few dozen at most; the rest just appear)
+	if #self.Dropping < 80 then
+		g.Base = base
+		table.insert(self.Dropping, { Gem = g, T = 0 })
+	end
 end
 
 function PickupRenderer:ReleaseGem(g)
+	g.Base = nil
 	g.Part.CFrame = PARK
 	table.insert(self.GemFree, g.Part)
 end
@@ -85440,6 +85694,7 @@ end
 function PickupRenderer:GemTier(id: number, tier: number)
 	local g = self.Gems[id]
 	if g then
+		g.Base = nil
 		g.Tier = tier
 		local s = GEM_SIZES[tier] or 1
 		g.Part.Size = Vector3.new(s, s, s)
@@ -85454,6 +85709,7 @@ function PickupRenderer:TakeGem(id: number)
 		return
 	end
 	self.Gems[id] = nil
+	g.Base = nil
 	if #self.Flying < 60 then
 		table.insert(self.Flying, { Part = g.Part, From = g.Part.Position, T = 0, Gem = g })
 	else
@@ -85480,6 +85736,7 @@ function PickupRenderer:AddItem(id: number, kind: string, x: number, z: number)
 	entry.X, entry.Z = x, z
 	entry.Phase = math.random() * 6
 	entry.Id = id
+	entry.Born = os.clock() -- it hops out (Update)
 	self.Items[id] = entry
 	if kind == "Chest" or kind == "Chest67" then
 		self.C.EffectsController:Poof(x, z, rgb(255, 215, 60), 12)
@@ -85529,6 +85786,7 @@ function PickupRenderer:Clear()
 		self:ReleaseGem(f.Gem)
 	end
 	table.clear(self.Flying)
+	table.clear(self.Dropping)
 	for id in self.Items do
 		self:TakeItem(id, false)
 	end
@@ -85556,9 +85814,30 @@ function PickupRenderer:Update(dt: number)
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	local now = os.clock()
 
+	-- fresh gems hop out in an arc
+	local arc = GameConfig.Feel.DropArc
+	local dropping = self.Dropping
+	local i = 1
+	while i <= #dropping do
+		local d = dropping[i]
+		d.T += dt / arc
+		local g = d.Gem
+		if d.T >= 1 or not g.Base then
+			if g.Base then
+				g.Part.CFrame = g.Base -- landed
+				g.Base = nil
+			end
+			dropping[i] = dropping[#dropping]
+			dropping[#dropping] = nil
+		else
+			g.Part.CFrame = g.Base + Vector3.new(0, math.sin(d.T * math.pi) * 2.4, 0)
+			i += 1
+		end
+	end
+
 	-- collected gems fly into the player
 	local flying = self.Flying
-	local i = 1
+	i = 1
 	while i <= #flying do
 		local f = flying[i]
 		f.T += dt / 0.22
@@ -85574,9 +85853,17 @@ function PickupRenderer:Update(dt: number)
 		end
 	end
 
-	-- items bob and spin
+	-- items bob and spin (a coin hops out first)
 	for _, entry in self.Items do
 		local bob = math.sin(now * 3 + entry.Phase) * 0.35
+		if entry.Born then
+			local t = (now - entry.Born) / arc
+			if t >= 1 then
+				entry.Born = nil
+			else
+				bob += math.sin(t * math.pi) * 2.4
+			end
+		end
 		local spin = now * 2 + entry.Phase
 		entry.Root.CFrame = CFrame.new(run:World(entry.X, entry.Z, 2 + bob)) * CFrame.Angles(0, spin, 0)
 	end
@@ -93422,6 +93709,36 @@ function Kit.Pop(guiObject: GuiObject, amount: number?)
 	Kit.Tween(scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
 end
 
+-- Fades a whole panel in (it and everything inside it, from invisible to how it was built)
+local FADE_PROPS = {
+	Frame = { "BackgroundTransparency" },
+	TextLabel = { "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency" },
+	TextButton = { "BackgroundTransparency", "TextTransparency" },
+	ImageLabel = { "BackgroundTransparency", "ImageTransparency" },
+	UIStroke = { "Transparency" },
+}
+function Kit.FadeIn(root: Instance, duration: number)
+	local list = root:GetDescendants()
+	table.insert(list, root)
+	for _, obj in list do
+		local props = FADE_PROPS[obj.ClassName]
+		if props then
+			local goal = {}
+			for _, prop in props do
+				local key = "Fade" .. prop
+				local base = obj:GetAttribute(key)
+				if base == nil then
+					base = (obj :: any)[prop]
+					obj:SetAttribute(key, base)
+				end
+				(obj :: any)[prop] = 1
+				goal[prop] = base
+			end
+			Kit.Tween(obj, duration, goal, Enum.EasingStyle.Sine)
+		end
+	end
+end
+
 -- Soft appear: fade + slight grow
 function Kit.Appear(guiObject: GuiObject)
 	local scale = guiObject:FindFirstChildOfClass("UIScale")
@@ -93744,8 +94061,7 @@ function Panel.Build(body: Frame, controllers)
 				Size = UDim2.new(1, -24, 0, 16),
 				Position = UDim2.fromOffset(12, 214),
 				Font = F.Bold,
-				TextScaled = false,
-				TextSize = 13,
+				MaxTextSize = 13, -- (shrinks a little on narrow cards instead of spilling out)
 				TextColor3 = (def.Color or C.Text):Lerp(Color3.new(1, 1, 1), 0.45),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				Parent = ui.Card,
@@ -97620,8 +97936,6 @@ end
 ---------------------------------------------------------------------------
 -- PREMIUM abilities (shared/WeaponData.lua Premium): golden, glowing, a little 67
 ---------------------------------------------------------------------------
-local GOLD = rgb(255, 205, 60)
-
 -- a digit made of neon bars (7 segments), centred at `at`, facing the camera (+Z)
 local SEGMENTS = { ["6"] = "acdefg", ["7"] = "abc" }
 local function digit(vf, ch: string, c: Color3, at: CFrame, h: number)
@@ -97645,7 +97959,7 @@ function KINDS.Solar(vf, c)
 	local beam = part(vf, Vector3.new(4.6, 1.1, 1.1), c, CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), CYL, NEON)
 	beam.Transparency = 0.1
 	part(vf, Vector3.new(4.8, 0.45, 0.45), rgb(255, 250, 220), CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), CYL, NEON)
-	ring(vf, c, 3.4, -2)
+	ring(vf, c, 2.4, -2).Transparency = 0.5
 	digit(vf, "6", rgb(255, 140, 40), CFrame.new(-1.6, 1, 0.4), 0.9)
 	digit(vf, "7", rgb(255, 140, 40), CFrame.new(1.6, 1.4, 0.4), 0.9)
 end
@@ -97707,11 +98021,15 @@ function KINDS.Storm(vf, c)
 end
 
 function KINDS.Crown(vf, c)
-	ring(vf, c, 4)
-	ring(vf, rgb(255, 240, 180), 3.6).Transparency = 0.5
-	digit(vf, "6", c, CFrame.new(-1.6, 0.2, 0.6), 1.1)
-	digit(vf, "7", c, CFrame.new(1.6, 0.2, 0.6), 1.1)
-	part(vf, Vector3.new(0.8, 0.8, 0.8), rgb(255, 250, 230), CFrame.new(0, 0, 0), BALL, NEON)
+	-- a tilted ring of golden beads with a 6 and a 7 riding on it
+	local tilt = CFrame.Angles(math.rad(-62), 0, 0)
+	for i = 1, 16 do
+		local a = i * math.pi * 2 / 16
+		part(vf, Vector3.new(0.4, 0.4, 0.4), c, tilt * CFrame.new(math.cos(a) * 2.3, 0, math.sin(a) * 2.3), BALL, NEON)
+	end
+	digit(vf, "6", rgb(255, 240, 180), CFrame.new(-1.4, 0.5, 1.4), 1)
+	digit(vf, "7", rgb(255, 240, 180), CFrame.new(1.4, 0.5, 1.4), 1)
+	part(vf, Vector3.new(0.9, 0.9, 0.9), rgb(255, 250, 230), CFrame.new(0, -0.2, 0), BALL, NEON)
 end
 
 function Previews.Weapon(parent: Instance, key: string, props: { [string]: any }?): ViewportFrame
@@ -97723,11 +98041,6 @@ function Previews.Weapon(parent: Instance, key: string, props: { [string]: any }
 		build(vf, color, def)
 	else
 		part(vf, Vector3.new(1.6, 1.6, 1.6), color, CFrame.new(), BALL, NEON)
-	end
-	if def and def.Premium then
-		-- premium abilities float over a golden ring
-		local p = part(vf, Vector3.new(0.1, 4.6, 4.6), GOLD, CFrame.new(0, -2.1, 0) * CFrame.Angles(math.rad(80), 0, 0) * UP, CYL, NEON)
-		p.Transparency = 0.25
 	end
 	if def and def.Evolution then
 		-- evolved forms sit on a glowing Mythic ring
