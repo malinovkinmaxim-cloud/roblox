@@ -19,6 +19,7 @@ local Players = game:GetService("Players")
 
 local Kit = require(script.Parent.Parent.UI.Kit)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local Widgets = require(script.Parent.Parent.UI.Widgets)
 
 local BannerController = {}
 
@@ -349,8 +350,14 @@ function BannerController:Toast(text: string, kind: string?, sub: string?)
 	local color = Theme.ToastColors[kind or "Info"] or Theme.ToastColors.Info
 	self:PlaceToasts()
 	self.ToastOrder += 1
+	-- a long line (a boss tip) wraps onto up to 4 lines at a readable size and stays longer
+	local width = self.ToastWidth or 400
+	local lines = 1
+	if sub and #sub > 50 then
+		lines = math.clamp(math.ceil(Widgets.TextWidth(sub, 13, Theme.Fonts.Medium) / (width - 52) + 0.15), 1, 4)
+	end
 	local frame = Kit.Panel({
-		Size = UDim2.fromOffset(self.ToastWidth or 400, if sub then 56 else 40),
+		Size = UDim2.fromOffset(width, if sub then 40 + 16 * lines else 40),
 		BackgroundTransparency = Theme.GlassStrong,
 		LayoutOrder = self.ToastOrder,
 		Radius = 12,
@@ -379,12 +386,16 @@ function BannerController:Toast(text: string, kind: string?, sub: string?)
 	if sub then
 		Kit.Label({
 			Text = sub,
-			Size = UDim2.new(1, -52, 0, 16),
+			Size = UDim2.new(1, -52, 0, 16 * lines),
 			Position = UDim2.fromOffset(34, 31),
 			Font = Theme.Fonts.Medium,
 			MaxTextSize = 14,
+			TextScaled = lines == 1,
+			TextSize = 13,
+			TextWrapped = lines > 1,
 			TextColor3 = C.TextDim,
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
 			Parent = frame,
 		})
 	end
@@ -411,7 +422,7 @@ function BannerController:Toast(text: string, kind: string?, sub: string?)
 	elseif kind == "Error" then
 		self.C.SoundController:Play("Error")
 	end
-	task.delay(3.2, function()
+	task.delay(3.2 + (lines - 1) * 1.5, function()
 		if frame.Parent then
 			frame:Destroy()
 		end
